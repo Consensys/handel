@@ -9,6 +9,9 @@ type Handel struct {
 	net Network
 	// Registry holding access to all Handel node's identities
 	reg Registry
+	// callback that gets called whenever a valid final multisignature is
+	// generated
+	callback func(BitSet, MultiSignature)
 }
 
 // NewHandel returns a Handle interface that uses the given network and
@@ -26,4 +29,10 @@ func NewHandel(n Network, r Registry, conf ...*Config) *Handel {
 		h.c = DefaultConfig(r.Size())
 	}
 	return h
+}
+
+// SetCallback sets the callback that is called whenever a valid final
+// multi-signature is generated.
+func (h *Handel) SetCallback(fn func(BitSet, MultiSignature)) {
+	h.callback = fn
 }
