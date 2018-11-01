@@ -19,8 +19,15 @@ type Listener interface {
 	NewPacket(*Packet)
 }
 
+// Packet is the general packet that Handel sends out and expects to receive
+// from the Network.
 type Packet struct {
 	Origin int
 	Level  int
 	Sig    MultiSignature
+}
+
+// MarshalBinary implements the go BinaryMarshaler interface
+func (p *Packet) MarshalBinary() ([]byte, error) {
+	panic("not implemented yet")
 }
