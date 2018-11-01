@@ -1,0 +1,17 @@
+version: 2
+
+jobs:
+
+    build:
+
+        working_directory: /go/src/github.com/ConsenSys/handel
+
+        docker:
+            - image: circleci/golang:latest
+
+        steps:
+            - checkout
+            - run:
+                name: "Testing Handel"
+                command: go test -v ./...
+
