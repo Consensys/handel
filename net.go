@@ -1,5 +1,10 @@
 package handel
 
+import (
+	"bytes"
+	"encoding/binary"
+)
+
 // Network is the interface that must be given to Handel to communicate with
 // other Handel instances. A Network implementation does not need to provide any
 // transport layer guarantees (such as delivery or in-order).
@@ -22,12 +27,32 @@ type Listener interface {
 // Packet is the general packet that Handel sends out and expects to receive
 // from the Network.
 type Packet struct {
-	Origin int
-	Level  int
-	Sig    MultiSignature
+	Origin    int
+	Level     int
+	Signature []byte
 }
 
 // MarshalBinary implements the go BinaryMarshaler interface
 func (p *Packet) MarshalBinary() ([]byte, error) {
-	panic("not implemented yet")
+	var buffer bytes.Buffer
+	binary.Write(&buffer, binary.BigEndian, p.Origin)
+	binary.Write(&buffer, binary.BigEndian, p.Level)
+	buffer.Write(p.Signature)
+	return buffer.Bytes(), nil
+}
+
+// UnmarshalBinary implements the go BinaryUnmarshaler interface
+func (p *Packet) UnmarshalBinary(buff []byte) error {
+	var buffer = bytes.NewBuffer(buff)
+
+	err := binary.Read(buffer, binary.BigEndian, p.Origin)
+	if err != nil {
+		return err
+	}
+	err = binary.Read(buffer, binary.BigEndian, p.Level)
+	if err != nil {
+		return err
+	}
+	p.Signature = buffer.Bytes()
+	return nil
 }
