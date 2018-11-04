@@ -8,9 +8,15 @@ import (
 
 type fakePublic struct{}
 
-func (f *fakePublic) String() string               { return "fake public key" }
-func (f *fakePublic) VerifySignature([]byte) error { return nil }
-func (f *fakePublic) Combine(PublicKey) PublicKey  { return f }
+func (f *fakePublic) String() string {
+	return "fake public key"
+}
+func (f *fakePublic) VerifySignature([]byte, MultiSignature) error {
+	return nil
+}
+func (f *fakePublic) Combine(PublicKey) PublicKey {
+	return f
+}
 
 type fakeIdentity struct{}
 
