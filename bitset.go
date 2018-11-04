@@ -4,8 +4,7 @@ import (
 	"github.com/willf/bitset"
 )
 
-// BitSet is .. a bitset !
-// TODO: replace it by a struct that implements that interface.
+// BitSet is a bitset !
 type BitSet interface {
 	// BItLength returns the fixed size of this BitSet
 	BitLength() int
