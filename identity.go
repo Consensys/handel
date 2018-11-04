@@ -2,11 +2,9 @@ package handel
 
 // Identity holds the public informations of a Handel node
 type Identity interface {
-	// Index returns the index in the global list of all nodes
-	// XXX Un-necessary for now, let's see later
-	//Index() int
+	Address() string
 	// PublicKey returns the public key associated with that given node
-	PublicKey()
+	PublicKey() PublicKey
 }
 
 // Registry abstracts the bookeeping of the list of Handel nodes
@@ -16,8 +14,9 @@ type Registry interface {
 	// Identity returns the identity at this index in the registry, or
 	// (nil,false) if the index is out of bound.
 	Identity(int) (Identity, bool)
-	// XXX May be overkill this early in the library...
-	// Identities(from, to int) ([]Identity, bool)
+	// Identities is similar to Identity but returns an array instead that
+	// includes nodes whose IDs are between from inclusive and to exclusive.
+	Identities(from, to int) ([]Identity, bool)
 }
 
 // arrayRegistry is a Registry that uses a fixed size array as backend
@@ -41,4 +40,18 @@ func (a *arrayRegistry) Identity(idx int) (Identity, bool) {
 		return nil, false
 	}
 	return a.ids[idx], true
+}
+
+func (a *arrayRegistry) Identities(from, to int) ([]Identity, bool) {
+	if !a.inBound(from) || !a.inBound(to) {
+		return nil, false
+	}
+	if to < from {
+		return nil, false
+	}
+	return a.ids[from:to], true
+}
+
+func (a *arrayRegistry) inBound(idx int) bool {
+	return !(idx < 0 || idx > len(a.ids))
 }

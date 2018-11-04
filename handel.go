@@ -32,6 +32,8 @@ func NewHandel(n Network, r Registry, s SecretKey, msg []byte,
 	}
 
 	if len(conf) > 0 && conf[0] != nil {
+		// XXX Replace to method that checks which fields are set, and use
+		// defaults value for fields not set.
 		h.c = conf[0]
 	} else {
 		h.c = DefaultConfig(r.Size())

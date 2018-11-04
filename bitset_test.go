@@ -15,27 +15,30 @@ type bitsetTest struct {
 	setBits     []int
 }
 
-var tests = []bitsetTest{
-	{func() BitSet { return nb(10) }, 10, 0, []int{}},
-	{
-		func() BitSet {
-			b := nb(10)
-			b.Set(0, true)
-			b.Set(1, true)
-			return b
-		}, 10, 2, []int{0, 1},
-	},
-	{
-		func() BitSet {
-			b := nb(10)
-			b.Set(11, true)
-			b.Set(3, true)
-			return b
-		}, 10, 1, []int{3},
-	},
+func TestBitSetWilff(t *testing.T) {
+	var tests = []bitsetTest{
+		{func() BitSet { return nb(10) }, 10, 0, []int{}},
+		{
+			func() BitSet {
+				b := nb(10)
+				b.Set(0, true)
+				b.Set(1, true)
+				return b
+			}, 10, 2, []int{0, 1},
+		},
+		{
+			func() BitSet {
+				b := nb(10)
+				b.Set(11, true)
+				b.Set(3, true)
+				return b
+			}, 10, 1, []int{3},
+		},
+	}
+	testBitSets(t, tests)
 }
 
-func TestBitSetWilff(t *testing.T) {
+func testBitSets(t *testing.T, tests []bitsetTest) {
 	for _, tt := range tests {
 		bitset := tt.fb()
 		require.Equal(t, tt.bitlength, bitset.BitLength())
@@ -44,4 +47,5 @@ func TestBitSetWilff(t *testing.T) {
 			require.True(t, bitset.Get(idx))
 		}
 	}
+
 }
