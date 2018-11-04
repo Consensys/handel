@@ -25,9 +25,14 @@ type Listener interface {
 	NewPacket(*Packet)
 }
 
+type Packet struct {
+	Origin    int
+	Level     int
+	Signature []byte
+}
 ```
-As you can see, Handel only needs to know how to send messages and how to get
-incoming messages. Handel's main structure `Handel` implements the `Listener`
+As you can see, Handel only needs to know how to send `Packet`s and how to get
+incoming `Packet`s. Handel's main structure `Handel` implements the `Listener`
 interface.
 
 # Identities 
