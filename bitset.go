@@ -33,28 +33,28 @@ type BitSet interface {
 }
 
 // implementation of a BitSet using the wilff library.
-type wilffBitset struct {
+type WilffBitSet struct {
 	b *bitset.BitSet
 	l int
 }
 
 // NewWilffBitset returns a BitSet implemented using the wilff's bitset library.
 func NewWilffBitset(length int) BitSet {
-	return &wilffBitset{
+	return &WilffBitSet{
 		b: bitset.New(uint(length)),
 		l: length,
 	}
 }
 
-func (w *wilffBitset) BitLength() int {
+func (w *WilffBitSet) BitLength() int {
 	return w.l
 }
 
-func (w *wilffBitset) Cardinality() int {
+func (w *WilffBitSet) Cardinality() int {
 	return int(w.b.Count())
 }
 
-func (w *wilffBitset) Set(idx int, status bool) {
+func (w *WilffBitSet) Set(idx int, status bool) {
 	if !w.inBound(idx) {
 		// do nothing if out of bounds
 		return
@@ -62,18 +62,18 @@ func (w *wilffBitset) Set(idx int, status bool) {
 	w.b = w.b.SetTo(uint(idx), status)
 }
 
-func (w *wilffBitset) Get(idx int) bool {
+func (w *WilffBitSet) Get(idx int) bool {
 	if !w.inBound(idx) {
 		return false
 	}
 	return w.b.Test(uint(idx))
 }
 
-func (w *wilffBitset) Combine(b2 BitSet) BitSet {
+func (w *WilffBitSet) Combine(b2 BitSet) BitSet {
 	// XXX Panics if used wrongly at the moment. Could be possible to use other
 	// implementations by using the interface's method and implementing or
 	// ourselves.
-	w2 := b2.(*wilffBitset)
+	w2 := b2.(*WilffBitSet)
 	totalLength := w.l + w2.l
 	w3 := NewWilffBitset(totalLength)
 	for i := 0; i < w.l; i++ {
@@ -85,7 +85,7 @@ func (w *wilffBitset) Combine(b2 BitSet) BitSet {
 	return w
 }
 
-func (w *wilffBitset) Slice(from, to int) BitSet {
+func (w *WilffBitSet) Slice(from, to int) BitSet {
 	if !w.inBound(from) || to < from || to > w.l {
 		return w
 	}
@@ -97,12 +97,12 @@ func (w *wilffBitset) Slice(from, to int) BitSet {
 	return w2
 }
 
-func (w *wilffBitset) inBound(idx int) bool {
+func (w *WilffBitSet) inBound(idx int) bool {
 	return !(idx < 0 || idx >= w.l)
 }
 
 // marshal the size first and then the bitset
-func (w *wilffBitset) MarshalBinary() ([]byte, error) {
+func (w *WilffBitSet) MarshalBinary() ([]byte, error) {
 	var b bytes.Buffer
 	err := binary.Write(&b, binary.BigEndian, uint16(w.l))
 	if err != nil {
@@ -116,7 +116,7 @@ func (w *wilffBitset) MarshalBinary() ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-func (w *wilffBitset) UnmarshalBinary(buff []byte) error {
+func (w *WilffBitSet) UnmarshalBinary(buff []byte) error {
 	var b = bytes.NewBuffer(buff)
 	var length uint16
 	err := binary.Read(b, binary.BigEndian, &length)

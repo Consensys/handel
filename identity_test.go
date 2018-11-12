@@ -6,23 +6,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type fakePublic struct{}
-
-func (f *fakePublic) String() string {
-	return "fake public key"
-}
-func (f *fakePublic) VerifySignature([]byte, Signature) error {
-	return nil
-}
-func (f *fakePublic) Combine(PublicKey) PublicKey {
-	return f
-}
-
-type fakeIdentity struct{}
-
-func (f *fakeIdentity) Address() string      { return "fake identity" }
-func (f *fakeIdentity) PublicKey() PublicKey { return new(fakePublic) }
-
 type registryTest struct {
 	reg          func() Registry
 	expectedSize int

@@ -51,13 +51,13 @@ func testBitSets(t *testing.T, tests []bitsetTest) {
 }
 
 func testBitSetWilffMarshalling(t *testing.T) {
-	b := NewWilffBitset(10).(*wilffBitset)
+	b := NewWilffBitset(10).(*WilffBitSet)
 	b.Set(1, true)
 	b.Set(4, true)
 	buff, err := b.MarshalBinary()
 	require.NoError(t, err)
 
-	b2 := new(wilffBitset)
+	b2 := new(WilffBitSet)
 	err = b2.UnmarshalBinary(buff)
 	require.NoError(t, err)
 

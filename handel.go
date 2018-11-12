@@ -16,8 +16,11 @@ type Handel struct {
 	scheme SignatureScheme
 	// Message that is being signed during the Handel protocol
 	msg []byte
-	// increamental aggregated signature cached by this handel node
+	// incremental aggregated signature cached by this handel node
 	aggregate Signature
+	// incremental level at which this handel node is at
+	level uint16
+	// level at which this handel node is at
 	// channel to exposes multi-signatures to the user
 	out chan MultiSignature
 }
@@ -51,13 +54,26 @@ func NewHandel(n Network, r Registry, s SignatureScheme, msg []byte,
 }
 
 // NewPacket implements the Listener interface for the network.
-func (h *Handel) NewPacket(p *Packet) {
+// It returns an error in case the packet is not a properly formatted packet or
+// contains erroneous data.
+func (h *Handel) NewPacket(p *Packet) error {
+	/*msig, err := h.parsePacket(p)*/
+	//if err != nil {
+
+	/*}*/
 	h.Lock()
 	defer h.Unlock()
+	return nil
 }
 
 // Start the Handel protocol
 func (h *Handel) Start() {
 	h.Lock()
 	defer h.Unlock()
+}
+
+// parsePacket returns the multisignature object held by the given packet, or an
+// error if the packet can't be unmarshalled.
+func (h *Handel) parsePacket(p *Packet) (*MultiSignature, error) {
+	return &MultiSignature{}, nil
 }
