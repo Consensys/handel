@@ -27,9 +27,9 @@ type Listener interface {
 // Packet is the general packet that Handel sends out and expects to receive
 // from the Network.
 type Packet struct {
-	Origin    int
-	Level     int
-	Signature []byte
+	Origin   uint16
+	Level    byte
+	MultiSig []byte
 }
 
 // MarshalBinary implements the go BinaryMarshaler interface
@@ -37,22 +37,21 @@ func (p *Packet) MarshalBinary() ([]byte, error) {
 	var buffer bytes.Buffer
 	binary.Write(&buffer, binary.BigEndian, p.Origin)
 	binary.Write(&buffer, binary.BigEndian, p.Level)
-	buffer.Write(p.Signature)
+	buffer.Write(p.MultiSig)
 	return buffer.Bytes(), nil
 }
 
 // UnmarshalBinary implements the go BinaryUnmarshaler interface
 func (p *Packet) UnmarshalBinary(buff []byte) error {
 	var buffer = bytes.NewBuffer(buff)
-
-	err := binary.Read(buffer, binary.BigEndian, p.Origin)
+	err := binary.Read(buffer, binary.BigEndian, &p.Origin)
 	if err != nil {
 		return err
 	}
-	err = binary.Read(buffer, binary.BigEndian, p.Level)
+	err = binary.Read(buffer, binary.BigEndian, &p.Level)
 	if err != nil {
 		return err
 	}
-	p.Signature = buffer.Bytes()
+	p.MultiSig = buffer.Bytes()
 	return nil
 }

@@ -1,6 +1,6 @@
 // Package bn256 allows to use Handel with the BLS signature scheme over the
 // BN256 groups. It implements the relevant Handel interfaces: PublicKey,
-// Secretkey and MultiSignature. The BN256 implementations comes from the
+// Secretkey and Signature. The BN256 implementations comes from the
 // cloudflare/bn256 package, including the base points..
 package bn256
 
@@ -72,8 +72,8 @@ func NewSignatureScheme(s handel.SecretKey) handel.SignatureScheme {
 	return &scheme{s}
 }
 
-func (s *scheme) UnmarshalSignature(buff []byte) (handel.MultiSignature, error) {
-	ms := new(multiSig)
+func (s *scheme) UnmarshalSignature(buff []byte) (handel.Signature, error) {
+	ms := new(bls)
 	return ms, ms.UnmarshalBinary(buff)
 }
 
@@ -85,12 +85,12 @@ func (p *publicKey) String() string {
 	return p.p.String()
 }
 
-// VerifySignature checks the given BLS signature sig on the message m using the
+// VerifySignature checks the given BLS signature bls on the message m using the
 // public key p by verifying that the equality e(H(m), X) == e(H(m), x*B2) ==
 // e(x*H(m), B2) == e(S, B2) holds where e is the pairing operation and B2 is
 // the base point from curve G2.
-func (p *publicKey) VerifySignature(msg []byte, sig handel.MultiSignature) error {
-	ms := sig.(*multiSig)
+func (p *publicKey) VerifySignature(msg []byte, sig handel.Signature) error {
+	ms := sig.(*bls)
 	HM, err := hashedMessage(msg)
 	if err != nil {
 		return err
@@ -138,28 +138,28 @@ func (s *secretKey) PublicKey() handel.PublicKey {
 
 // Sign creates a BLS signature S = x * H(m) on a message m using the private
 // key x. The signature S is a point on curve G1.
-func (s *secretKey) Sign(msg []byte, reader io.Reader) (handel.MultiSignature, error) {
+func (s *secretKey) Sign(msg []byte, reader io.Reader) (handel.Signature, error) {
 	hashed, err := hashedMessage(msg)
 	if err != nil {
 		return nil, err
 	}
-	sig := new(bn256.G1)
-	sig = sig.ScalarMult(hashed, s.s)
-	return &multiSig{sig}, nil
+	p := new(bn256.G1)
+	p = p.ScalarMult(hashed, s.s)
+	return &bls{p}, nil
 }
 
-type multiSig struct {
+type bls struct {
 	e *bn256.G1
 }
 
-func (m *multiSig) MarshalBinary() ([]byte, error) {
+func (m *bls) MarshalBinary() ([]byte, error) {
 	if m.e == nil {
 		return nil, errors.New("bn256: multisig can't marshal if nil")
 	}
 	return m.e.Marshal(), nil
 }
 
-func (m *multiSig) UnmarshalBinary(b []byte) error {
+func (m *bls) UnmarshalBinary(b []byte) error {
 	m.e = new(bn256.G1)
 	_, err := m.e.Unmarshal(b)
 	if err != nil {
@@ -168,11 +168,11 @@ func (m *multiSig) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-func (m *multiSig) Combine(ms handel.MultiSignature) handel.MultiSignature {
-	m2 := ms.(*multiSig)
+func (m *bls) Combine(ms handel.Signature) handel.Signature {
+	m2 := ms.(*bls)
 	res := new(bn256.G1)
 	res.Add(m.e, m2.e)
-	return &multiSig{e: res}
+	return &bls{e: res}
 }
 
 // hashedMessage returns the message hashed to G1

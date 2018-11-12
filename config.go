@@ -49,3 +49,20 @@ const DefaultCandidateCount = 10
 
 // DefaultUpdatePeriod is the default update period used by Handel.
 const DefaultUpdatePeriod = 50 * time.Millisecond
+
+func mergeWithDefault(c *Config, size int) *Config {
+	c2 := *c
+	if c.ContributionsThreshold == 0 {
+		c2.ContributionsThreshold = DefaultContributionsThreshold(size)
+	}
+	if c.CandidateCount == 0 {
+		c2.CandidateCount = DefaultCandidateCount
+	}
+	if c.LevelTimeout == 0*time.Second {
+		c2.LevelTimeout = DefaultLevelTimeout
+	}
+	if c.UpdatePeriod == 0*time.Second {
+		c2.UpdatePeriod = DefaultUpdatePeriod
+	}
+	return &c2
+}
