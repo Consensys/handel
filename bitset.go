@@ -1,12 +1,15 @@
 package handel
 
 import (
+	"bytes"
+	"encoding/binary"
+
 	"github.com/willf/bitset"
 )
 
 // BitSet is a bitset !
 type BitSet interface {
-	// BItLength returns the fixed size of this BitSet
+	// BitLength returns the fixed size of this BitSet
 	BitLength() int
 	// Cardinality returns the number of '1''s set
 	Cardinality() int
@@ -23,6 +26,10 @@ type BitSet interface {
 	// range, to excluded. If the range given is invalid, it returns the same
 	// bitset.
 	Slice(from, to int) BitSet
+	// MarshalBinary returns the binary representation of the BitSet.
+	MarshalBinary() ([]byte, error)
+	// UnmarshalBinary fills the bitset from the given buffer.
+	UnmarshalBinary([]byte) error
 }
 
 // implementation of a BitSet using the wilff library.
@@ -92,4 +99,31 @@ func (w *wilffBitset) Slice(from, to int) BitSet {
 
 func (w *wilffBitset) inBound(idx int) bool {
 	return !(idx < 0 || idx >= w.l)
+}
+
+// marshal the size first and then the bitset
+func (w *wilffBitset) MarshalBinary() ([]byte, error) {
+	var b bytes.Buffer
+	err := binary.Write(&b, binary.BigEndian, uint16(w.l))
+	if err != nil {
+		return nil, err
+	}
+	buff, err := w.b.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+	b.Write(buff)
+	return b.Bytes(), nil
+}
+
+func (w *wilffBitset) UnmarshalBinary(buff []byte) error {
+	var b = bytes.NewBuffer(buff)
+	var length uint16
+	err := binary.Read(b, binary.BigEndian, &length)
+	if err != nil {
+		return err
+	}
+
+	w.b = new(bitset.BitSet)
+	return w.b.UnmarshalBinary(b.Bytes())
 }

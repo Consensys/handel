@@ -25,10 +25,15 @@ type Listener interface {
 }
 
 // Packet is the general packet that Handel sends out and expects to receive
-// from the Network.
+// from the Network. Handel do not provide any authentication nor
+// confidentiality on Packets, it is up to the application layer to add these
+// features if relevant.
 type Packet struct {
-	Origin   uint16
-	Level    byte
+	// Origin is the ID of the sender of this packet.
+	Origin uint16
+	// Level indicates for which level this packet is for in the Handel tree.
+	Level byte
+	// MultiSig holds a MultiSignature struct.
 	MultiSig []byte
 }
 
