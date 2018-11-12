@@ -1,6 +1,10 @@
 package handel
 
-import "sync"
+import (
+	"errors"
+	"math"
+	"sync"
+)
 
 // Handel is the principal struct that performs the large scale multi-signature
 // aggregation protocol. Handel is thread-safe.
@@ -57,12 +61,13 @@ func NewHandel(n Network, r Registry, s SignatureScheme, msg []byte,
 // It returns an error in case the packet is not a properly formatted packet or
 // contains erroneous data.
 func (h *Handel) NewPacket(p *Packet) error {
-	/*msig, err := h.parsePacket(p)*/
-	//if err != nil {
-
-	/*}*/
 	h.Lock()
 	defer h.Unlock()
+
+	_, err := h.parsePacket(p)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -73,7 +78,28 @@ func (h *Handel) Start() {
 }
 
 // parsePacket returns the multisignature object held by the given packet, or an
-// error if the packet can't be unmarshalled.
+// error if the packet can't be unmarshalled, or contains erroneous data such as
+// an invalid signature or out of range origin. This method is NOT thread-safe
+// and only meant for internal use.
 func (h *Handel) parsePacket(p *Packet) (*MultiSignature, error) {
-	return &MultiSignature{}, nil
+	if p.Origin < 0 || p.Origin >= uint16(h.reg.Size()) {
+		return nil, errors.New("handel: packet's origin out of range")
+	}
+
+	if p.Level < 0 || int(p.Level) > h.maxLevel() {
+		return nil, errors.New("handel: packet's level out of range")
+	}
+
+	ms := new(MultiSignature)
+	err := ms.Unmarshal(p.MultiSig, h.scheme.Signature(), h.c.NewBitSet())
+	if err != nil {
+		return nil, err
+	}
+
+	return ms, err
+}
+
+func (h *Handel) maxLevel() int {
+	r := math.Log2(float64(h.reg.Size()))
+	return int(math.Ceil(r))
 }

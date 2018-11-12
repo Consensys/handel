@@ -24,6 +24,10 @@ type Config struct {
 	// UpdatePeriod indicates at which frequency a Handel nodes sends updates
 	// about its state to other Handel nodes.
 	UpdatePeriod time.Duration
+
+	// NewBitSet returns an empty bitset. This function is used to parse
+	// incoming packets containing bitsets.
+	NewBitSet func() BitSet
 }
 
 // DefaultConfig returns a default configuration for Handel.
@@ -33,6 +37,7 @@ func DefaultConfig(size int) *Config {
 		CandidateCount:         DefaultCandidateCount,
 		LevelTimeout:           DefaultLevelTimeout,
 		UpdatePeriod:           DefaultUpdatePeriod,
+		NewBitSet:              DefaultBitSet,
 	}
 }
 
@@ -50,6 +55,10 @@ const DefaultCandidateCount = 10
 // DefaultUpdatePeriod is the default update period used by Handel.
 const DefaultUpdatePeriod = 50 * time.Millisecond
 
+// DefaultBitSet returns the default implementation used by Handel, i.e. the
+// WilffBitSet
+var DefaultBitSet = func() BitSet { return new(WilffBitSet) }
+
 func mergeWithDefault(c *Config, size int) *Config {
 	c2 := *c
 	if c.ContributionsThreshold == 0 {
@@ -63,6 +72,9 @@ func mergeWithDefault(c *Config, size int) *Config {
 	}
 	if c.UpdatePeriod == 0*time.Second {
 		c2.UpdatePeriod = DefaultUpdatePeriod
+	}
+	if c.NewBitSet == nil {
+		c2.NewBitSet = DefaultBitSet
 	}
 	return &c2
 }

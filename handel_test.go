@@ -1,7 +1,9 @@
 package handel
 
-import "testing"
+/*func TestHandelParsePacket(t *testing.T) {*/
+//n := 17
+//mlog := math.Log2(float64(h.reg.Size()))
+//log := int(math.Ceil(r))
 
-func TestBuild(t *testing.T) {
-	t.Logf("Handel builds !")
-}
+//sig := new(fakeSig)
+/*}*/
