@@ -72,9 +72,8 @@ func NewSignatureScheme(s handel.SecretKey) handel.SignatureScheme {
 	return &scheme{s}
 }
 
-func (s *scheme) UnmarshalSignature(buff []byte) (handel.Signature, error) {
-	ms := new(bls)
-	return ms, ms.UnmarshalBinary(buff)
+func (s *scheme) Signature() handel.Signature {
+	return new(bls)
 }
 
 type publicKey struct {
