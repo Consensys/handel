@@ -22,7 +22,7 @@ type candidateTree struct {
 
 // newCandidateTree returns a candidateTree using the given ID as its anchor
 // point in the ID list, and the given registry.
-func newCandidateTree(id int, reg Registry) *candidateTree {
+func newCandidateTree(id int32, reg Registry) *candidateTree {
 	return &candidateTree{
 		size:    reg.Size(),
 		reg:     reg,
@@ -31,19 +31,36 @@ func newCandidateTree(id int, reg Registry) *candidateTree {
 	}
 }
 
-// FullRange returns the set of identity comprised at the given level from the
-// point of view of the ID of the candidateTree. At each increasing level, a
-// node should contact nodes from a exponentially increasing larger set of
-// nodes, using the binomial tree construction as described in the San Fermin
-// paper. Level starts at one and ends at the bitsize length. The equality
-// between common prefix length (CPL) and level (l) is CPL = bitsize - l.
-func (c *candidateTree) FullRange(level int) ([]Identity, error) {
-	if level < 1 || level > c.bitsize {
-		return nil, errors.New("handel: invalid level for computing candidate set")
+// IdentitiesAt returns the set of identities that corresponds to the given
+// level. It uses the same logic as RangeAt but returns directly the set of
+// identities.
+func (c *candidateTree) IdentitiesAt(level int) ([]Identity, error) {
+	min, max, err := c.RangeAt(level)
+	if err != nil {
+		return nil, err
 	}
 
-	var min int
-	var max = c.size
+	ids, ok := c.reg.Identities(min, max)
+	if !ok {
+		return nil, errors.New("handel: registry can't find ids in range")
+	}
+	return ids, nil
+
+}
+
+// RangeAt returns the range [min,max[ that maps to the set of identity
+// comprised at the given level from the point of view of the ID of the
+// candidateTree. At each increasing level, a node should contact nodes from a
+// exponentially increasing larger set of nodes, using the binomial tree
+// construction as described in the San Fermin paper. Level starts at one and
+// ends at the bitsize length. The equality between common prefix length (CPL)
+// and level (l) is CPL = bitsize - l.
+func (c *candidateTree) RangeAt(level int) (min int, max int, err error) {
+	if level < 1 || level > c.bitsize {
+		return 0, 0, errors.New("handel: invalid level for computing candidate set")
+	}
+
+	max = c.size
 	var maxIdx = level - 1
 	// Use a binary-search like algo over the bitstring of the id from highest
 	// bit to lower bits as long as we are above the requested common prefix
@@ -74,44 +91,5 @@ func (c *candidateTree) FullRange(level int) ([]Identity, error) {
 			break
 		}
 	}
-	ids, ok := c.reg.Identities(min, max)
-	if !ok {
-		return nil, errors.New("handel: registry can't find ids in range")
-	}
-	return ids, nil
+	return min, max, nil
 }
-
-// isSet returns true if the bit is set to 1 at the given index in the binary
-// form of nb
-func isSet(nb, index uint) bool {
-	return ((nb >> index) & 1) == 1
-}
-
-/*int min = 0;*/
-//int max = allNodes.size();
-//for (int currLevel = 0; currLevel <= level && min <= max; currLevel++) {
-//int m = Math.floorDiv((max + min), 2);
-//if (binaryId.charAt(currLevel) == '0') {
-//if (currLevel == level) {
-//// when we are at the right level, swap the order
-//min = m;
-//} else {
-//max = m;
-//}
-
-//} else if (binaryId.charAt(currLevel) == '1') {
-//if (currLevel == level) {
-//// when we are at the right level, swap the order
-//max = m;
-//} else {
-//min = m;
-//}
-//}
-//if (max == min)
-//break;
-
-//if (max - 1 == 0 || min == allNodes.size())
-//break;
-//}
-//return allNodes.subList(min, max);
-/*}*/

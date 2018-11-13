@@ -5,40 +5,50 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 )
 
 func FakeRegistry(size int) Registry {
 	ids := make([]Identity, size)
 	for i := 0; i < size; i++ {
-		ids[i] = &fakeIdentity{int32(i)}
+		ids[i] = &fakeIdentity{int32(i), new(fakePublic)}
 	}
 	return NewArrayRegistry(ids)
 }
 
-type fakePublic struct{}
+type fakePublic struct {
+	verify bool
+}
 
 func (f *fakePublic) String() string {
-	return "fake public key"
+	return fmt.Sprintf("public-%v", f.verify)
 }
 func (f *fakePublic) VerifySignature([]byte, Signature) error {
+	if !f.verify {
+		return errors.New("wrong")
+	}
 	return nil
 }
-func (f *fakePublic) Combine(PublicKey) PublicKey {
-	return f
+func (f *fakePublic) Combine(p PublicKey) PublicKey {
+	return &fakePublic{f.verify && p.(*fakePublic).verify}
 }
 
 type fakeIdentity struct {
 	id int32
+	*fakePublic
 }
 
-func (f *fakeIdentity) Address() string      { return fmt.Sprintf("fake-%d", f.id) }
-func (f *fakeIdentity) PublicKey() PublicKey { return new(fakePublic) }
+func (f *fakeIdentity) Address() string {
+	return fmt.Sprintf("fake-%d-%v", f.id, f.fakePublic.verify)
+}
+func (f *fakeIdentity) PublicKey() PublicKey { return f.fakePublic }
 func (f *fakeIdentity) ID() int32            { return f.id }
 func (f *fakeIdentity) String() string       { return f.Address() }
 
-type fakeSecret struct{}
+type fakeSecret struct {
+}
 
-func (f *fakeSecret) PublicKey() PublicKey {
+func (f *fakeSecret) Public() PublicKey {
 	return new(fakePublic)
 }
 
@@ -73,6 +83,10 @@ func (f *fakeScheme) Signature() Signature {
 	return new(fakeSig)
 }
 
+func (f *fakeScheme) PublicKey() PublicKey {
+	return &fakePublic{true}
+}
+
 type fakeNetwork struct{}
 
 func (f *fakeNetwork) RegisterListener(Listener) {
@@ -81,4 +95,13 @@ func (f *fakeNetwork) RegisterListener(Listener) {
 
 func (f *fakeNetwork) Send(Identity, *Packet) error {
 	panic("not implemented yet")
+}
+
+func fullBitset(level int) BitSet {
+	size := int(math.Pow(2, float64(level-1)))
+	bs := NewWilffBitset(size)
+	for i := 0; i < size; i++ {
+		bs.Set(i, true)
+	}
+	return bs
 }

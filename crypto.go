@@ -21,7 +21,7 @@ type PublicKey interface {
 // SecretKey holds methods to produce a valid signature that can be verified
 // under the corresponding public key.
 type SecretKey interface {
-	PublicKey() PublicKey
+	Public() PublicKey
 	// Sign returns a signature over the given message and using the reader for
 	// any randomness necessary, if any. The rand argument can be left nil.
 	Sign(msg []byte, rand io.Reader) (Signature, error)
@@ -33,6 +33,8 @@ type SignatureScheme interface {
 	SecretKey
 	// Signature returns a fresh empty signature suitable for unmarshaling
 	Signature() Signature
+	// PublicKey returns a fresh empty public key suitable for aggregation
+	PublicKey() PublicKey
 }
 
 // Signature holds methods to pass from/to a binary representation and to

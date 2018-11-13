@@ -30,7 +30,7 @@ type Listener interface {
 // features if relevant.
 type Packet struct {
 	// Origin is the ID of the sender of this packet.
-	Origin uint16
+	Origin uint32
 	// Level indicates for which level this packet is for in the Handel tree.
 	Level byte
 	// MultiSig holds a MultiSignature struct.

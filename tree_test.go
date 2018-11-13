@@ -29,7 +29,7 @@ func TestCandidateTreeFullRange(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		_ids, err := ct.FullRange(test.level)
+		_ids, err := ct.IdentitiesAt(test.level)
 		if test.isErr {
 			require.Error(t, err)
 			continue
