@@ -77,12 +77,13 @@ func TestHandelVerifySignature(t *testing.T) {
 func TestHandelParsePacket(t *testing.T) {
 	n := 17
 	registry := FakeRegistry(n)
-
+	ids := registry.(*arrayRegistry).ids
 	h := &Handel{
 		c:      DefaultConfig(n),
 		reg:    registry,
 		scheme: new(fakeScheme),
 		msg:    msg,
+		tree:   newCandidateTree(ids[1].ID(), registry),
 	}
 
 	type packetTest struct {

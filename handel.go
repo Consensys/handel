@@ -100,7 +100,7 @@ func (h *Handel) parsePacket(p *Packet) (*MultiSignature, error) {
 	}
 
 	// TODO: get corresponding public key to bitset and verify signature
-	//h.verifySignature(ms, p.Origin, p.Level)
+	h.verifySignature(ms, p.Origin, p.Level)
 	return ms, err
 }
 
