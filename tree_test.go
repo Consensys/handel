@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCandidateTreeFullRange(t *testing.T) {
+func TestCandidateTreeRangeAt(t *testing.T) {
 	n := 16
 	reg := FakeRegistry(n)
 	//ids := reg.(*arrayRegistry).ids
@@ -32,8 +32,14 @@ func TestCandidateTreeFullRange(t *testing.T) {
 		_ids, err := ct.IdentitiesAt(test.level)
 		if test.isErr {
 			require.Error(t, err)
+		}
+		min, max, err := ct.RangeAt(test.level)
+		if test.isErr {
+			require.Error(t, err)
 			continue
 		}
+		require.Equal(t, min, test.from)
+		require.Equal(t, max, test.to)
 
 		expected, ok := reg.Identities(test.from, test.to)
 		require.True(t, ok)

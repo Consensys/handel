@@ -11,7 +11,7 @@ import (
 func FakeRegistry(size int) Registry {
 	ids := make([]Identity, size)
 	for i := 0; i < size; i++ {
-		ids[i] = &fakeIdentity{int32(i), new(fakePublic)}
+		ids[i] = &fakeIdentity{int32(i), &fakePublic{true}}
 	}
 	return NewArrayRegistry(ids)
 }
@@ -104,4 +104,12 @@ func fullBitset(level int) BitSet {
 		bs.Set(i, true)
 	}
 	return bs
+}
+
+// returns a multisignature from a bitset
+func newSig(b BitSet) *MultiSignature {
+	return &MultiSignature{
+		BitSet:    b,
+		Signature: new(fakeSig),
+	}
 }

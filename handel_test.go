@@ -20,35 +20,27 @@ func TestHandelVerifySignature(t *testing.T) {
 	}
 
 	// helper functions to manipulate identities
-	idempotent := func(ids []Identity) {}
-	allVerify := func(ids []Identity) {
+	allNotVerify := func(ids []Identity) {
 		for _, i := range ids {
-			i.(*fakeIdentity).fakePublic.verify = true
+			i.(*fakeIdentity).fakePublic.verify = false
 		}
 	}
-	// returns a multisignature from a bitset
-	newSig := func(b BitSet) *MultiSignature {
-		return &MultiSignature{
-			BitSet:    b,
-			Signature: new(fakeSig),
-		}
-	}
+	idempotent := func(ids []Identity) {}
 	var sigTests = []sigTest{
 		// everything's good
-		{allVerify, newSig(fullBitset(2)), 3, 2, false},
+		{idempotent, newSig(fullBitset(2)), 3, 2, false},
 		// just invalid sig
-		{idempotent, newSig(fullBitset(2)), 3, 2, true},
+		{allNotVerify, newSig(fullBitset(2)), 3, 2, true},
 		// invalid level value
-		{allVerify, newSig(fullBitset(2)), 3, 0, true},
+		{allNotVerify, newSig(fullBitset(2)), 3, 0, true},
 		// wrong origin value -- too high
-		{allVerify, newSig(fullBitset(2)), 7, 2, true},
+		{allNotVerify, newSig(fullBitset(2)), 7, 2, true},
 		// wrong origin value -- too low
-		{allVerify, newSig(fullBitset(2)), 0, 2, true},
+		{allNotVerify, newSig(fullBitset(2)), 0, 2, true},
 		// wrong bitset length
-		{allVerify, newSig(fullBitset(3)), 3, 2, true},
+		{allNotVerify, newSig(fullBitset(3)), 3, 2, true},
 		// invalid individual signature
 		{func(ids []Identity) {
-			allVerify(ids)
 			// invalid signature from node in the expected bitset
 			ids[3].(*fakeIdentity).fakePublic.verify = false
 		}, newSig(fullBitset(2)), 3, 2, true},
@@ -75,7 +67,7 @@ func TestHandelVerifySignature(t *testing.T) {
 }
 
 func TestHandelParsePacket(t *testing.T) {
-	n := 17
+	n := 16
 	registry := FakeRegistry(n)
 	ids := registry.(*arrayRegistry).ids
 	h := &Handel{
@@ -85,16 +77,12 @@ func TestHandelParsePacket(t *testing.T) {
 		msg:    msg,
 		tree:   newCandidateTree(ids[1].ID(), registry),
 	}
-
 	type packetTest struct {
 		*Packet
 		Error bool
 	}
-	correctMs := &MultiSignature{
-		BitSet:    NewWilffBitset(10),
-		Signature: new(fakeSig),
-	}
-	buffMs, _ := correctMs.MarshalBinary()
+	correctSig := newSig(fullBitset(2))
+	buffMs, _ := correctSig.MarshalBinary()
 	packets := []*packetTest{
 		{
 			&Packet{
@@ -120,7 +108,7 @@ func TestHandelParsePacket(t *testing.T) {
 		{
 			&Packet{
 				Origin:   3,
-				Level:    1,
+				Level:    2,
 				MultiSig: buffMs,
 			}, false,
 		},
