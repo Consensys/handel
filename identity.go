@@ -1,10 +1,17 @@
 package handel
 
+// Bit size of the ID used in Handel. This is fixed at the moment.
+const IDSIZE = 32
+
 // Identity holds the public informations of a Handel node
 type Identity interface {
+	// Address must be understandable by the Network implementation
 	Address() string
 	// PublicKey returns the public key associated with that given node
 	PublicKey() PublicKey
+	// ID returns the ID used by handel to denote and classify nodes. It is best
+	// if the IDs are continuous over a given finite range.
+	ID() int32
 }
 
 // Registry abstracts the bookeeping of the list of Handel nodes

@@ -2,7 +2,6 @@ package handel
 
 import (
 	"errors"
-	"math"
 	"sync"
 )
 
@@ -77,16 +76,16 @@ func (h *Handel) Start() {
 	defer h.Unlock()
 }
 
-// parsePacket returns the multisignature object held by the given packet, or an
+// parsePacket returns the multisignature parsed from the given packet, or an
 // error if the packet can't be unmarshalled, or contains erroneous data such as
 // an invalid signature or out of range origin. This method is NOT thread-safe
 // and only meant for internal use.
 func (h *Handel) parsePacket(p *Packet) (*MultiSignature, error) {
-	if p.Origin < 0 || p.Origin >= uint16(h.reg.Size()) {
+	if p.Origin >= uint16(h.reg.Size()) {
 		return nil, errors.New("handel: packet's origin out of range")
 	}
 
-	if p.Level < 0 || int(p.Level) > h.maxLevel() {
+	if int(p.Level) > log2(h.reg.Size()) {
 		return nil, errors.New("handel: packet's level out of range")
 	}
 
@@ -96,10 +95,6 @@ func (h *Handel) parsePacket(p *Packet) (*MultiSignature, error) {
 		return nil, err
 	}
 
+	// TODO: get corresponding public key to bitset and verify signature
 	return ms, err
-}
-
-func (h *Handel) maxLevel() int {
-	r := math.Log2(float64(h.reg.Size()))
-	return int(math.Ceil(r))
 }

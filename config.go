@@ -41,9 +41,10 @@ func DefaultConfig(size int) *Config {
 	}
 }
 
-// DefaultContributionsThreshold returns the default contributions threshold.
+// DefaultContributionsThreshold returns the default contributions threshold of
+// > 50% ( size / 2  + 1) of the size.
 func DefaultContributionsThreshold(size int) int {
-	panic("not implemented yet")
+	return size/2 + 1
 }
 
 // DefaultLevelTimeout is the default level timeout used by Handel.
