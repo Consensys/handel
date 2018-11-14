@@ -76,6 +76,10 @@ func (s *scheme) Signature() handel.Signature {
 	return new(bls)
 }
 
+func (s *scheme) PublicKey() handel.PublicKey {
+	return new(publicKey)
+}
+
 type publicKey struct {
 	p *bn256.G2
 }
@@ -131,7 +135,7 @@ func NewSecretKey(reader io.Reader) (handel.SecretKey, error) {
 	}, nil
 }
 
-func (s *secretKey) PublicKey() handel.PublicKey {
+func (s *secretKey) Public() handel.PublicKey {
 	return s.publicKey
 }
 

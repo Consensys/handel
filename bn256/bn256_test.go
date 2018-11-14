@@ -17,7 +17,7 @@ func TestSign(t *testing.T) {
 	sig, err := sk.Sign(msg, nil)
 	require.NoError(t, err)
 
-	pk := sk.PublicKey()
+	pk := sk.Public()
 	err = pk.VerifySignature(msg, sig)
 	require.NoError(t, err)
 }
@@ -32,8 +32,8 @@ func TestCombine(t *testing.T) {
 	sk2, err := NewSecretKey(reader)
 	require.NoError(t, err)
 
-	pk1 := sk1.PublicKey()
-	pk2 := sk2.PublicKey()
+	pk1 := sk1.Public()
+	pk2 := sk2.Public()
 	require.NotEqual(t, pk1.String(), pk2.String())
 
 	sig1, err := sk1.Sign(msg, nil)
