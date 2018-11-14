@@ -14,7 +14,7 @@ type Network interface {
 	RegisterListener(Listener)
 	// Send sends the given packet to the given Identity. There can be no
 	// guarantees about the reception of the packet provided by the Network.
-	Send(Identity, *Packet) error
+	Send([]Identity, *Packet) error
 }
 
 // Listener is the interface that gets registered to the Network. Each time a

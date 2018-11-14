@@ -26,9 +26,9 @@ type Listener interface {
 }
 
 type Packet struct {
-	Origin    int
+	Origin    int32
 	Level     int
-	Signature []byte
+	MultiSig []byte
 }
 ```
 As you can see, Handel only needs to know how to send `Packet`s and how to get
@@ -44,6 +44,7 @@ type Identity interface {
 	Address() string
 	// PublicKey returns the public key associated with that given node
 	PublicKey() PublicKey
+    ID() int32
 }
 ```
 Handel must know all `Identity` in order to be able to work correctly and
@@ -70,7 +71,7 @@ way thanks to the following interfaces:
 ```go
 type PublicKey interface {
 	String() string
-	VerifySignature(msg []byte, sig MultiSignature) error
+	VerifySignature(msg []byte, sig Signature) error
 	// Combine combines two public keys together so that a multi-signature
 	// produced by both individual public keys can be verified by the combined
 	// public key
@@ -78,26 +79,33 @@ type PublicKey interface {
 }
 
 type SecretKey interface {
-	PublicKey() PublicKey
+	Public() PublicKey
 	// Sign returns a signature over the given message and using the reader for
 	// any randomness necessary, if any. The rand argument can be left nil.
-	Sign(msg []byte, rand io.Reader) (MultiSignature, error)
+	Sign(msg []byte, rand io.Reader) (Signature, error)
 }
 
-type MultiSignature interface {
+type Signature interface {
 	MarshalBinary() ([]byte, error)
+    UnmarshalBinary([]byte) error
 
 	// Combine "merges" the two signature together so that it produces an unique
 	// multi-signature that can be verified by the combination of both
 	// respective public keys that produced the original signatures.
-	Combine(MultiSignature) MultiSignature
+	Combine(Signature) Signature
+}
+
+type MultiSignature struct {
+    BitSet
+    Signature
 }
 
 // SignatureScheme holds a private key interface and a method to unmarshal
 // multisignatures
 type SignatureScheme interface {
 	SecretKey
-	UnmarshalSignature([]byte) (MultiSignature, error)
+	Signature() Signature
+    PublicKey() PublicKey
 }
 ```
 As an example, you can see the implementation of these interfaces using BN256
