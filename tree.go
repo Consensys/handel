@@ -18,6 +18,9 @@ type candidateTree struct {
 	bitsize int
 	size    int
 	reg     Registry
+	// mapping for each level of the index of the last node picked for this
+	// level
+	picked map[int]int
 }
 
 // newCandidateTree returns a candidateTree using the given ID as its anchor
@@ -28,6 +31,7 @@ func newCandidateTree(id int32, reg Registry) *candidateTree {
 		reg:     reg,
 		id:      uint(id),
 		bitsize: log2(reg.Size()),
+		picked:  make(map[int]int),
 	}
 }
 
@@ -92,4 +96,31 @@ func (c *candidateTree) RangeAt(level int) (min int, max int, err error) {
 		}
 	}
 	return min, max, nil
+}
+
+// PickNext returns a set of un-picked identities at the given level, up to
+// *count* elements. If no identities could have been picked, it returns false.
+func (c *candidateTree) PickNext(level, count int) ([]Identity, bool) {
+	min, max, err := c.RangeAt(level)
+	if err != nil {
+		return nil, false
+	}
+
+	minPicked, ok := c.picked[level]
+	if !ok {
+		minPicked = min
+	}
+
+	length := max - minPicked
+	if length > count {
+		max = minPicked + count
+	}
+
+	ids, ok := c.reg.Identities(minPicked, max)
+	if !ok || length == 0 {
+		return nil, false
+	}
+
+	c.picked[level] = max
+	return ids, true
 }

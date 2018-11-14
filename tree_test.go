@@ -6,6 +6,39 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestCandidateTreePickNext(t *testing.T) {
+	n := 16
+	reg := FakeRegistry(n)
+	//ids := reg.(*arrayRegistry).ids
+	ct := newCandidateTree(1, reg)
+
+	type pickTest struct {
+		level int
+		// how many to pick each time
+		count         int
+		expectedLens  []int
+		expectedBools []bool
+	}
+
+	tests := []pickTest{
+		// all good
+		{1, 1, []int{1, 0}, []bool{true, false}},
+		// larger count than available
+		{2, 10, []int{2, 0}, []bool{true, false}},
+		// multiple times
+		{3, 2, []int{2, 2, 0}, []bool{true, true, false}},
+	}
+
+	for _, test := range tests {
+		for i, lenght := range test.expectedLens {
+			ids, b := ct.PickNext(test.level, test.count)
+			require.Equal(t, lenght, len(ids))
+			require.Equal(t, test.expectedBools[i], b)
+		}
+
+	}
+}
+
 func TestCandidateTreeRangeAt(t *testing.T) {
 	n := 16
 	reg := FakeRegistry(n)
