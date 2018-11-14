@@ -1,6 +1,7 @@
 package handel
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -57,11 +58,14 @@ func TestProcessingFifo(t *testing.T) {
 		verified := fifo.Verified()
 		require.NotNil(t, verified)
 
+		var wg sync.WaitGroup
+		wg.Add(1)
 		go func() {
 			// input all signature pairs
 			for _, sp := range test.in {
 				in <- *sp
 			}
+			wg.Done()
 		}()
 
 		// expect same order of verified
@@ -69,5 +73,7 @@ func TestProcessingFifo(t *testing.T) {
 			v := <-verified
 			require.Equal(t, *out, v)
 		}
+
+		wg.Wait()
 	}
 }

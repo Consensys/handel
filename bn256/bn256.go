@@ -61,22 +61,21 @@ func init() {
 	}
 }
 
-// scheme implements the handel.SignatureScheme interface
-type scheme struct {
-	handel.SecretKey
+//  cons implements the handel.Constructor interface
+type cons struct {
 }
 
-// NewSignatureScheme returns a signature scheme using the provided secret key
-// for the bn256 BLS multi-signatures.
-func NewSignatureScheme(s handel.SecretKey) handel.SignatureScheme {
-	return &scheme{s}
+// NewConstructor returns a handel.Constructor capable of creating empty BLS
+// signature object and empty public keys.
+func NewConstructor() handel.Constructor {
+	return &cons{}
 }
 
-func (s *scheme) Signature() handel.Signature {
+func (s *cons) Signature() handel.Signature {
 	return new(bls)
 }
 
-func (s *scheme) PublicKey() handel.PublicKey {
+func (s *cons) PublicKey() handel.PublicKey {
 	return new(publicKey)
 }
 
@@ -113,13 +112,15 @@ func (p *publicKey) Combine(pp handel.PublicKey) handel.PublicKey {
 	return &publicKey{p3}
 }
 
-type secretKey struct {
+// SecretKey holds the secret scalar and can return the corresponding public
+// key. It can sign messages using the BLS signature scheme.
+type SecretKey struct {
 	*publicKey
 	s *big.Int
 }
 
 // NewSecretKey returns a new keypair generated from the given reader.
-func NewSecretKey(reader io.Reader) (handel.SecretKey, error) {
+func NewSecretKey(reader io.Reader) (*SecretKey, error) {
 	if reader == nil {
 		reader = rand.Reader
 	}
@@ -127,7 +128,7 @@ func NewSecretKey(reader io.Reader) (handel.SecretKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &secretKey{
+	return &SecretKey{
 		s: secret,
 		publicKey: &publicKey{
 			p: public,
@@ -135,13 +136,14 @@ func NewSecretKey(reader io.Reader) (handel.SecretKey, error) {
 	}, nil
 }
 
-func (s *secretKey) Public() handel.PublicKey {
+// Public returns the public key associated with this private key
+func (s *SecretKey) Public() handel.PublicKey {
 	return s.publicKey
 }
 
 // Sign creates a BLS signature S = x * H(m) on a message m using the private
 // key x. The signature S is a point on curve G1.
-func (s *secretKey) Sign(msg []byte, reader io.Reader) (handel.Signature, error) {
+func (s *SecretKey) Sign(msg []byte, reader io.Reader) (handel.Signature, error) {
 	hashed, err := hashedMessage(msg)
 	if err != nil {
 		return nil, err
