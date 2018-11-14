@@ -46,12 +46,12 @@ func TestProcessingFifo(t *testing.T) {
 	fifo.Stop()
 	require.True(t, fifo.done)
 
+	fifos := make([]signatureProcessing, 0, len(tests))
 	for _, test := range tests {
 		store := newReplaceStore()
 		fifo := newFifoProcessing(store, partitioner, cons, msg)
-
+		fifos = append(fifos, fifo)
 		fifo.Start()
-		defer fifo.Stop()
 
 		in := fifo.Incoming()
 		require.NotNil(t, in)
@@ -75,5 +75,8 @@ func TestProcessingFifo(t *testing.T) {
 		}
 
 		wg.Wait()
+	}
+	for _, fifo := range fifos {
+		fifo.Stop()
 	}
 }
