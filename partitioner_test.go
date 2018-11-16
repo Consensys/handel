@@ -6,6 +6,85 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestPartitionerBinTreeCombine(t *testing.T) {
+	n := 16
+	reg := FakeRegistry(n)
+	ct := newBinTreePartition(1, reg)
+
+	var mkSigPair = func(level int) *sigPair {
+		return &sigPair{
+			level: byte(level),
+			ms:    fullSig(level),
+		}
+	}
+
+	var sigPairs = func(lvls ...int) []*sigPair {
+		s := make([]*sigPair, len(lvls))
+		for i, lvl := range lvls {
+			s[i] = mkSigPair(lvl)
+		}
+		return s
+	}
+
+	type combineTest struct {
+		sigs []*sigPair
+		exp  *sigPair
+	}
+
+	sig3 := &fakeSig{true}
+	bs3 := NewWilffBitset(n)
+	for i := 0; i < pow2(3); i++ {
+		bs3.Set(i, true)
+	}
+	sig2 := &fakeSig{true}
+	bs2 := NewWilffBitset(n)
+	// only the second sig is there so no 0,1
+	for i := 2; i < pow2(2); i++ {
+		bs2.Set(i, true)
+	}
+
+	var tests = []combineTest{
+		// all good, we should have the first half of signature returned (
+		{sigPairs(0, 1, 2, 3), &sigPair{level: 3, ms: &MultiSignature{Signature: sig3, BitSet: bs3}}},
+		{sigPairs(2), &sigPair{level: 2, ms: &MultiSignature{Signature: sig2, BitSet: bs2}}},
+		{nil, nil},
+	}
+
+	for i, test := range tests {
+		t.Logf(" -- test %d -- ", i)
+		res := ct.Combine(test.sigs, NewWilffBitset)
+		if test.exp == nil {
+			require.Nil(t, res)
+			continue
+		}
+		require.Equal(t, test.exp.ms.Signature, res.ms.Signature)
+		require.Equal(t, test.exp.ms.BitSet.BitLength(), res.ms.BitSet.BitLength())
+		bs1 := test.exp.ms.BitSet
+		bs2 := res.ms.BitSet
+		for i := 0; i < bs1.BitLength(); i++ {
+			require.Equal(t, bs1.Get(i), bs2.Get(i))
+		}
+	}
+}
+
+func TestPartitionerBinTreeMaxLevel(t *testing.T) {
+	type maxLevelTest struct {
+		n   int
+		exp int
+	}
+
+	var tests = []maxLevelTest{
+		{8, 3}, {16, 4}, {2, 1},
+	}
+
+	for i, test := range tests {
+		t.Logf(" -- test %d -- ", i)
+		reg := FakeRegistry(test.n)
+		ct := newBinTreePartition(1, reg)
+		require.Equal(t, test.exp, ct.MaxLevel())
+	}
+}
+
 func TestPartitionerBinTreePickNextAt(t *testing.T) {
 	n := 16
 	reg := FakeRegistry(n)
@@ -51,16 +130,17 @@ func TestPartitionerBinTreeRangeAt(t *testing.T) {
 	}
 
 	tests := []rangeTest{
+		{0, false, 1, 2},
 		{1, false, 0, 1},
 		{2, false, 2, 4},
 		{3, false, 4, 8},
 		{4, false, 8, 16},
-		{0, true, 0, 0},
 		{7, true, 0, 0},
 	}
 
-	for _, test := range tests {
-		_ids, err := ct.RangeAt(test.level)
+	for i, test := range tests {
+		t.Logf(" -- test %d -- ", i)
+		_ids, err := ct.IdentitiesAt(test.level)
 		if test.isErr {
 			require.Error(t, err)
 		}

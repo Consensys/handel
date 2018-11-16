@@ -19,9 +19,6 @@ type BitSet interface {
 	// Get returns the status of the i-th bit in this bitset. Implementations
 	// must return false if the index is out of bounds.
 	Get(int) bool
-	// Combine concatenate the two bitsets together and returns a new bitset
-	// whose bitlength is the sum of both's bitlengths.
-	Combine(BitSet) BitSet
 	// Slice returns a BitSet that only contains the bits between the given
 	// range, to excluded. If the range given is invalid, it returns the same
 	// bitset.
@@ -30,6 +27,8 @@ type BitSet interface {
 	MarshalBinary() ([]byte, error)
 	// UnmarshalBinary fills the bitset from the given buffer.
 	UnmarshalBinary([]byte) error
+	// returns the binary representation of this bitset in string
+	String() string
 }
 
 // WilffBitSet implementats a BitSet using the wilff library.
@@ -136,4 +135,8 @@ func (w *WilffBitSet) UnmarshalBinary(buff []byte) error {
 	w.b = new(bitset.BitSet)
 	w.l = int(length)
 	return w.b.UnmarshalBinary(b.Bytes())
+}
+
+func (w *WilffBitSet) String() string {
+	return w.b.String()
 }

@@ -14,7 +14,7 @@ type Network interface {
 	RegisterListener(Listener)
 	// Send sends the given packet to the given Identity. There can be no
 	// guarantees about the reception of the packet provided by the Network.
-	Send([]Identity, *Packet) error
+	Send([]Identity, *Packet)
 }
 
 // Listener is the interface that gets registered to the Network. Each time a
@@ -30,7 +30,7 @@ type Listener interface {
 // features if relevant.
 type Packet struct {
 	// Origin is the ID of the sender of this packet.
-	Origin uint32
+	Origin int32
 	// Level indicates for which level this packet is for in the Handel tree.
 	Level byte
 	// MultiSig holds a MultiSignature struct.

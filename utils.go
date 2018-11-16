@@ -10,6 +10,10 @@ func log2(size int) int {
 	return int(math.Ceil(r))
 }
 
+func pow2(n int) int {
+	return int(math.Pow(2, float64(n)))
+}
+
 // isSet returns true if the bit is set to 1 at the given index in the binary
 // form of nb
 func isSet(nb, index uint) bool {
@@ -22,6 +26,6 @@ var PrintLog = true
 
 func logf(s string, args ...interface{}) {
 	if PrintLog {
-		fmt.Printf(s, args...)
+		fmt.Printf(s+"\n", args...)
 	}
 }

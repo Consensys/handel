@@ -8,6 +8,14 @@ import (
 
 var msg = []byte("Sun is Shining...")
 
+/*func TestHandelcheckFinalSignature(t *testing.T) {*/
+//reg,handels := FakeSetup(1)
+//h := handels[0]
+//store := h.store
+//store.Store(0,fullSig(0))
+//store.Store(1, fullSig(1))
+//}
+
 func TestHandelVerifySignature(t *testing.T) {
 	/*n := 16*/
 

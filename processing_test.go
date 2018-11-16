@@ -3,6 +3,7 @@ package handel
 import (
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -40,18 +41,19 @@ func TestProcessingFifo(t *testing.T) {
 		{s(sig2Inv), v()},
 	}
 
-	store := newReplaceStore()
+	store := newReplaceStore(partitioner, NewWilffBitset)
 	fifo := newFifoProcessing(store, partitioner, cons, msg).(*fifoProcessing)
-	fifo.Start()
+	go fifo.Start()
+	time.Sleep(20 * time.Millisecond)
 	fifo.Stop()
 	require.True(t, fifo.done)
 
 	fifos := make([]signatureProcessing, 0, len(tests))
 	for _, test := range tests {
-		store := newReplaceStore()
+		store := newReplaceStore(partitioner, NewWilffBitset)
 		fifo := newFifoProcessing(store, partitioner, cons, msg)
 		fifos = append(fifos, fifo)
-		fifo.Start()
+		go fifo.Start()
 
 		in := fifo.Incoming()
 		require.NotNil(t, in)

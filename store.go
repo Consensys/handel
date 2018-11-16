@@ -3,7 +3,8 @@ package handel
 // signatureStore is a generic interface whose role is to store received valid
 // multisignature, and to be able to serve the best multisignature received so
 // far at a given level. Different strategies can be implemented such as keeping
-// only the best one, merging two non-colluding multi-signatures etc
+// only the best one, merging two non-colluding multi-signatures etc.
+// NOTE: implementation MUST be thread-safe.
 type signatureStore interface {
 	// Store saves the multi-signature if it is "better"
 	// (implementation-dependent) than the one previously saved at the same
@@ -13,10 +14,9 @@ type signatureStore interface {
 	// GetBest returns the "best" multisignature at the requested level. Best
 	// should be interpreted as "containing the most individual contributions".
 	Best(level byte) (*MultiSignature, bool)
-	// Highest returns the highest multisignature contains as well as the
-	// corresponding level. It is nil if not such multisignatures have been
-	// found.
-	Highest() *sigPair
+	// BestCombined returns the best possible multi-signature aggregated from
+	// all multi-signature stored at all levels, and the maximum respective level
+	BestCombined() *sigPair
 }
 
 type sigPair struct {
@@ -29,11 +29,17 @@ type sigPair struct {
 type replaceStore struct {
 	m       map[byte]*MultiSignature
 	highest byte
+	// used to create empty bitset for aggregating multi-signatures
+	nbs func(int) BitSet
+	// used to compute bitset length for missing multi-signatures
+	part partitioner
 }
 
-func newReplaceStore() *replaceStore {
+func newReplaceStore(part partitioner, nbs func(int) BitSet) *replaceStore {
 	return &replaceStore{
-		m: make(map[byte]*MultiSignature),
+		nbs:  nbs,
+		part: part,
+		m:    make(map[byte]*MultiSignature),
 	}
 }
 
@@ -58,15 +64,12 @@ func (r *replaceStore) Best(level byte) (*MultiSignature, bool) {
 	return ms, ok
 }
 
-func (r *replaceStore) Highest() *sigPair {
-	ms, ok := r.m[r.highest]
-	if !ok {
-		return nil
+func (r *replaceStore) BestCombined() *sigPair {
+	sigs := make([]*sigPair, 0, len(r.m))
+	for k, ms := range r.m {
+		sigs = append(sigs, &sigPair{level: k, ms: ms})
 	}
-	return &sigPair{
-		level: r.highest,
-		ms:    ms,
-	}
+	return r.part.Combine(sigs, r.nbs)
 }
 
 func (r *replaceStore) store(level byte, ms *MultiSignature) {

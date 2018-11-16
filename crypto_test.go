@@ -18,7 +18,7 @@ func TestMultiSignatureMarshalling(t *testing.T) {
 	require.NoError(t, err)
 
 	ms2 := new(MultiSignature)
-	err = ms2.Unmarshal(buff, new(fakeSig), new(WilffBitSet))
+	err = ms2.Unmarshal(buff, new(fakeSig), NewWilffBitset)
 	require.NoError(t, err)
 
 }

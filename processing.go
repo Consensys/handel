@@ -16,9 +16,16 @@ import (
 // asynchronous processing interface that needs to be started and stopped when
 // needed.
 type signatureProcessing interface {
+	// Start is a blocking call that starts the processing routine
 	Start()
+	// Stop is a blocking call that stops the processing routine
 	Stop()
+	// channel upon which to send new incoming signatures
 	Incoming() chan sigPair
+	// channel that outputs verified signatures. Implementation must guarantee
+	// that all verified signatures are signatures that have been sent on the
+	// incoming channel. No new signatures must be outputted on this channel (
+	// is the role of the Store)
 	Verified() chan verifiedSig
 }
 
@@ -50,8 +57,8 @@ func newFifoProcessing(store signatureStore, part partitioner,
 		store: store,
 		cons:  c,
 		msg:   msg,
-		in:    make(chan sigPair, 1),
-		out:   make(chan verifiedSig, 1),
+		in:    make(chan sigPair, 100),
+		out:   make(chan verifiedSig, 100),
 	}
 }
 
@@ -62,8 +69,11 @@ func (f *fifoProcessing) processIncoming() {
 		if err != nil {
 			logf(err.Error())
 		}
-
 		new := f.store.Store(pair.level, pair.ms)
+		logf("handel: processing verified and stored one new signature")
+		if f.isStopped() {
+			break
+		}
 		f.out <- verifiedSig{pair, new}
 	}
 }
@@ -71,7 +81,7 @@ func (f *fifoProcessing) processIncoming() {
 func (f *fifoProcessing) verifySignature(pair *sigPair) error {
 	level := pair.level
 	ms := pair.ms
-	ids, err := f.part.RangeAt(int(level))
+	ids, err := f.part.IdentitiesAt(int(level))
 	if err != nil {
 		return err
 	}
@@ -104,7 +114,7 @@ func (f *fifoProcessing) Verified() chan verifiedSig {
 }
 
 func (f *fifoProcessing) Start() {
-	go f.processIncoming()
+	f.processIncoming()
 }
 
 func (f *fifoProcessing) Stop() {
@@ -116,4 +126,11 @@ func (f *fifoProcessing) Stop() {
 	f.done = true
 	close(f.in)
 	close(f.out)
+}
+
+func (f *fifoProcessing) isStopped() bool {
+	f.Lock()
+	defer f.Unlock()
+	// OK since once we call stop, we'll no go back to done = false
+	return f.done
 }

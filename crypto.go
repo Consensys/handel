@@ -67,7 +67,7 @@ func (m *MultiSignature) MarshalBinary() ([]byte, error) {
 
 // Unmarshal reads a multisignature from the given slice, using the signature
 // and bitset interface given.
-func (m *MultiSignature) Unmarshal(b []byte, s Signature, bs BitSet) error {
+func (m *MultiSignature) Unmarshal(b []byte, s Signature, nbs func(b int) BitSet) error {
 	var buff = bytes.NewBuffer(b)
 	var length uint16
 	if err := binary.Read(buff, binary.BigEndian, &length); err != nil {
@@ -78,6 +78,8 @@ func (m *MultiSignature) Unmarshal(b []byte, s Signature, bs BitSet) error {
 	if len(bitset) < int(length) {
 		return errors.New("bitset received smaller than expected")
 	}
+
+	bs := nbs(int(length))
 	if err := bs.UnmarshalBinary(bitset); err != nil {
 		return err
 	}

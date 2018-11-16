@@ -2,6 +2,7 @@ package handel
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -62,17 +63,30 @@ func (f *fakeSecret) Sign(msg []byte, rand io.Reader) (Signature, error) {
 var fakeConstSig = []byte{0x01, 0x02, 0x3, 0x04}
 
 type fakeSig struct {
-	card   int // cardinality
 	verify bool
 }
 
 func (f *fakeSig) MarshalBinary() ([]byte, error) {
-	return fakeConstSig, nil
+	var b bytes.Buffer
+	var i byte
+	if f.verify {
+		i = 1
+	}
+
+	err := binary.Write(&b, binary.BigEndian, i)
+	return b.Bytes(), err
+
 }
 
 func (f *fakeSig) UnmarshalBinary(buff []byte) error {
-	if !bytes.Equal(buff, fakeConstSig) {
-		return errors.New("invalid sig")
+	var b = bytes.NewBuffer(buff)
+	var i byte
+	err := binary.Read(b, binary.BigEndian, &i)
+	if err != nil {
+		return err
+	}
+	if i == 1 {
+		f.verify = true
 	}
 	return nil
 }
@@ -92,30 +106,19 @@ func (f *fakeCons) PublicKey() PublicKey {
 	return &fakePublic{true}
 }
 
-type fakeNetwork struct{}
-
-func (f *fakeNetwork) RegisterListener(Listener) {
-	panic("not implemented yet")
-}
-
-func (f *fakeNetwork) Send(Identity, *Packet) error {
-	panic("not implemented yet")
-}
-
 func fullBitset(level int) BitSet {
-	size := int(math.Pow(2, float64(level-1)))
-	bs := NewWilffBitset(size)
-	for i := 0; i < size; i++ {
-		bs.Set(i, true)
+	if level != 0 {
+		level = level - 1
 	}
-	return bs
+	size := int(math.Pow(2, float64(level)))
+	return finalBitset(size)
 }
 
 // returns a multisignature from a bitset
 func newSig(b BitSet) *MultiSignature {
 	return &MultiSignature{
 		BitSet:    b,
-		Signature: &fakeSig{b.Cardinality(), true},
+		Signature: &fakeSig{true},
 	}
 }
 
@@ -128,4 +131,58 @@ func fullSigPair(level int) *sigPair {
 		level: byte(level),
 		ms:    fullSig(level),
 	}
+}
+
+func finalBitset(size int) BitSet {
+	bs := NewWilffBitset(size)
+	for i := 0; i < size; i++ {
+		bs.Set(i, true)
+	}
+	return bs
+}
+
+// returns a final signature pair associated with a given level but with a full
+// size bitset ( n )
+func finalSigPair(level, size int) *sigPair {
+	return &sigPair{
+		level: byte(level),
+		ms:    newSig(finalBitset(size)),
+	}
+}
+
+type fakeNetwork struct {
+	id   int32
+	list []Network
+	lis  []Listener
+}
+
+func (f *fakeNetwork) Send(ids []Identity, p *Packet) {
+	for _, id := range ids {
+		go f.list[int(id.ID())].(*fakeNetwork).dispatch(p)
+	}
+}
+
+func (f *fakeNetwork) RegisterListener(l Listener) {
+	f.lis = append(f.lis, l)
+}
+
+func (f *fakeNetwork) dispatch(p *Packet) {
+	for _, l := range f.lis {
+		l.NewPacket(p)
+	}
+}
+
+func FakeSetup(n int) (Registry, []*Handel) {
+	reg := FakeRegistry(n).(*arrayRegistry)
+	ids := reg.ids
+	nets := make([]Network, n)
+	for i := 0; i < reg.Size(); i++ {
+		nets[i] = &fakeNetwork{ids[i].ID(), nets, nil}
+	}
+	cons := new(fakeCons)
+	handels := make([]*Handel, n)
+	for i := 0; i < n; i++ {
+		handels[i] = NewHandel(nets[i], reg, ids[i], cons, msg, &fakeSig{true})
+	}
+	return reg, handels
 }

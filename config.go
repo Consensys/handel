@@ -4,12 +4,14 @@ import "time"
 
 // Config holds the different parameters used to configure Handel.
 type Config struct {
-	// ContributionsThreshold is the threshold of contributions the multi-signature
+	// ContributionsPerc is the percentage of contributions a multi-signature
 	// must contain to be considered as valid. Handel will only output
 	// multi-signature containing more than this threshold of contributions.
 	// It must be typically above 50% of the number of Handel nodes. If not
-	// specified, 50% is used by default.
-	ContributionsThreshold int
+	// specified, 50% is used by default. This percentage is used to decide when
+	// a multi-signature can be passed up to higher levels as well, not only for
+	// the final level.
+	ContributionsRatio int
 
 	// LevelTimeout is used to decide when a Handel nodes passes to the next
 	// level even if it did not receive enough signatures. If not specified, a
@@ -27,25 +29,23 @@ type Config struct {
 
 	// NewBitSet returns an empty bitset. This function is used to parse
 	// incoming packets containing bitsets.
-	NewBitSet func() BitSet
+	NewBitSet func(bitlength int) BitSet
 }
 
 // DefaultConfig returns a default configuration for Handel.
 func DefaultConfig(size int) *Config {
 	return &Config{
-		ContributionsThreshold: DefaultContributionsThreshold(size),
-		CandidateCount:         DefaultCandidateCount,
-		LevelTimeout:           DefaultLevelTimeout,
-		UpdatePeriod:           DefaultUpdatePeriod,
-		NewBitSet:              DefaultBitSet,
+		ContributionsRatio: DefaultContributionsPerc,
+		CandidateCount:     DefaultCandidateCount,
+		LevelTimeout:       DefaultLevelTimeout,
+		UpdatePeriod:       DefaultUpdatePeriod,
+		NewBitSet:          DefaultBitSet,
 	}
 }
 
-// DefaultContributionsThreshold returns the default contributions threshold of
-// > 50% ( size / 2  + 1) of the size.
-func DefaultContributionsThreshold(size int) int {
-	return size/2 + 1
-}
+// DefaultContributionsPerc is the default percentage used as the required
+// number of contributions in a multi-signature.
+const DefaultContributionsPerc = 50
 
 // DefaultLevelTimeout is the default level timeout used by Handel.
 const DefaultLevelTimeout = 300 * time.Millisecond
@@ -58,12 +58,12 @@ const DefaultUpdatePeriod = 50 * time.Millisecond
 
 // DefaultBitSet returns the default implementation used by Handel, i.e. the
 // WilffBitSet
-var DefaultBitSet = func() BitSet { return new(WilffBitSet) }
+var DefaultBitSet = func(bitlength int) BitSet { return NewWilffBitset(bitlength) }
 
 func mergeWithDefault(c *Config, size int) *Config {
 	c2 := *c
-	if c.ContributionsThreshold == 0 {
-		c2.ContributionsThreshold = DefaultContributionsThreshold(size)
+	if c.ContributionsRatio == 0 {
+		c2.ContributionsRatio = DefaultContributionsPerc
 	}
 	if c.CandidateCount == 0 {
 		c2.CandidateCount = DefaultCandidateCount
