@@ -172,6 +172,21 @@ func (f *fakeNetwork) dispatch(p *Packet) {
 	}
 }
 
+func mkSigPair(level int) *sigPair {
+	return &sigPair{
+		level: byte(level),
+		ms:    fullSig(level),
+	}
+}
+
+func sigPairs(lvls ...int) []*sigPair {
+	s := make([]*sigPair, len(lvls))
+	for i, lvl := range lvls {
+		s[i] = mkSigPair(lvl)
+	}
+	return s
+}
+
 func FakeSetup(n int) (Registry, []*Handel) {
 	reg := FakeRegistry(n).(*arrayRegistry)
 	ids := reg.ids

@@ -148,7 +148,7 @@ func (h *Handel) rangeOnVerified() {
 	for v := range h.proc.Verified() {
 		h.Lock()
 		for _, handler := range h.handlers {
-			handler(v)
+			handler(&v)
 		}
 		h.Unlock()
 	}
@@ -191,12 +191,12 @@ func (h *Handel) startNextLevel() {
 // higher levels, etc. The store is guaranteed to have a multisignature present
 // at the level indicated in the verifiedSig. Each handler is called in a thread
 // safe manner, global lock is held during the call to handlers.
-type handler func(v verifiedSig)
+type handler func(v *verifiedSig)
 
 // checkFinalSignature checks if a new better final signature, i.e. a signature
 // at the last level, has been generated. If so, it sends it to the output
 // channel.
-func (h *Handel) checkFinalSignature(v verifiedSig) {
+func (h *Handel) checkFinalSignature(v *verifiedSig) {
 	sigpair := h.store.BestCombined()
 	if sigpair.level != h.maxLevel {
 		return
@@ -212,6 +212,7 @@ func (h *Handel) checkFinalSignature(v verifiedSig) {
 
 	if h.best == nil {
 		newBest(sigpair.ms)
+		return
 	}
 
 	new := sigpair.ms.Cardinality()
@@ -224,7 +225,7 @@ func (h *Handel) checkFinalSignature(v verifiedSig) {
 // checNewLevel looks if the signature completes levels by iterating over all
 // levels and check if new levels have been completed. For each newly completed
 // levels, it sends the full signature to peers in the respective level.
-func (h *Handel) checkCompletedLevels(v verifiedSig) {
+func (h *Handel) checkCompletedLevels(v *verifiedSig) {
 	for lvl := byte(1); lvl < h.maxLevel; lvl++ {
 		if h.isCompleted(lvl) {
 			continue

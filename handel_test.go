@@ -2,19 +2,79 @@ package handel
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
 var msg = []byte("Sun is Shining...")
 
-/*func TestHandelcheckFinalSignature(t *testing.T) {*/
-//reg,handels := FakeSetup(1)
-//h := handels[0]
-//store := h.store
-//store.Store(0,fullSig(0))
-//store.Store(1, fullSig(1))
-//}
+func TestHandelcheckFinalSignature(t *testing.T) {
+	n := 16
+
+	type checkFinalTest struct {
+		// one slice represents sigs to store before calling the checkVerified
+		// you can put multiple slices to call checkverified multiple times
+		sigs [][]*sigPair
+		// input to the handler
+		input *verifiedSig
+		// expected output on the output channel
+		out []*MultiSignature
+	}
+
+	pairs1 := sigPairs(0, 1, 2, 3, 4)
+	pairs2 := sigPairs(4)
+
+	// set a non-complete signature
+	// index 8 (2^4-1) + 6 = 14 set to false
+	pairs1[4].ms.BitSet.Set(6, false)
+
+	final4 := finalSigPair(4, n)
+	// missing one contribution
+	final4b := finalSigPair(4, n)
+	final4b.ms.BitSet.Set(14, false)
+
+	toMatrix := func(pairs ...[]*sigPair) [][]*sigPair {
+		return append(make([][]*sigPair, 0), pairs...)
+	}
+	var tests = []checkFinalTest{
+		// too lower level signatures
+		{toMatrix(sigPairs(0, 1, 2)), nil, []*MultiSignature{nil}},
+		// everything's perfect
+		{toMatrix(sigPairs(0, 1, 2, 3, 4)), nil, []*MultiSignature{finalSigPair(4, n).ms}},
+		// gives two consecutives better
+		{toMatrix(pairs1, pairs2), nil, []*MultiSignature{final4b.ms, final4.ms}},
+	}
+
+	waitOut := func(h *Handel) *MultiSignature {
+		select {
+		case ms := <-h.FinalSignatures():
+			return &ms
+		case <-time.After(20 * time.Millisecond):
+			return nil
+		}
+	}
+
+	for i, test := range tests {
+		t.Logf(" -- test %d --", i)
+		_, handels := FakeSetup(n)
+		h := handels[1]
+		store := h.store
+
+		for i, toInsert := range test.sigs {
+			// insert slice
+			for _, sig := range toInsert {
+				store.Store(sig.level, sig.ms)
+			}
+			h.checkFinalSignature(test.input)
+
+			// lookup expected result at that point
+			expected := test.out[i]
+			output := waitOut(h)
+			require.Equal(t, expected, output)
+		}
+	}
+}
 
 func TestHandelVerifySignature(t *testing.T) {
 	/*n := 16*/
