@@ -159,26 +159,17 @@ func (h *Handel) rangeOnVerified() {
 	}
 }
 
-// startNextLevel increase the currLevel counter and looks if there is a
-// multisignature with the required threshold. It looks starting from the
-// previous level down to level 1 and stops at the first one found. It sends
-// this multi-signature to peers in the new level.
+// startNextLevel increase the currLevel counter and sends its best
+// highest-level signature it has to nodes at the new currLevel.
 func (h *Handel) startNextLevel() {
-	h.currLevel++
 	if h.currLevel >= h.maxLevel {
 		// protocol is finished
 		logf("handel: protocol finished at level %d", h.currLevel)
 		return
 	}
-	var ms *MultiSignature
-	var ok bool
-	for lvl := h.currLevel - 1; lvl >= 0; lvl-- {
-		ms, ok = h.store.Best(lvl)
-		if !ok {
-			continue
-		}
-	}
-	if ms == nil {
+	h.currLevel++
+	sp := h.store.BestCombined()
+	if sp == nil {
 		logf("handel: no signature to send ...?")
 		return
 	}
@@ -187,7 +178,7 @@ func (h *Handel) startNextLevel() {
 		// XXX This should not happen, but what if ?
 		return
 	}
-	h.sendTo(h.currLevel, ms, nodes)
+	h.sendTo(h.currLevel, sp.ms, nodes)
 }
 
 // actor is an interface that takes a new verified signature and acts on it
