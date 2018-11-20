@@ -43,11 +43,31 @@ func TestPartitionerBinTreeCombine(t *testing.T) {
 		bs2.Set(i, true)
 	}
 
+	pairs3 := sigPairs(0, 1, 2, 3, 4)
+	// 4-1 -> because that's how you compute the size of a level
+	// -1 -> to just spread out holes to other levels and leave this one still
+	// having one contribution
+	for i := 0; i < pow2(4-1)-1; i++ {
+		pairs3[4].ms.BitSet.Set(i, false)
+	}
+	pairs3[3].ms.BitSet.Set(1, false)
+	pairs3[3].ms.BitSet.Set(2, false)
+
+	final4 := finalSigPair(4, n)
+	final4.ms.BitSet.Set(5, false)
+	final4.ms.BitSet.Set(6, false)
+	for i := 8; i < 15; i++ {
+		final4.ms.BitSet.Set(i, false)
+	}
+
 	var tests = []combineTest{
 		// all good, we should have the first half of signature returned (
 		{sigPairs(0, 1, 2, 3), &sigPair{level: 3, ms: &MultiSignature{Signature: sig3, BitSet: bs3}}},
+		// only one to combine
 		{sigPairs(2), &sigPair{level: 2, ms: &MultiSignature{Signature: sig2, BitSet: bs2}}},
 		{nil, nil},
+		// with holes
+		{pairs3, final4},
 	}
 
 	for i, test := range tests {

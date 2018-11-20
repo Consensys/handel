@@ -1,7 +1,6 @@
 package handel
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -25,7 +24,7 @@ func TestHandelcheckFinalSignature(t *testing.T) {
 
 	// test(3) set a non-complete signature followed by a complete signature
 	pairs1 := sigPairs(0, 1, 2, 3, 4)
-	pairs2 := sigPairs(4)
+	pairs2 := sigPairs(3, 4)
 	// index 8 (2^4-1) + 6 = 14 set to false
 	pairs1[4].ms.BitSet.Set(6, false)
 	final4 := finalSigPair(4, n)
@@ -44,8 +43,8 @@ func TestHandelcheckFinalSignature(t *testing.T) {
 	pairs3[3].ms.BitSet.Set(1, false)
 	pairs3[3].ms.BitSet.Set(2, false)
 
-	fmt.Println("pairs3[4] bitset = ", pairs3[4].ms.BitSet.String())
-	fmt.Println("pairs3[3] bitset = ", pairs3[3].ms.BitSet.String())
+	//fmt.Println("pairs3[4] bitset = ", pairs3[4].ms.BitSet.String())
+	//fmt.Println("pairs3[3] bitset = ", pairs3[3].ms.BitSet.String())
 
 	toMatrix := func(pairs ...[]*sigPair) [][]*sigPair {
 		return append(make([][]*sigPair, 0), pairs...)
@@ -57,7 +56,7 @@ func TestHandelcheckFinalSignature(t *testing.T) {
 		{toMatrix(sigPairs(0, 1, 2, 3, 4)), nil, []*MultiSignature{finalSigPair(4, n).ms}},
 		// gives two consecutives better
 		{toMatrix(pairs1, pairs2), nil, []*MultiSignature{final4b.ms, final4.ms}},
-		// one underthreshold and one above
+		// one underthreshold and fully signed
 		{toMatrix(pairs3, pairs2), nil, []*MultiSignature{nil, final4.ms}},
 	}
 
@@ -89,64 +88,6 @@ func TestHandelcheckFinalSignature(t *testing.T) {
 			require.Equal(t, expected, output)
 		}
 	}
-}
-
-func TestHandelVerifySignature(t *testing.T) {
-	/*n := 16*/
-
-	//type sigTest struct {
-	//changeIDs func(ids []Identity)
-	//ms        *MultiSignature
-	//origin    uint32
-	//level     byte
-	//isErr     bool
-	//}
-
-	//// helper functions to manipulate identities
-	//allNotVerify := func(ids []Identity) {
-	//for _, i := range ids {
-	//i.(*fakeIdentity).fakePublic.verify = false
-	//}
-	//}
-	//idempotent := func(ids []Identity) {}
-	//var sigTests = []sigTest{
-	//// everything's good
-	//{idempotent, newSig(fullBitset(2)), 3, 2, false},
-	//// just invalid sig
-	//{allNotVerify, newSig(fullBitset(2)), 3, 2, true},
-	//// invalid level value
-	//{allNotVerify, newSig(fullBitset(2)), 3, 0, true},
-	//// wrong origin value -- too high
-	//{allNotVerify, newSig(fullBitset(2)), 7, 2, true},
-	//// wrong origin value -- too low
-	//{allNotVerify, newSig(fullBitset(2)), 0, 2, true},
-	//// wrong bitset length
-	//{allNotVerify, newSig(fullBitset(3)), 3, 2, true},
-	//// invalid individual signature
-	//{func(ids []Identity) {
-	//// invalid signature from node in the expected bitset
-	//ids[3].(*fakeIdentity).fakePublic.verify = false
-	//}, newSig(fullBitset(2)), 3, 2, true},
-	//}
-
-	//for _, test := range sigTests {
-	//registry := FakeRegistry(n)
-	//ids := registry.(*arrayRegistry).ids
-	//h := &Handel{
-	//c:      DefaultConfig(n),
-	//reg:    registry,
-	//cons: new(fakeScheme),
-	//msg:    msg,
-	//tree:   newCandidateTree(ids[1].ID(), registry),
-	//}
-	//test.changeIDs(ids)
-	//err := h.verifySignature(test.ms, test.origin, test.level)
-	//if test.isErr {
-	//require.Error(t, err)
-	//continue
-	//}
-	//require.NoError(t, err)
-	/*}*/
 }
 
 func TestHandelParsePacket(t *testing.T) {

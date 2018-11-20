@@ -2,7 +2,6 @@ package handel
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 )
 
@@ -202,15 +201,12 @@ type handler func(s *sigPair)
 // new better final signature, i.e. a signature at the last level, has been
 // generated. If so, it sends it to the output channel.
 func (h *Handel) checkFinalSignature(s *sigPair) {
-	h.store.Store(s.level, s.ms)
-
 	sigpair := h.store.BestCombined()
 	if sigpair.level != h.maxLevel {
 		return
 	}
 
 	if sigpair.ms.BitSet.Cardinality() < h.threshold {
-		fmt.Println("throwing ouuutt", sigpair.ms.BitSet.Cardinality(), "instead of ", h.threshold)
 		return
 	}
 
