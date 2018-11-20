@@ -74,6 +74,7 @@ func (f *fifoProcessing) processIncoming() {
 		err := f.verifySignature(&pair)
 		if err != nil {
 			logf(err.Error())
+			continue
 		}
 
 		logf("handel: sucessful verification of new signature %p", pair.ms)

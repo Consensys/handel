@@ -1,8 +1,6 @@
 package handel
 
 import (
-	"fmt"
-	"sync"
 	"testing"
 	"time"
 
@@ -47,7 +45,6 @@ func TestProcessingFifo(t *testing.T) {
 	fifos := make([]signatureProcessing, 0, len(tests))
 	for i, test := range tests {
 		t.Logf(" -- test %d -- ", i)
-		fmt.Printf(" --++++++-- test %d -- \n", i)
 
 		store := newReplaceStore(partitioner, NewWilffBitset)
 		fifo := newFifoProcessing(store, partitioner, cons, msg)
@@ -59,18 +56,11 @@ func TestProcessingFifo(t *testing.T) {
 		verified := fifo.Verified()
 		require.NotNil(t, verified)
 
-		var wg sync.WaitGroup
-		wg.Add(1)
-		go func() {
-			// input all signature pairs
-			for _, sp := range test.in {
-				in <- *sp
-			}
-			wg.Done()
-		}()
-
-		// expect same order of verified
-		for _, out := range test.out {
+		// input all signature pairs
+		for i, sp := range test.in {
+			in <- *sp
+			// expect same order of verified
+			out := test.out[i]
 			var s *sigPair
 			select {
 			case p := <-verified:
@@ -78,12 +68,12 @@ func TestProcessingFifo(t *testing.T) {
 			case <-time.After(20 * time.Millisecond):
 				s = nil
 			}
-			fmt.Println("test.out = ", out, " vs fetched ", s)
 			require.Equal(t, out, s)
+			// simulate storage
+			store.Store(sp.level, sp.ms)
 		}
-
-		wg.Wait()
 	}
+
 	for _, fifo := range fifos {
 		fifo.Stop()
 	}
