@@ -158,7 +158,9 @@ type fakeNetwork struct {
 
 func (f *fakeNetwork) Send(ids []Identity, p *Packet) {
 	for _, id := range ids {
-		go f.list[int(id.ID())].(*fakeNetwork).dispatch(p)
+		go func(i Identity) {
+			f.list[int(i.ID())].(*fakeNetwork).dispatch(p)
+		}(id)
 	}
 }
 
@@ -200,4 +202,11 @@ func FakeSetup(n int) (Registry, []*Handel) {
 		handels[i] = NewHandel(nets[i], reg, ids[i], cons, msg, &fakeSig{true})
 	}
 	return reg, handels
+}
+
+type listenerFunc func(*Packet)
+
+func (l listenerFunc) NewPacket(p *Packet) error {
+	l(p)
+	return nil
 }

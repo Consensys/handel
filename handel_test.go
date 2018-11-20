@@ -9,6 +9,49 @@ import (
 
 var msg = []byte("Sun is Shining...")
 
+func TestHandelcheckCompletedLevel(t *testing.T) {
+	n := 16
+	_, handels := FakeSetup(n)
+
+	testReceived := func(ch chan *Packet) Listener {
+		return listenerFunc(func(p *Packet) {
+			ch <- p
+		})
+	}
+
+	// 1 should send to 2 only a full signature
+	sender := handels[1]
+	receiver := handels[2]
+	inc := make(chan *Packet)
+	receiver.net.(*fakeNetwork).lis = []Listener{testReceived(inc)}
+
+	sig2 := fullSigPair(2)
+	// not-complete signature
+	sig22 := fullSigPair(2)
+	sig22.ms.BitSet.Set(0, false)
+
+	// send not full signature
+	sender.store.Store(2, sig22.ms)
+	sender.checkCompletedLevel(sig22)
+	select {
+	case <-inc:
+		t.Fatal("should not have received anything")
+	case <-time.After(20 * time.Millisecond):
+		// good
+	}
+
+	// send full signature
+	sender.store.Store(2, sig2.ms)
+	sender.checkCompletedLevel(sig2)
+	select {
+	case p := <-inc:
+		require.Equal(t, int32(1), p.Origin)
+		require.Equal(t, byte(2), p.Level)
+	case <-time.After(20 * time.Millisecond):
+		t.Fatal("not received expected full signature")
+	}
+}
+
 func TestHandelcheckFinalSignature(t *testing.T) {
 	n := 16
 

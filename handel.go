@@ -29,8 +29,8 @@ type Handel struct {
 	store signatureStore
 	// processing of signature - verification strategy
 	proc signatureProcessing
-	// all handlers registered that acts on a new signature
-	handlers []handler
+	// all actors registered that acts on a new signature
+	actors []actor
 	// completed levels, i.e. full signatures at each of these levels
 	completed []byte
 	// highest level attained by this handel node so far
@@ -68,9 +68,9 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 		out:      make(chan MultiSignature, 100),
 	}
 	h.proc = newFifoProcessing(h.store, h.part, c, msg)
-	h.handlers = []handler{
-		h.checkCompletedLevels,
-		h.checkFinalSignature,
+	h.actors = []actor{
+		actorFunc(h.checkCompletedLevel),
+		actorFunc(h.checkFinalSignature),
 	}
 
 	if len(conf) > 0 && conf[0] != nil {
@@ -150,9 +150,10 @@ func (h *Handel) parsePacket(p *Packet) (*MultiSignature, error) {
 // passed down to all registered handlers.
 func (h *Handel) rangeOnVerified() {
 	for v := range h.proc.Verified() {
+		h.store.Store(v.level, v.ms)
 		h.Lock()
-		for _, handler := range h.handlers {
-			handler(&v)
+		for _, actor := range h.actors {
+			actor.OnVerifiedSignature(&v)
 		}
 		h.Unlock()
 	}
@@ -189,13 +190,22 @@ func (h *Handel) startNextLevel() {
 	h.sendTo(h.currLevel, ms, nodes)
 }
 
-// handler is a function that takes a new verified signature and acts on it
+// actor is an interface that takes a new verified signature and acts on it
 // according to its own rule. It can be checking if it passes to a next level,
 // checking if the protocol is finished, checking if a signature completes
-// higher levels, etc. The store is guaranteed to have a multisignature present
-// at the level indicated in the verifiedSig. Each handler is called in a thread
-// safe manner, global lock is held during the call to handlers.
-type handler func(s *sigPair)
+// higher levels so it should send it out to other peers, etc. The store is
+// guaranteed to have a multisignature present at the level indicated in the
+// verifiedSig. Each handler is called in a thread safe manner, global lock is
+// held during the call to handlers.
+type actor interface {
+	OnVerifiedSignature(s *sigPair)
+}
+
+type actorFunc func(s *sigPair)
+
+func (a actorFunc) OnVerifiedSignature(s *sigPair) {
+	a(s)
+}
 
 // checkFinalSignature STORES the newly verified signature and then checks if a
 // new better final signature, i.e. a signature at the last level, has been
@@ -230,38 +240,35 @@ func (h *Handel) checkFinalSignature(s *sigPair) {
 	}
 }
 
-// checNewLevel looks if the signature completes levels by iterating over all
-// levels and check if new levels have been completed. For each newly completed
-// levels, it sends the full signature to peers in the respective level.
-func (h *Handel) checkCompletedLevels(s *sigPair) {
-	for lvl := byte(1); lvl < h.maxLevel; lvl++ {
-		if h.isCompleted(lvl) {
-			continue
-		}
-
-		ms, ok := h.store.Best(lvl)
-		if !ok {
-			panic("something's wrong with the store")
-		}
-		fullSize, err := h.part.Size(int(lvl))
-		if err != nil {
-			panic("level should be verified before")
-		}
-		if ms.Cardinality() != fullSize {
-			continue
-		}
-
-		// completed level !
-		// TODO: if no new nodes are available, maybe send to same nodes again
-		// in case for full signatures ?
-		newNodes, ok := h.part.PickNextAt(int(lvl), h.c.CandidateCount)
-		if !ok {
-			logf("handel: no new nodes for completed level %d", lvl)
-			continue
-		}
-
-		h.sendTo(lvl, ms, newNodes)
+// checNewLevel looks if the signature completes its respective level. If it
+// does, handel sends it out to new peers for this level if possible.
+func (h *Handel) checkCompletedLevel(s *sigPair) {
+	if h.isCompleted(s.level) {
+		return
 	}
+
+	ms, ok := h.store.Best(s.level)
+	if !ok {
+		panic("something's wrong with the store")
+	}
+	fullSize, err := h.part.Size(int(s.level))
+	if err != nil {
+		panic("level should be verified before")
+	}
+	if s.ms.Cardinality() != fullSize {
+		return
+	}
+
+	// completed level !
+	// TODO: if no new nodes are available, maybe send to same nodes again
+	// in case for full signatures ?
+	newNodes, ok := h.part.PickNextAt(int(s.level), h.c.CandidateCount)
+	if !ok {
+		logf("handel: no new nodes for completed level %d", s.level)
+		return
+	}
+
+	h.sendTo(s.level, ms, newNodes)
 }
 
 func (h *Handel) sendTo(lvl byte, ms *MultiSignature, ids []Identity) {
