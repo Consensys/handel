@@ -1,6 +1,7 @@
 package handel
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -16,29 +17,24 @@ func TestProcessingFifo(t *testing.T) {
 
 	type testProcess struct {
 		in  []*sigPair
-		out []*verifiedSig
+		out []*sigPair
 	}
 	sig2 := fullSigPair(2)
 	sig2Inv := fullSigPair(2)
 	sig2Inv.ms.Signature.(*fakeSig).verify = false
 	sig3 := fullSigPair(3)
 
-	vsig2 := &verifiedSig{*sig2, true}
-	vsig2f := &verifiedSig{*sig2, false}
-	vsig3 := &verifiedSig{*sig3, true}
-
 	var s = func(sigs ...*sigPair) []*sigPair { return sigs }
-	var v = func(vsigs ...*verifiedSig) []*verifiedSig { return vsigs }
 
 	var tests = []testProcess{
 		// all good, one one
-		{s(sig2), v(vsig2)},
+		{s(sig2), s(sig2)},
 		// twice the same
-		{s(sig2, sig2), v(vsig2, vsig2f)},
+		{s(sig2, sig2), s(sig2, nil)},
 		// diff level
-		{s(sig2, sig3, sig2), v(vsig2, vsig3, vsig2f)},
+		{s(sig2, sig3, sig2), s(sig2, sig3, nil)},
 		// wrong signature
-		{s(sig2Inv), v()},
+		{s(sig2Inv), s(nil)},
 	}
 
 	store := newReplaceStore(partitioner, NewWilffBitset)
@@ -49,7 +45,10 @@ func TestProcessingFifo(t *testing.T) {
 	require.True(t, fifo.done)
 
 	fifos := make([]signatureProcessing, 0, len(tests))
-	for _, test := range tests {
+	for i, test := range tests {
+		t.Logf(" -- test %d -- ", i)
+		fmt.Printf(" --++++++-- test %d -- \n", i)
+
 		store := newReplaceStore(partitioner, NewWilffBitset)
 		fifo := newFifoProcessing(store, partitioner, cons, msg)
 		fifos = append(fifos, fifo)
@@ -72,8 +71,15 @@ func TestProcessingFifo(t *testing.T) {
 
 		// expect same order of verified
 		for _, out := range test.out {
-			v := <-verified
-			require.Equal(t, *out, v)
+			var s *sigPair
+			select {
+			case p := <-verified:
+				s = &p
+			case <-time.After(20 * time.Millisecond):
+				s = nil
+			}
+			fmt.Println("test.out = ", out, " vs fetched ", s)
+			require.Equal(t, out, s)
 		}
 
 		wg.Wait()

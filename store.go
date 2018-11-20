@@ -6,11 +6,18 @@ package handel
 // only the best one, merging two non-colluding multi-signatures etc.
 // NOTE: implementation MUST be thread-safe.
 type signatureStore interface {
+
+	// MoreStore uses the same logic as Store but do not store the
+	// multisignature. It returns the (potentially new) multisgnature at
+	// the level, with a boolean indicating if there has been an entry update at
+	// this level. It can be true if there was no multisignature previously, or
+	// if the store has merged multiple multisignature together for example.
+	MockStore(level byte, ms *MultiSignature) (*MultiSignature, bool)
 	// Store saves the multi-signature if it is "better"
 	// (implementation-dependent) than the one previously saved at the same
 	// level. It returns true if the entry for this level has been updated,i.e.
 	// if GetBest at the same level will return a new multi-signature.
-	Store(level byte, ms *MultiSignature) bool
+	Store(level byte, ms *MultiSignature) (*MultiSignature, bool)
 	// GetBest returns the "best" multisignature at the requested level. Best
 	// should be interpreted as "containing the most individual contributions".
 	Best(level byte) (*MultiSignature, bool)
@@ -43,20 +50,27 @@ func newReplaceStore(part partitioner, nbs func(int) BitSet) *replaceStore {
 	}
 }
 
-func (r *replaceStore) Store(level byte, ms *MultiSignature) bool {
+func (r *replaceStore) MockStore(level byte, ms *MultiSignature) (*MultiSignature, bool) {
 	ms2, ok := r.m[level]
 	if !ok {
-		r.store(level, ms)
-		return true
+		return ms, true
 	}
 
 	c1 := ms.Cardinality()
 	c2 := ms2.Cardinality()
 	if c1 > c2 {
-		r.store(level, ms)
-		return true
+		return ms, true
 	}
-	return false
+	return ms2, false
+}
+
+func (r *replaceStore) Store(level byte, ms *MultiSignature) (*MultiSignature, bool) {
+	n, ok := r.MockStore(level, ms)
+	if !ok {
+		return nil, false
+	}
+	r.store(level, n)
+	return n, true
 }
 
 func (r *replaceStore) Best(level byte) (*MultiSignature, bool) {

@@ -1,6 +1,7 @@
 package handel
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -17,22 +18,34 @@ func TestHandelcheckFinalSignature(t *testing.T) {
 		// you can put multiple slices to call checkverified multiple times
 		sigs [][]*sigPair
 		// input to the handler
-		input *verifiedSig
+		input *sigPair
 		// expected output on the output channel
 		out []*MultiSignature
 	}
 
+	// test(3) set a non-complete signature followed by a complete signature
 	pairs1 := sigPairs(0, 1, 2, 3, 4)
 	pairs2 := sigPairs(4)
-
-	// set a non-complete signature
 	// index 8 (2^4-1) + 6 = 14 set to false
 	pairs1[4].ms.BitSet.Set(6, false)
-
 	final4 := finalSigPair(4, n)
 	// missing one contribution
 	final4b := finalSigPair(4, n)
 	final4b.ms.BitSet.Set(14, false)
+
+	// test(4) set a under-threshold signature followed by a good one
+	pairs3 := sigPairs(0, 1, 2, 3, 4)
+	// 4-1 -> because that's how you compute the size of a level
+	// -1 -> to just spread out holes to other levels and leave this one still
+	// having one contribution
+	for i := 0; i < pow2(4-1)-1; i++ {
+		pairs3[4].ms.BitSet.Set(i, false)
+	}
+	pairs3[3].ms.BitSet.Set(1, false)
+	pairs3[3].ms.BitSet.Set(2, false)
+
+	fmt.Println("pairs3[4] bitset = ", pairs3[4].ms.BitSet.String())
+	fmt.Println("pairs3[3] bitset = ", pairs3[3].ms.BitSet.String())
 
 	toMatrix := func(pairs ...[]*sigPair) [][]*sigPair {
 		return append(make([][]*sigPair, 0), pairs...)
@@ -44,6 +57,8 @@ func TestHandelcheckFinalSignature(t *testing.T) {
 		{toMatrix(sigPairs(0, 1, 2, 3, 4)), nil, []*MultiSignature{finalSigPair(4, n).ms}},
 		// gives two consecutives better
 		{toMatrix(pairs1, pairs2), nil, []*MultiSignature{final4b.ms, final4.ms}},
+		// one underthreshold and one above
+		{toMatrix(pairs3, pairs2), nil, []*MultiSignature{nil, final4.ms}},
 	}
 
 	waitOut := func(h *Handel) *MultiSignature {

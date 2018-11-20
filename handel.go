@@ -2,6 +2,7 @@ package handel
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 )
 
@@ -43,6 +44,9 @@ type Handel struct {
 	out chan MultiSignature
 	// indicating whether handel is finished or not
 	done bool
+	// constant threshold of contributions required in a ms to be considered
+	// valid
+	threshold int
 }
 
 // NewHandel returns a Handle interface that uses the given network and
@@ -76,6 +80,7 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 		h.c = DefaultConfig(r.Size())
 	}
 
+	h.threshold = h.c.ContributionsThreshold(h.reg.Size())
 	h.store = newReplaceStore(h.part, h.c.NewBitSet)
 	h.store.Store(1, &MultiSignature{BitSet: h.c.NewBitSet(1), Signature: s})
 	return h
@@ -191,14 +196,21 @@ func (h *Handel) startNextLevel() {
 // higher levels, etc. The store is guaranteed to have a multisignature present
 // at the level indicated in the verifiedSig. Each handler is called in a thread
 // safe manner, global lock is held during the call to handlers.
-type handler func(v *verifiedSig)
+type handler func(s *sigPair)
 
-// checkFinalSignature checks if a new better final signature, i.e. a signature
-// at the last level, has been generated. If so, it sends it to the output
-// channel.
-func (h *Handel) checkFinalSignature(v *verifiedSig) {
+// checkFinalSignature STORES the newly verified signature and then checks if a
+// new better final signature, i.e. a signature at the last level, has been
+// generated. If so, it sends it to the output channel.
+func (h *Handel) checkFinalSignature(s *sigPair) {
+	h.store.Store(s.level, s.ms)
+
 	sigpair := h.store.BestCombined()
 	if sigpair.level != h.maxLevel {
+		return
+	}
+
+	if sigpair.ms.BitSet.Cardinality() < h.threshold {
+		fmt.Println("throwing ouuutt", sigpair.ms.BitSet.Cardinality(), "instead of ", h.threshold)
 		return
 	}
 
@@ -225,7 +237,7 @@ func (h *Handel) checkFinalSignature(v *verifiedSig) {
 // checNewLevel looks if the signature completes levels by iterating over all
 // levels and check if new levels have been completed. For each newly completed
 // levels, it sends the full signature to peers in the respective level.
-func (h *Handel) checkCompletedLevels(v *verifiedSig) {
+func (h *Handel) checkCompletedLevels(s *sigPair) {
 	for lvl := byte(1); lvl < h.maxLevel; lvl++ {
 		if h.isCompleted(lvl) {
 			continue

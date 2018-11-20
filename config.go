@@ -1,6 +1,9 @@
 package handel
 
-import "time"
+import (
+	"math"
+	"time"
+)
 
 // Config holds the different parameters used to configure Handel.
 type Config struct {
@@ -11,7 +14,7 @@ type Config struct {
 	// specified, 50% is used by default. This percentage is used to decide when
 	// a multi-signature can be passed up to higher levels as well, not only for
 	// the final level.
-	ContributionsRatio int
+	ContributionsPerc int
 
 	// LevelTimeout is used to decide when a Handel nodes passes to the next
 	// level even if it did not receive enough signatures. If not specified, a
@@ -35,11 +38,11 @@ type Config struct {
 // DefaultConfig returns a default configuration for Handel.
 func DefaultConfig(size int) *Config {
 	return &Config{
-		ContributionsRatio: DefaultContributionsPerc,
-		CandidateCount:     DefaultCandidateCount,
-		LevelTimeout:       DefaultLevelTimeout,
-		UpdatePeriod:       DefaultUpdatePeriod,
-		NewBitSet:          DefaultBitSet,
+		ContributionsPerc: DefaultContributionsPerc,
+		CandidateCount:    DefaultCandidateCount,
+		LevelTimeout:      DefaultLevelTimeout,
+		UpdatePeriod:      DefaultUpdatePeriod,
+		NewBitSet:         DefaultBitSet,
 	}
 }
 
@@ -60,10 +63,18 @@ const DefaultUpdatePeriod = 50 * time.Millisecond
 // WilffBitSet
 var DefaultBitSet = func(bitlength int) BitSet { return NewWilffBitset(bitlength) }
 
+// ContributionsThreshold returns the threshold of contributions required in a
+// multi-signature to be considered valid and be passed up to the application
+// using Handel. Basically multiplying the total number of node times the
+// contributions percentage.
+func (c *Config) ContributionsThreshold(n int) int {
+	return int(math.Ceil(float64(n) * float64(c.ContributionsPerc) / 100.0))
+}
+
 func mergeWithDefault(c *Config, size int) *Config {
 	c2 := *c
-	if c.ContributionsRatio == 0 {
-		c2.ContributionsRatio = DefaultContributionsPerc
+	if c.ContributionsPerc == 0 {
+		c2.ContributionsPerc = DefaultContributionsPerc
 	}
 	if c.CandidateCount == 0 {
 		c2.CandidateCount = DefaultCandidateCount

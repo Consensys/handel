@@ -10,11 +10,11 @@ import (
 	"sync"
 )
 
-// signatureProcessing is an interface responsible for processing incoming
-// multi-signature: verifying them, if needed, and storing them, if needed. It
-// outputs verified signatures to the main handel processing logic It is an
-// asynchronous processing interface that needs to be started and stopped when
-// needed.
+// signatureProcessing is an interface responsible for verifying incoming
+// multi-signature. It can decides to drop some incoming signatures if deemed
+// useless. It outputs verified signatures to the main handel processing logic
+// It is an asynchronous processing interface that needs to be started and
+// stopped when needed.
 type signatureProcessing interface {
 	// Start is a blocking call that starts the processing routine
 	Start()
@@ -26,7 +26,7 @@ type signatureProcessing interface {
 	// that all verified signatures are signatures that have been sent on the
 	// incoming channel. No new signatures must be outputted on this channel (
 	// is the role of the Store)
-	Verified() chan verifiedSig
+	Verified() chan sigPair
 }
 
 type verifiedSig struct {
@@ -43,7 +43,7 @@ type fifoProcessing struct {
 	cons  Constructor
 	msg   []byte
 	in    chan sigPair
-	out   chan verifiedSig
+	out   chan sigPair
 	done  bool
 }
 
@@ -58,23 +58,30 @@ func newFifoProcessing(store signatureStore, part partitioner,
 		cons:  c,
 		msg:   msg,
 		in:    make(chan sigPair, 100),
-		out:   make(chan verifiedSig, 100),
+		out:   make(chan sigPair, 100),
 	}
 }
 
 // processIncoming simply verifies the signature, stores it, and outputs it
 func (f *fifoProcessing) processIncoming() {
 	for pair := range f.in {
+		_, isNew := f.store.MockStore(pair.level, pair.ms)
+		if !isNew {
+			logf("handel: skipping verification of signature")
+			continue
+		}
+
 		err := f.verifySignature(&pair)
 		if err != nil {
 			logf(err.Error())
 		}
-		new := f.store.Store(pair.level, pair.ms)
-		logf("handel: processing verified and stored one new signature")
-		if f.isStopped() {
+
+		logf("handel: sucessful verification of new signature %p", pair.ms)
+		if !f.isStopped() {
+			f.out <- pair
+		} else {
 			break
 		}
-		f.out <- verifiedSig{pair, new}
 	}
 }
 
@@ -109,7 +116,7 @@ func (f *fifoProcessing) Incoming() chan sigPair {
 	return f.in
 }
 
-func (f *fifoProcessing) Verified() chan verifiedSig {
+func (f *fifoProcessing) Verified() chan sigPair {
 	return f.out
 }
 

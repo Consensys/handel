@@ -32,3 +32,6 @@
 
 + Adapt it to NON POWER OF TWO --> see partitioner test failing with non-power
   of two
+
++ potential callback on processing to verify packet signature
++ add "TryAdd" 
