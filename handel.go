@@ -2,6 +2,7 @@ package handel
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 )
 
@@ -67,7 +68,6 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 		maxLevel: byte(log2(r.Size())),
 		out:      make(chan MultiSignature, 100),
 	}
-	h.proc = newFifoProcessing(h.store, h.part, c, msg)
 	h.actors = []actor{
 		actorFunc(h.checkCompletedLevel),
 		actorFunc(h.checkFinalSignature),
@@ -81,7 +81,11 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 
 	h.threshold = h.c.ContributionsThreshold(h.reg.Size())
 	h.store = newReplaceStore(h.part, h.c.NewBitSet)
-	h.store.Store(1, &MultiSignature{BitSet: h.c.NewBitSet(1), Signature: s})
+	firstBs := h.c.NewBitSet(1)
+	firstBs.Set(0, true)
+	h.store.Store(0, &MultiSignature{BitSet: firstBs, Signature: s})
+	h.proc = newFifoProcessing(h.store, h.part, c, msg)
+	h.net.RegisterListener(h)
 	return h
 }
 
@@ -91,13 +95,13 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 func (h *Handel) NewPacket(p *Packet) {
 	h.Lock()
 	defer h.Unlock()
-
 	ms, err := h.parsePacket(p)
 	if err != nil {
-		logf(err.Error())
+		h.logf(err.Error())
 	}
 
 	// sends it to processing
+	h.logf("sending incoming signature from %d to verification thread", p.Origin)
 	h.proc.Incoming() <- sigPair{level: p.Level, ms: ms}
 }
 
@@ -145,9 +149,40 @@ func (h *Handel) parsePacket(p *Packet) (*MultiSignature, error) {
 	return ms, err
 }
 
+// startNextLevel increase the currLevel counter and sends its best
+// highest-level signature it has to nodes at the new currLevel.
+func (h *Handel) startNextLevel() {
+	if h.currLevel >= h.maxLevel {
+		// protocol is finished
+		h.logf("protocol finished at level %d", h.currLevel)
+		return
+	}
+	h.currLevel++
+	sp := h.store.Highest()
+	if sp == nil {
+		h.logf("no signature to send ...?")
+		return
+	}
+	nodes, ok := h.part.PickNextAt(int(h.currLevel), h.c.CandidateCount)
+	if !ok {
+		// XXX This should not happen, but what if ?
+		return
+	}
+	// NOTE: send with the actual level of the multisignature for the size of the
+	// bitset is correct and verification will pass.
+	// XXX: either put the +1 when doing the BestCombined or just here. +1 is
+	// needed since when aggregating different-level signature, you are
+	// generating the signature for the next level.
+	h.sendTo(sp.level+1, sp.ms, nodes)
+	fmt.Printf(" --- NEW LEVEL send sigpair: %+v\n", sp)
+	fmt.Printf(" ---- replaceStore string(): %s\n", h.store)
+	h.logf("new level %d: sent best signatures (lvl = %d) to %d nodes", h.currLevel, sp.level+1, len(nodes))
+}
+
 // rangeOnVerified continuously listens on the output channel of the signature
 // processing routine for verified signatures. Each verified signatures is
-// passed down to all registered handlers.
+// passed down to all registered actors. Each handler is called in a thread safe
+// manner, global lock is held during the call to actors.
 func (h *Handel) rangeOnVerified() {
 	for v := range h.proc.Verified() {
 		h.store.Store(v.level, v.ms)
@@ -159,35 +194,13 @@ func (h *Handel) rangeOnVerified() {
 	}
 }
 
-// startNextLevel increase the currLevel counter and sends its best
-// highest-level signature it has to nodes at the new currLevel.
-func (h *Handel) startNextLevel() {
-	if h.currLevel >= h.maxLevel {
-		// protocol is finished
-		logf("handel: protocol finished at level %d", h.currLevel)
-		return
-	}
-	h.currLevel++
-	sp := h.store.BestCombined()
-	if sp == nil {
-		logf("handel: no signature to send ...?")
-		return
-	}
-	nodes, ok := h.part.PickNextAt(int(h.currLevel), h.c.CandidateCount)
-	if !ok {
-		// XXX This should not happen, but what if ?
-		return
-	}
-	h.sendTo(h.currLevel, sp.ms, nodes)
-}
-
 // actor is an interface that takes a new verified signature and acts on it
 // according to its own rule. It can be checking if it passes to a next level,
 // checking if the protocol is finished, checking if a signature completes
 // higher levels so it should send it out to other peers, etc. The store is
 // guaranteed to have a multisignature present at the level indicated in the
 // verifiedSig. Each handler is called in a thread safe manner, global lock is
-// held during the call to handlers.
+// held during the call to actors.
 type actor interface {
 	OnVerifiedSignature(s *sigPair)
 }
@@ -202,12 +215,9 @@ func (a actorFunc) OnVerifiedSignature(s *sigPair) {
 // new better final signature, i.e. a signature at the last level, has been
 // generated. If so, it sends it to the output channel.
 func (h *Handel) checkFinalSignature(s *sigPair) {
-	sigpair := h.store.BestCombined()
-	if sigpair.level != h.maxLevel {
-		return
-	}
+	sig := h.store.FullSignature()
 
-	if sigpair.ms.BitSet.Cardinality() < h.threshold {
+	if sig.BitSet.Cardinality() < h.threshold {
 		return
 	}
 
@@ -220,14 +230,14 @@ func (h *Handel) checkFinalSignature(s *sigPair) {
 	}
 
 	if h.best == nil {
-		newBest(sigpair.ms)
+		newBest(sig)
 		return
 	}
 
-	new := sigpair.ms.Cardinality()
+	new := sig.Cardinality()
 	local := h.best.Cardinality()
 	if new > local {
-		newBest(sigpair.ms)
+		newBest(sig)
 	}
 }
 
@@ -238,6 +248,8 @@ func (h *Handel) checkCompletedLevel(s *sigPair) {
 		return
 	}
 
+	// XXX IIF completed signatures for higher level then send this higher level
+	// instead
 	ms, ok := h.store.Best(s.level)
 	if !ok {
 		panic("something's wrong with the store")
@@ -247,25 +259,34 @@ func (h *Handel) checkCompletedLevel(s *sigPair) {
 		panic("level should be verified before")
 	}
 	if s.ms.Cardinality() != fullSize {
+		fmt.Println(" signature NOT FULL ??????????")
+		fmt.Println("ms.Car() ", s.ms.Cardinality(), " vs fullSize ", fullSize)
 		return
 	}
 
 	// completed level !
+	h.markCompleted(s.level)
+
 	// TODO: if no new nodes are available, maybe send to same nodes again
 	// in case for full signatures ?
 	newNodes, ok := h.part.PickNextAt(int(s.level), h.c.CandidateCount)
-	if !ok {
-		logf("handel: no new nodes for completed level %d", s.level)
-		return
+	if ok {
+		h.logf("sending complete signature for level %d to %d new nodes", s.level, len(newNodes))
+		h.sendTo(s.level, ms, newNodes)
+	} else {
+		h.logf("no new nodes for completed level %d", s.level)
 	}
 
-	h.sendTo(s.level, ms, newNodes)
+	// go to next level if we already finished this one !
+	if s.level == h.currLevel {
+		go h.startNextLevel()
+	}
 }
 
 func (h *Handel) sendTo(lvl byte, ms *MultiSignature, ids []Identity) {
 	buff, err := ms.MarshalBinary()
 	if err != nil {
-		logf("handel: error marshalling multi-signature: %s", err)
+		h.logf("error marshalling multi-signature: %s", err)
 		return
 	}
 
@@ -286,4 +307,13 @@ func (h *Handel) isCompleted(level byte) bool {
 		}
 	}
 	return false
+}
+
+func (h *Handel) markCompleted(level byte) {
+	h.completed = append(h.completed, level)
+}
+
+func (h *Handel) logf(str string, args ...interface{}) {
+	idArg := []interface{}{h.id.ID()}
+	logf("handel %d: "+str, append(idArg, args...)...)
 }

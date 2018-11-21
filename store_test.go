@@ -6,6 +6,42 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestStoreHighest(t *testing.T) {
+	n := 8
+	reg := FakeRegistry(n)
+	part := newBinTreePartition(1, reg)
+	store := newReplaceStore(part, NewWilffBitset)
+
+	store.Store(3, &MultiSignature{BitSet: NewWilffBitset(4), Signature: &fakeSig{true}})
+	store.Store(2, &MultiSignature{BitSet: NewWilffBitset(2), Signature: &fakeSig{true}})
+	pair := store.Highest()
+
+	require.NotNil(t, pair)
+	require.Equal(t, 4, int(pair.level))
+	require.Equal(t, 8, pair.ms.BitSet.BitLength())
+
+	// weird case with 0 and 1
+	store = newReplaceStore(part, NewWilffBitset)
+	store.Store(0, &MultiSignature{BitSet: NewWilffBitset(1), Signature: &fakeSig{true}})
+	store.Store(1, &MultiSignature{BitSet: NewWilffBitset(1), Signature: &fakeSig{true}})
+	pair = store.Highest()
+
+}
+
+func TestStoreFullSignature(t *testing.T) {
+	n := 8
+	reg := FakeRegistry(n)
+	part := newBinTreePartition(1, reg)
+	store := newReplaceStore(part, NewWilffBitset)
+	bs1 := NewWilffBitset(1)
+	bs1.Set(0, true)
+
+	store.Store(0, &MultiSignature{BitSet: bs1, Signature: &fakeSig{true}})
+	ms := store.FullSignature()
+	require.Equal(t, n, ms.BitSet.BitLength())
+	require.True(t, ms.BitSet.Get(1))
+}
+
 func TestStoreReplace(t *testing.T) {
 	n := 8
 	reg := FakeRegistry(n)
@@ -19,13 +55,13 @@ func TestStoreReplace(t *testing.T) {
 	for i := 0; i < n; i++ {
 		fullBs3.Set(i, true)
 	}
-	fullSig3 := &sigPair{3, newSig(fullBs3)}
-	fullBs2 := NewWilffBitset(n)
+	fullSig3 := &sigPair{4, newSig(fullBs3)}
+	fullBs2 := NewWilffBitset(pow2(3 - 1))
 	// only signature 2 present so no 0, 1
-	for i := 2; i < n/2; i++ {
+	for i := 2; i < fullBs2.BitLength(); i++ {
 		fullBs2.Set(i, true)
 	}
-	fullSig2 := &sigPair{2, newSig(fullBs2)}
+	fullSig2 := &sigPair{level: 3, ms: newSig(fullBs2)}
 
 	// preparing mocked type return
 	type mockRet struct {
@@ -80,6 +116,6 @@ func TestStoreReplace(t *testing.T) {
 		ms, ok := store.Best(test.best)
 		require.Equal(t, test.eqMs, ms)
 		require.Equal(t, test.eqBool, ok)
-		require.Equal(t, test.highest, store.BestCombined())
+		require.Equal(t, test.highest, store.Highest())
 	}
 }

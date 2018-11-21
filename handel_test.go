@@ -1,6 +1,7 @@
 package handel
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -9,21 +10,36 @@ import (
 
 var msg = []byte("Sun is Shining...")
 
-func TestHandelcheckCompletedLevel(t *testing.T) {
+func TestHandelWholeThing(t *testing.T) {
+	t.Skip()
 	n := 16
 	_, handels := FakeSetup(n)
 
-	testReceived := func(ch chan *Packet) Listener {
-		return listenerFunc(func(p *Packet) {
-			ch <- p
-		})
+	for _, h := range handels {
+		go h.Start()
 	}
+
+	var wg sync.WaitGroup
+	wg.Add(n)
+	for _, h := range handels {
+		go func(hh *Handel) {
+			_ = <-hh.FinalSignatures()
+			wg.Done()
+		}(h)
+	}
+
+	wg.Wait()
+}
+
+func TestHandelcheckCompletedLevel(t *testing.T) {
+	n := 16
+	_, handels := FakeSetup(n)
 
 	// 1 should send to 2 only a full signature
 	sender := handels[1]
 	receiver := handels[2]
 	inc := make(chan *Packet)
-	receiver.net.(*fakeNetwork).lis = []Listener{testReceived(inc)}
+	receiver.net.(*fakeNetwork).lis = []Listener{ChanListener(inc)}
 
 	sig2 := fullSigPair(2)
 	// not-complete signature

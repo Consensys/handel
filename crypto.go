@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 )
 
 // PublicKey holds methods to verify a signature and to combine multiple public
@@ -40,6 +41,7 @@ type Signature interface {
 
 // MultiSignature represents an aggregated signature alongside with its bitset.
 // Handel outputs potentially multiple MultiSignatures during the protocol.
+// The BitSet is always expected to have the maximum size.
 type MultiSignature struct {
 	BitSet
 	Signature
@@ -91,4 +93,8 @@ func (m *MultiSignature) Unmarshal(b []byte, s Signature, nbs func(b int) BitSet
 	m.BitSet = bs
 	m.Signature = s
 	return nil
+}
+
+func (m *MultiSignature) String() string {
+	return fmt.Sprintf("{bs (len %d): %s, ms: %s}", m.BitSet.BitLength(), m.BitSet, m.Signature)
 }

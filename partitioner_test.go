@@ -6,30 +6,69 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type combineTest struct {
+	sigs []*sigPair
+	exp  *sigPair
+}
+
 func TestPartitionerBinTreeCombine(t *testing.T) {
 	n := 16
 	reg := FakeRegistry(n)
 	ct := newBinTreePartition(1, reg)
 
-	var mkSigPair = func(level int) *sigPair {
-		return &sigPair{
-			level: byte(level),
-			ms:    fullSig(level),
-		}
+	sig3 := &fakeSig{true}
+	bs3 := NewWilffBitset(n / 2)
+	for i := 0; i < bs3.BitLength(); i++ {
+		bs3.Set(i, true)
+	}
+	sig2 := &fakeSig{true}
+	bs2 := NewWilffBitset(pow2(3 - 1))
+	// only the level-2 bits are set
+	for i := 2; i < 4; i++ {
+		bs2.Set(i, true)
 	}
 
-	var sigPairs = func(lvls ...int) []*sigPair {
-		s := make([]*sigPair, len(lvls))
-		for i, lvl := range lvls {
-			s[i] = mkSigPair(lvl)
-		}
-		return s
+	// final signature should have level 4 and bitlength 8
+	// with first bit set to false
+	pairs3 := sigPairs(0, 2, 3)
+	final4 := finalSigPair(4, 8)
+	final4.ms.BitSet.Set(0, false)
+
+	var tests = []combineTest{
+		// all good, we should have the first half of signature returned (
+		{sigPairs(0, 1, 2, 3), &sigPair{level: 4, ms: &MultiSignature{Signature: sig3, BitSet: bs3}}},
+		// only one to combine
+		{sigPairs(2), &sigPair{level: 3, ms: &MultiSignature{Signature: sig2, BitSet: bs2}}},
+		{nil, nil},
+		// with holes
+		{pairs3, final4},
 	}
 
-	type combineTest struct {
-		sigs []*sigPair
-		exp  *sigPair
+	for i, test := range tests {
+		t.Logf(" -- test %d -- ", i)
+		res := ct.Combine(test.sigs, false, NewWilffBitset)
+		if test.exp == nil {
+			require.Nil(t, res)
+			continue
+		}
+		require.Equal(t, test.exp.level, res.level)
+		require.Equal(t, test.exp.ms.Signature, res.ms.Signature)
+		require.Equal(t, test.exp.ms.BitSet.BitLength(), res.ms.BitSet.BitLength())
+		expSize, _ := ct.Size(int(test.exp.level))
+		require.Equal(t, expSize, res.ms.BitSet.BitLength())
+
+		bs1 := test.exp.ms.BitSet
+		bs2 := res.ms.BitSet
+		for i := 0; i < bs1.BitLength(); i++ {
+			require.Equal(t, bs1.Get(i), bs2.Get(i))
+		}
 	}
+}
+
+func TestPartitionerBinTreeCombineFull(t *testing.T) {
+	n := 16
+	reg := FakeRegistry(n)
+	ct := newBinTreePartition(1, reg)
 
 	sig3 := &fakeSig{true}
 	bs3 := NewWilffBitset(n)
@@ -72,13 +111,16 @@ func TestPartitionerBinTreeCombine(t *testing.T) {
 
 	for i, test := range tests {
 		t.Logf(" -- test %d -- ", i)
-		res := ct.Combine(test.sigs, NewWilffBitset)
+		res := ct.Combine(test.sigs, true, NewWilffBitset)
 		if test.exp == nil {
 			require.Nil(t, res)
 			continue
 		}
 		require.Equal(t, test.exp.ms.Signature, res.ms.Signature)
 		require.Equal(t, test.exp.ms.BitSet.BitLength(), res.ms.BitSet.BitLength())
+		require.Equal(t, test.exp.level, res.level)
+		require.Equal(t, n, res.ms.BitSet.BitLength())
+
 		bs1 := test.exp.ms.BitSet
 		bs2 := res.ms.BitSet
 		for i := 0; i < bs1.BitLength(); i++ {
@@ -175,6 +217,40 @@ func TestPartitionerBinTreeRangeAt(t *testing.T) {
 		expected, ok := reg.Identities(test.from, test.to)
 		require.True(t, ok)
 		require.Equal(t, expected, _ids)
+	}
+}
+
+func TestPartitionerBinTreeRangeAtInverse(t *testing.T) {
+	n := 16
+	reg := FakeRegistry(n)
+	ct := newBinTreePartition(1, reg).(*binTreePartition)
+
+	type rangeTest struct {
+		level int
+		isErr bool
+		from  int
+		to    int
+	}
+
+	tests := []rangeTest{
+		{0, false, 1, 1},
+		{1, false, 1, 2},
+		{2, false, 0, 2},
+		{3, false, 0, 4},
+		{4, false, 0, 8},
+		{5, false, 0, 16},
+		{7, true, 0, 0},
+	}
+
+	for i, test := range tests {
+		t.Logf(" -- test %d -- ", i)
+		min, max, err := ct.rangeLevelInverse(test.level)
+		if test.isErr {
+			require.Error(t, err)
+			continue
+		}
+		require.Equal(t, test.from, min)
+		require.Equal(t, test.to, max)
 	}
 }
 

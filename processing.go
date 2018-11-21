@@ -65,9 +65,10 @@ func newFifoProcessing(store signatureStore, part partitioner,
 // processIncoming simply verifies the signature, stores it, and outputs it
 func (f *fifoProcessing) processIncoming() {
 	for pair := range f.in {
+		logf("fifo: new incoming signature %+v", pair)
 		_, isNew := f.store.MockStore(pair.level, pair.ms)
 		if !isNew {
-			logf("handel: skipping verification of signature")
+			logf("handel: fifo: skipping verification of signature %+v", pair)
 			continue
 		}
 
@@ -77,8 +78,8 @@ func (f *fifoProcessing) processIncoming() {
 			continue
 		}
 
-		logf("handel: sucessful verification of new signature %p", pair.ms)
 		if !f.isStopped() {
+			logf("handel: handling back verified signature to actors")
 			f.out <- pair
 		} else {
 			break
@@ -95,6 +96,7 @@ func (f *fifoProcessing) verifySignature(pair *sigPair) error {
 	}
 
 	if ms.BitSet.BitLength() != len(ids) {
+		fmt.Printf(" -- level %d: bitset length: %d vs len(ids) %d", level, ms.BitSet.BitLength(), len(ids))
 		return errors.New("handel: inconsistent bitset with given level")
 	}
 

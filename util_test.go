@@ -95,6 +95,10 @@ func (f *fakeSig) Combine(Signature) Signature {
 	return f
 }
 
+func (f *fakeSig) String() string {
+	return fmt.Sprintf("fake{%v}", f.verify)
+}
+
 type fakeCons struct {
 }
 
@@ -206,7 +210,12 @@ func FakeSetup(n int) (Registry, []*Handel) {
 
 type listenerFunc func(*Packet)
 
-func (l listenerFunc) NewPacket(p *Packet) error {
+func (l listenerFunc) NewPacket(p *Packet) {
 	l(p)
-	return nil
+}
+
+func ChanListener(ch chan *Packet) Listener {
+	return listenerFunc(func(p *Packet) {
+		ch <- p
+	})
 }

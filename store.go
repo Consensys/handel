@@ -1,12 +1,17 @@
 package handel
 
+import (
+	"bytes"
+	"fmt"
+	"sync"
+)
+
 // signatureStore is a generic interface whose role is to store received valid
 // multisignature, and to be able to serve the best multisignature received so
 // far at a given level. Different strategies can be implemented such as keeping
 // only the best one, merging two non-colluding multi-signatures etc.
 // NOTE: implementation MUST be thread-safe.
 type signatureStore interface {
-
 	// MoreStore uses the same logic as Store but do not store the
 	// multisignature. It returns the (potentially new) multisgnature at
 	// the level, with a boolean indicating if there has been an entry update at
@@ -21,9 +26,16 @@ type signatureStore interface {
 	// GetBest returns the "best" multisignature at the requested level. Best
 	// should be interpreted as "containing the most individual contributions".
 	Best(level byte) (*MultiSignature, bool)
-	// BestCombined returns the best possible multi-signature aggregated from
-	// all multi-signature stored at all levels, and the maximum respective level
-	BestCombined() *sigPair
+
+	// HighestCombined returns the best combined multi-signature possible. The
+	// bitset size is the size associated to the level in the sigpair, which is
+	// the maximum level signature + 1. It can return nil if there is no
+	// signature present so far.
+	Highest() *sigPair
+
+	// FullSignature returns the best combined multi-signatures with the bitset
+	// bitlength being the size of the registry
+	FullSignature() *MultiSignature
 }
 
 type sigPair struct {
@@ -34,6 +46,7 @@ type sigPair struct {
 // replaceStore is a signatureStore that only stores multisignature if it
 // contains more individual contributions than what's already stored.
 type replaceStore struct {
+	sync.Mutex
 	m       map[byte]*MultiSignature
 	highest byte
 	// used to create empty bitset for aggregating multi-signatures
@@ -51,6 +64,23 @@ func newReplaceStore(part partitioner, nbs func(int) BitSet) *replaceStore {
 }
 
 func (r *replaceStore) MockStore(level byte, ms *MultiSignature) (*MultiSignature, bool) {
+	r.Lock()
+	defer r.Unlock()
+	return r.unsafeCheck(level, ms)
+}
+
+func (r *replaceStore) Store(level byte, ms *MultiSignature) (*MultiSignature, bool) {
+	r.Lock()
+	defer r.Unlock()
+	n, ok := r.unsafeCheck(level, ms)
+	if !ok {
+		return nil, false
+	}
+	r.store(level, n)
+	return n, true
+}
+
+func (r *replaceStore) unsafeCheck(level byte, ms *MultiSignature) (*MultiSignature, bool) {
 	ms2, ok := r.m[level]
 	if !ok {
 		return ms, true
@@ -64,26 +94,36 @@ func (r *replaceStore) MockStore(level byte, ms *MultiSignature) (*MultiSignatur
 	return ms2, false
 }
 
-func (r *replaceStore) Store(level byte, ms *MultiSignature) (*MultiSignature, bool) {
-	n, ok := r.MockStore(level, ms)
-	if !ok {
-		return nil, false
-	}
-	r.store(level, n)
-	return n, true
-}
-
 func (r *replaceStore) Best(level byte) (*MultiSignature, bool) {
+	r.Lock()
+	defer r.Unlock()
 	ms, ok := r.m[level]
 	return ms, ok
 }
 
-func (r *replaceStore) BestCombined() *sigPair {
+func (r *replaceStore) FullSignature() *MultiSignature {
+	r.Lock()
+	defer r.Unlock()
 	sigs := make([]*sigPair, 0, len(r.m))
 	for k, ms := range r.m {
 		sigs = append(sigs, &sigPair{level: k, ms: ms})
 	}
-	return r.part.Combine(sigs, r.nbs)
+	sp := r.part.Combine(sigs, true, r.nbs)
+	if sp == nil {
+		return nil
+	}
+
+	return sp.ms
+}
+
+func (r *replaceStore) Highest() *sigPair {
+	r.Lock()
+	defer r.Unlock()
+	sigs := make([]*sigPair, 0, len(r.m))
+	for k, ms := range r.m {
+		sigs = append(sigs, &sigPair{level: k, ms: ms})
+	}
+	return r.part.Combine(sigs, false, r.nbs)
 }
 
 func (r *replaceStore) store(level byte, ms *MultiSignature) {
@@ -91,4 +131,17 @@ func (r *replaceStore) store(level byte, ms *MultiSignature) {
 	if level > r.highest {
 		r.highest = level
 	}
+}
+
+func (r *replaceStore) String() string {
+	var b bytes.Buffer
+	b.WriteString("replaceStore table:\n")
+	for lvl, ms := range r.m {
+		b.WriteString(fmt.Sprintf("\tlevel %d : %s\n", lvl, ms))
+	}
+	return b.String()
+}
+
+func (s *sigPair) String() string {
+	return fmt.Sprintf("sig(lvl %d): %s", s.level, s.ms.String())
 }

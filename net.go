@@ -21,7 +21,7 @@ type Network interface {
 // new packet arrives from the network, it is dispatched to the registered
 // Listeners.
 type Listener interface {
-	NewPacket(*Packet) error
+	NewPacket(*Packet)
 }
 
 // Packet is the general packet that Handel sends out and expects to receive
