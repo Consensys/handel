@@ -17,7 +17,7 @@ type ExampleListener struct {
 
 func (l ExampleListener) NewPacket(packet *h.Packet) error {
 	lvl := packet.Level
-	fmt.Println("Recived msg ", "Lvl", lvl, "Org", packet.Origin, string(packet.MultiSig[:]))
+	fmt.Println("Received msg ", "Lvl", lvl, "Org", packet.Origin, string(packet.MultiSig[:]))
 
 	sig := "Hello" //string(packet.MultiSig) + " signed by " + strconv.Itoa(int(l.id)) + ", "
 
@@ -47,7 +47,7 @@ func Start() {
 	// we need to wait some period of time for libp2p to ask router about host
 	// external adress
 	time.Sleep(3 * time.Second)
-	fmt.Println("Host listen adresses")
+	fmt.Println("Host listen addresses")
 	for _, addr := range net.HostMultiAddr() {
 		fmt.Println(addr)
 	}
