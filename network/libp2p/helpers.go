@@ -42,6 +42,13 @@ func makePeerIDAndAddr(target string) (*peer.ID, *multiaddr.Multiaddr, error) {
 	return &peerid, &targetAddr, nil
 }
 
+// MakeDeterministicID maps handel ID to libp2p ID.
+// libp2p creates ID based on host private key, in general setting deterministic
+// private key is not secure but in handel case we don't use any encryption, the private key
+// is only used for creating libp2p identity.
+// Going from handel id to libp2p id is very cumbersome, and ideally the two ids should be the same.
+// Unfortunetly at this moment libp2p.Host doesn't provide option for setting up custom id.
+// Note: libp2p swarm accepts custom id but for know this is overkill
 func MakeDeterministicID(id int32) (crypto.PrivKey, error) {
 	r := mrand.New(mrand.NewSource(int64(id)))
 	prvKey, _, err := crypto.GenerateKeyPairWithReader(crypto.RSA, 2048, r)

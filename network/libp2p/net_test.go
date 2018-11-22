@@ -19,7 +19,7 @@ func newMockListener() h.Listener {
 }
 
 func TestRegisterListener(t *testing.T) {
-	var net = newLibP2pNetwork(0, 0)
+	var net = NewLibP2pNetwork(0, 0)
 	require.Equal(t, 0, len(*net.listeners))
 
 	net.RegisterListener(newMockListener())

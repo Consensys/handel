@@ -12,8 +12,11 @@ import (
 	libp2p "github.com/libp2p/go-libp2p"
 	host "github.com/libp2p/go-libp2p-host"
 	net "github.com/libp2p/go-libp2p-net"
+	peer "github.com/libp2p/go-libp2p-peer"
 	pstore "github.com/libp2p/go-libp2p-peerstore"
+	proto "github.com/libp2p/go-libp2p-protocol"
 	multiaddr "github.com/multiformats/go-multiaddr"
+	msmux "github.com/multiformats/go-multistream"
 )
 
 type libP2PNet struct {
@@ -27,16 +30,15 @@ const addrTypeStr = "ipfs"
 
 // NewNetwork returns instance of handel.Network
 func NewNetwork(listenPort int, id int32) h.Network {
-	return newLibP2pNetwork(listenPort, id)
+	return NewLibP2pNetwork(listenPort, id)
 }
 
-// newLibP2pNetwork returns instance of handel.Network which uses libp2p/tcp
+// NewLibP2pNetwork returns instance of handel.Network which uses libp2p/tcp
 // as a backend
-func newLibP2pNetwork(listenPort int, id int32) *libP2PNet {
+func NewLibP2pNetwork(listenPort int, id int32) *libP2PNet {
 	host := newHost(listenPort, id)
 	listeners := &[]h.Listener{}
 	host.SetStreamHandler(protocol, packetHandler(listeners))
-
 	return &libP2PNet{listeners: listeners, host: host}
 }
 
@@ -56,29 +58,55 @@ func (net *libP2PNet) Send(identities []h.Identity, packet *h.Packet) {
 }
 
 func (net *libP2PNet) send(identity h.Identity, packet *h.Packet) {
-
 	peerid, multiAddr, err := makePeerIDAndAddr(identity.Address())
 	if err != nil {
-		log.Println("Error: unable to create remote peerid", err)
+		fmt.Println("Error: unable to create remote peerid", err)
 		return
 	}
+
 	//TODO set peerid, multiAddr only if Peerstore doesn't contain these entries
 	net.host.Peerstore().SetAddr(*peerid, *multiAddr, pstore.PermanentAddrTTL)
-	stream, err := net.host.NewStream(context.Background(), *peerid, protocol)
+
+	//	stream, err := net.host.NewStream(context.Background(), *peerid, protocol)
+	s, err := net.newStream2(*peerid)
 
 	if err != nil {
 		log.Println("Error: can't establish connection to remote peer", identity.ID(), err)
 		return
 	}
 
-	byteWriter := bufio.NewWriter(stream)
+	byteWriter := bufio.NewWriter(s)
 	enc := gob.NewEncoder(byteWriter)
 	err = enc.Encode(packet)
 	if err != nil {
 		log.Println("Error: unable to encode handel packet", err)
 	}
 	byteWriter.Flush()
-	stream.Close()
+	s.Close()
+}
+
+func (net *libP2PNet) newStream(peerid peer.ID) (net.Stream, error) {
+	var protoStrs []string
+	protoStrs = append(protoStrs, string(protocol))
+
+	s, err := net.host.Network().NewStream(context.Background(), peerid)
+	if err != nil {
+		return nil, err
+	}
+
+	selected, err := msmux.SelectOneOf(protoStrs, s)
+	if err != nil {
+		s.Reset()
+		return nil, err
+	}
+	selpid := proto.ID(selected)
+	s.SetProtocol(selpid)
+	net.host.Peerstore().AddProtocols(peerid, selected)
+	return s, nil
+}
+
+func (net *libP2PNet) newStream2(peerid peer.ID) (net.Stream, error) {
+	return net.host.NewStream(context.Background(), peerid, protocol)
 }
 
 // makeOpts creates default options for a host.
@@ -89,7 +117,6 @@ func makeOpts(ip string, listenPort int, id int32) []libp2p.Option {
 	if err != nil {
 		panic(err)
 	}
-
 	addr := fmt.Sprintf("/ip4/%s/tcp/%d", ip, listenPort)
 	opts := []libp2p.Option{
 		libp2p.ListenAddrStrings(addr),
@@ -115,20 +142,17 @@ func hostMultiAddr(hostID string, addr multiaddr.Multiaddr) multiaddr.Multiaddr 
 
 func newHost(listenPort int, id int32) host.Host {
 	opts := makeOpts("0.0.0.0", listenPort, id)
-
 	host, err := libp2p.New(context.Background(), opts...)
-
 	if err != nil {
 		log.Println("ERROR: can't create libP2P host")
 		panic(err)
 	}
-
-	//TODO print all addresses
-	log.Println("Multi Addr", hostMultiAddr(host.ID().Pretty(), host.Addrs()[0]))
-	//log.Println("Multi Addr", hostMultiAddr(host.ID().Pretty(), host.Addrs()[1]))
-	//log.Println("Multi Addr", hostMultiAddr(host.ID().Pretty(), host.Addrs()[0]))
-
 	return host
+}
+
+// Returns the listen addresses of the Host
+func (net *libP2PNet) HostMultiAddr() []multiaddr.Multiaddr {
+	return net.host.Addrs()
 }
 
 func packetHandler(listeners *[]h.Listener) func(s net.Stream) {
