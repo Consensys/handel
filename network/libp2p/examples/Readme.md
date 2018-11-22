@@ -1,4 +1,5 @@
 open 3 terminals  
+cd /github.com/ConsenSys/handel/network/libp2p/examples  
 1)  
 terminal1: go run start.go -id 0 -reg 3  
 terminal2: go run start.go -id 1 -reg 3  
