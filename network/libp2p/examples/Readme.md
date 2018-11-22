@@ -5,7 +5,7 @@ terminal1: go run start.go -id 0 -reg 3
 terminal2: go run start.go -id 1 -reg 3  
 terminal3: go run start.go -id 2 -reg 3  
   
-after around 30s the program deadlocs.  
+after around 30s the program deadlocks.  
   
 2)  
 go to: handel/network/libp2p/net.go
@@ -19,6 +19,6 @@ to
  const protocol = ""
 ```
 go to point 1  
-no deadloc anymore
+no deadlock anymore
 
 
