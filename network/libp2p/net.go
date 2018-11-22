@@ -71,7 +71,7 @@ func (net *libP2PNet) send(identity h.Identity, packet *h.Packet) {
 	s, err := net.newStream2(*peerid)
 
 	if err != nil {
-		log.Println("Error: can't establish connection to remote peer", identity.ID(), err)
+		log.Println("Error: can't establish connection to remote peer", identity.Address(), err)
 		return
 	}
 
