@@ -2,7 +2,6 @@ package handel
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 )
 
@@ -95,6 +94,9 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 func (h *Handel) NewPacket(p *Packet) {
 	h.Lock()
 	defer h.Unlock()
+	if h.done {
+		return
+	}
 	ms, err := h.parsePacket(p)
 	if err != nil {
 		h.logf(err.Error())
@@ -131,26 +133,9 @@ func (h *Handel) FinalSignatures() chan MultiSignature {
 	return h.out
 }
 
-// parsePacket returns the multisignature parsed from the given packet, or an
-// error if the packet can't be unmarshalled, or contains erroneous data such as
-// out of range level.  This method is NOT thread-safe and only meant for
-// internal use.
-func (h *Handel) parsePacket(p *Packet) (*MultiSignature, error) {
-	if p.Origin >= int32(h.reg.Size()) {
-		return nil, errors.New("handel: packet's origin out of range")
-	}
-
-	if int(p.Level) > log2(h.reg.Size()) {
-		return nil, errors.New("handel: packet's level out of range")
-	}
-
-	ms := new(MultiSignature)
-	err := ms.Unmarshal(p.MultiSig, h.cons.Signature(), h.c.NewBitSet)
-	return ms, err
-}
-
 // startNextLevel increase the currLevel counter and sends its best
 // highest-level signature it has to nodes at the new currLevel.
+// method is NOT thread-safe.
 func (h *Handel) startNextLevel() {
 	if h.currLevel >= h.maxLevel {
 		// protocol is finished
@@ -158,7 +143,7 @@ func (h *Handel) startNextLevel() {
 		return
 	}
 	h.currLevel++
-	sp := h.store.Highest()
+	sp := h.store.Combined(h.currLevel - 1)
 	if sp == nil {
 		h.logf("no signature to send ...?")
 		return
@@ -168,15 +153,8 @@ func (h *Handel) startNextLevel() {
 		// XXX This should not happen, but what if ?
 		return
 	}
-	// NOTE: send with the actual level of the multisignature for the size of the
-	// bitset is correct and verification will pass.
-	// XXX: either put the +1 when doing the BestCombined or just here. +1 is
-	// needed since when aggregating different-level signature, you are
-	// generating the signature for the next level.
-	h.sendTo(sp.level+1, sp.ms, nodes)
-	fmt.Printf(" --- NEW LEVEL send sigpair: %+v\n", sp)
-	fmt.Printf(" ---- replaceStore string(): %s\n", h.store)
-	h.logf("new level %d: sent best signatures (lvl = %d) to %d nodes", h.currLevel, sp.level+1, len(nodes))
+	h.sendTo(sp.level, sp.ms, nodes)
+	h.logf("new level %d: sent best signatures (lvl = %d) to %d nodes", h.currLevel, sp.level, len(nodes))
 }
 
 // rangeOnVerified continuously listens on the output channel of the signature
@@ -220,7 +198,6 @@ func (h *Handel) checkFinalSignature(s *sigPair) {
 	if sig.BitSet.Cardinality() < h.threshold {
 		return
 	}
-
 	newBest := func(ms *MultiSignature) {
 		if h.done {
 			return
@@ -258,29 +235,41 @@ func (h *Handel) checkCompletedLevel(s *sigPair) {
 	if err != nil {
 		panic("level should be verified before")
 	}
-	if s.ms.Cardinality() != fullSize {
-		fmt.Println(" signature NOT FULL ??????????")
-		fmt.Println("ms.Car() ", s.ms.Cardinality(), " vs fullSize ", fullSize)
+	if ms.Cardinality() != fullSize {
 		return
 	}
 
 	// completed level !
 	h.markCompleted(s.level)
 
+	// go to next level if we already finished this one !
+	// XXX: this should be moved to a handler "checkGoToNextLevel" that checks
+	// if the combined signature has enough cardinality to pass to higher levels
+	if s.level == h.currLevel {
+		h.startNextLevel()
+	}
+
+	// Now we check from 1st level to this level if we have them all completed.
+	// if it is the case, then we create the combined signature of all these
+	// levels, and send that up to the next
+	sp := h.store.Combined(s.level)
+	if sp == nil {
+		return
+	}
+	fullSize, err = h.part.Size(int(sp.level))
+	if sp.ms.Cardinality() != fullSize {
+		return
+	}
 	// TODO: if no new nodes are available, maybe send to same nodes again
 	// in case for full signatures ?
-	newNodes, ok := h.part.PickNextAt(int(s.level), h.c.CandidateCount)
+	newNodes, ok := h.part.PickNextAt(int(sp.level), h.c.CandidateCount)
 	if ok {
-		h.logf("sending complete signature for level %d to %d new nodes", s.level, len(newNodes))
+		h.logf("sending complete signature for level %d to %d new nodes", sp.level, len(newNodes))
 		h.sendTo(s.level, ms, newNodes)
 	} else {
 		h.logf("no new nodes for completed level %d", s.level)
 	}
 
-	// go to next level if we already finished this one !
-	if s.level == h.currLevel {
-		go h.startNextLevel()
-	}
 }
 
 func (h *Handel) sendTo(lvl byte, ms *MultiSignature, ids []Identity) {
@@ -296,6 +285,24 @@ func (h *Handel) sendTo(lvl byte, ms *MultiSignature, ids []Identity) {
 		MultiSig: buff,
 	}
 	h.net.Send(ids, packet)
+}
+
+// parsePacket returns the multisignature parsed from the given packet, or an
+// error if the packet can't be unmarshalled, or contains erroneous data such as
+// out of range level.  This method is NOT thread-safe and only meant for
+// internal use.
+func (h *Handel) parsePacket(p *Packet) (*MultiSignature, error) {
+	if p.Origin >= int32(h.reg.Size()) {
+		return nil, errors.New("handel: packet's origin out of range")
+	}
+
+	if int(p.Level) > log2(h.reg.Size()) {
+		return nil, errors.New("handel: packet's level out of range")
+	}
+
+	ms := new(MultiSignature)
+	err := ms.Unmarshal(p.MultiSig, h.cons.Signature(), h.c.NewBitSet)
+	return ms, err
 }
 
 // isCompleted returns true if the given level has already been completed, i.e.

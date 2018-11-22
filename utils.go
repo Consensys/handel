@@ -29,3 +29,11 @@ func logf(s string, args ...interface{}) {
 		fmt.Printf(s+"\n", args...)
 	}
 }
+
+func combinePubKeys(c Constructor, keys []Identity) PublicKey {
+	pub := c.PublicKey()
+	for _, id := range keys {
+		pub = pub.Combine(id.PublicKey())
+	}
+	return pub
+}

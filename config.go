@@ -48,7 +48,7 @@ func DefaultConfig(size int) *Config {
 
 // DefaultContributionsPerc is the default percentage used as the required
 // number of contributions in a multi-signature.
-const DefaultContributionsPerc = 50
+const DefaultContributionsPerc = 51
 
 // DefaultLevelTimeout is the default level timeout used by Handel.
 const DefaultLevelTimeout = 300 * time.Millisecond

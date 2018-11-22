@@ -11,29 +11,86 @@ import (
 var msg = []byte("Sun is Shining...")
 
 func TestHandelWholeThing(t *testing.T) {
-	t.Skip()
+	//t.Skip()
 	n := 16
-	_, handels := FakeSetup(n)
-
+	reg, handels := FakeSetup(n)
+	defer CloseHandels(handels)
+	//PrintLog = false
+	t.Logf("%d", reg.Size())
 	for _, h := range handels {
 		go h.Start()
 	}
 
+	type sigTest struct {
+		sender *Handel
+		ms     *MultiSignature
+	}
+
 	var wg sync.WaitGroup
 	wg.Add(n)
+	verif := make(chan sigTest, n)
+	doneCh := make([]chan bool, n)
+	for i := 0; i < n; i++ {
+		doneCh[i] = make(chan bool, 10)
+	}
+
 	for _, h := range handels {
 		go func(hh *Handel) {
-			_ = <-hh.FinalSignatures()
-			wg.Done()
+			var wgDone bool
+			id := hh.id.ID()
+			for {
+				select {
+				case ms := <-hh.FinalSignatures():
+					if !wgDone {
+						wg.Done()
+						wgDone = true
+					}
+					verif <- sigTest{ms: &ms, sender: hh}
+				case <-doneCh[id]:
+					return
+				}
+			}
 		}(h)
 	}
 
 	wg.Wait()
+
+	var counter int
+	var handelsDone = make([]bool, n)
+
+	checkAllDone := func() bool {
+		for _, d := range handelsDone {
+			if !d {
+				return false
+			}
+		}
+		return true
+	}
+
+	for st := range verif {
+		counter++
+		id := st.sender.id.ID()
+		if handelsDone[id] {
+			continue
+		}
+
+		if st.ms.Cardinality() == n {
+			handelsDone[st.sender.id.ID()] = true
+			doneCh[id] <- true
+		}
+
+		if checkAllDone() {
+			break
+		}
+	}
+
+	require.True(t, counter >= n)
 }
 
 func TestHandelcheckCompletedLevel(t *testing.T) {
 	n := 16
 	_, handels := FakeSetup(n)
+	defer CloseHandels(handels)
 
 	// 1 should send to 2 only a full signature
 	sender := handels[1]

@@ -68,20 +68,24 @@ func (f *fifoProcessing) processIncoming() {
 		logf("fifo: new incoming signature %+v", pair)
 		_, isNew := f.store.MockStore(pair.level, pair.ms)
 		if !isNew {
-			logf("handel: fifo: skipping verification of signature %+v", pair)
+			logf("handel: fifo: skipping verification of signature %s", pair.String())
 			continue
 		}
 
 		err := f.verifySignature(&pair)
 		if err != nil {
-			logf(err.Error())
+			logf("handel: fifo: verifying err: %s", err)
 			continue
 		}
 
-		if !f.isStopped() {
+		f.Lock()
+		done := f.done
+		if !done {
 			logf("handel: handling back verified signature to actors")
 			f.out <- pair
-		} else {
+		}
+		f.Unlock()
+		if done {
 			break
 		}
 	}

@@ -26,7 +26,7 @@ type signatureStore interface {
 	// GetBest returns the "best" multisignature at the requested level. Best
 	// should be interpreted as "containing the most individual contributions".
 	Best(level byte) (*MultiSignature, bool)
-
+	Combined(level byte) *sigPair
 	// HighestCombined returns the best combined multi-signature possible. The
 	// bitset size is the size associated to the level in the sigpair, which is
 	// the maximum level signature + 1. It can return nil if there is no
@@ -121,6 +121,19 @@ func (r *replaceStore) Highest() *sigPair {
 	defer r.Unlock()
 	sigs := make([]*sigPair, 0, len(r.m))
 	for k, ms := range r.m {
+		sigs = append(sigs, &sigPair{level: k, ms: ms})
+	}
+	return r.part.Combine(sigs, false, r.nbs)
+}
+
+func (r *replaceStore) Combined(level byte) *sigPair {
+	r.Lock()
+	defer r.Unlock()
+	sigs := make([]*sigPair, 0, len(r.m))
+	for k, ms := range r.m {
+		if k > level {
+			continue
+		}
 		sigs = append(sigs, &sigPair{level: k, ms: ms})
 	}
 	return r.part.Combine(sigs, false, r.nbs)

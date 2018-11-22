@@ -219,3 +219,9 @@ func ChanListener(ch chan *Packet) Listener {
 		ch <- p
 	})
 }
+
+func CloseHandels(hs []*Handel) {
+	for _, h := range hs {
+		h.Stop()
+	}
+}
