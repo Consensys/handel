@@ -26,6 +26,11 @@ type signatureStore interface {
 	// GetBest returns the "best" multisignature at the requested level. Best
 	// should be interpreted as "containing the most individual contributions".
 	Best(level byte) (*MultiSignature, bool)
+	// Combined returns the best combined multi-signature possible containing
+	// all levels below and up to the given level parameters. The resulting
+	// bitset size is the size associated to the level in the sigpair, which is
+	// the maximum level signature + 1. Can return nil if no signature stored
+	// yet.
 	Combined(level byte) *sigPair
 	// HighestCombined returns the best combined multi-signature possible. The
 	// bitset size is the size associated to the level in the sigpair, which is

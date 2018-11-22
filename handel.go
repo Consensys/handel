@@ -251,7 +251,9 @@ func (h *Handel) checkCompletedLevel(s *sigPair) {
 
 	// Now we check from 1st level to this level if we have them all completed.
 	// if it is the case, then we create the combined signature of all these
-	// levels, and send that up to the next
+	// levels, and send that up to the next. This part is redundant only if we
+	// start the new level, but we might be already at a higher level but with
+	// incomplete signature of this level !
 	sp := h.store.Combined(s.level)
 	if sp == nil {
 		return

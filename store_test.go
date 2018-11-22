@@ -25,7 +25,6 @@ func TestStoreHighest(t *testing.T) {
 	store.Store(0, &MultiSignature{BitSet: NewWilffBitset(1), Signature: &fakeSig{true}})
 	store.Store(1, &MultiSignature{BitSet: NewWilffBitset(1), Signature: &fakeSig{true}})
 	pair = store.Highest()
-
 }
 
 func TestStoreFullSignature(t *testing.T) {

@@ -88,15 +88,18 @@ func TestHandelWholeThing(t *testing.T) {
 }
 
 func TestHandelcheckCompletedLevel(t *testing.T) {
-	n := 16
+	n := 8
 	_, handels := FakeSetup(n)
 	defer CloseHandels(handels)
 
 	// 1 should send to 2 only a full signature
 	sender := handels[1]
-	receiver := handels[2]
-	inc := make(chan *Packet)
-	receiver.net.(*fakeNetwork).lis = []Listener{ChanListener(inc)}
+	receiver2 := handels[2]
+	receiver4 := handels[4]
+	inc2 := make(chan *Packet)
+	receiver2.net.(*fakeNetwork).lis = []Listener{ChanListener(inc2)}
+	inc4 := make(chan *Packet)
+	receiver4.net.(*fakeNetwork).lis = []Listener{ChanListener(inc4)}
 
 	sig2 := fullSigPair(2)
 	// not-complete signature
@@ -107,7 +110,7 @@ func TestHandelcheckCompletedLevel(t *testing.T) {
 	sender.store.Store(2, sig22.ms)
 	sender.checkCompletedLevel(sig22)
 	select {
-	case <-inc:
+	case <-inc2:
 		t.Fatal("should not have received anything")
 	case <-time.After(20 * time.Millisecond):
 		// good
@@ -115,9 +118,11 @@ func TestHandelcheckCompletedLevel(t *testing.T) {
 
 	// send full signature
 	sender.store.Store(2, sig2.ms)
+	sender.store.Store(1, fullSigPair(1).ms)
+	sender.store.Store(0, fullSigPair(1).ms)
 	sender.checkCompletedLevel(sig2)
 	select {
-	case p := <-inc:
+	case p := <-inc4:
 		require.Equal(t, int32(1), p.Origin)
 		require.Equal(t, byte(2), p.Level)
 	case <-time.After(20 * time.Millisecond):
