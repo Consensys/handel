@@ -18,7 +18,7 @@ to
 ```go
  const protocol = ""
 ```
-go to point 2  
+go to point 1  
 no deadloc anymore
 
 
