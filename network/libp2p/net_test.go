@@ -32,8 +32,8 @@ func TestHostId(t *testing.T) {
 	host1 := newHost(5000, 1)
 	host2 := newHost(5000, 2)
 	host3 := newHost(5000, 1)
-	require.Equal(t, host1.ID(), host3.ID())
-	require.NotEqual(t, host1.ID(), host2.ID())
+	require.Equal(t, host1.ID().Pretty(), host3.ID().Pretty())
+	require.NotEqual(t, host1.ID().Pretty(), host2.ID().Pretty())
 }
 
 func TestAddr(t *testing.T) {
