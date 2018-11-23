@@ -30,11 +30,15 @@ func NewTest(keys []SecretKey, c Constructor, msg []byte) *Test {
 	sigs := make([]Signature, n)
 	nets := make([]Network, n)
 	handels := make([]*Handel, n)
+	var err error
 	for i := 0; i < n; i++ {
 		pk := keys[i].PublicKey()
 		id := int32(i)
 		ids[i] = NewStaticIdentity(id, "", pk)
-		sigs[i] = keys[i].Sign(msg, rand.Reader)
+		sigs[i], err = keys[i].Sign(msg, rand.Reader)
+		if err != nil {
+			panic(err)
+		}
 		nets[i] = &TestNetwork{id: id, list: nets}
 	}
 	reg := NewArrayRegistry(ids)

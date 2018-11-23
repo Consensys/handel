@@ -106,6 +106,9 @@ func (p *publicKey) VerifySignature(msg []byte, sig handel.Signature) error {
 }
 
 func (p *publicKey) Combine(pp handel.PublicKey) handel.PublicKey {
+	if p.p == nil {
+		return pp
+	}
 	p2 := pp.(*publicKey)
 	p3 := new(bn256.G2)
 	p3.Add(p.p, p2.p)
@@ -136,8 +139,9 @@ func NewSecretKey(reader io.Reader) (*SecretKey, error) {
 	}, nil
 }
 
-// Public returns the public key associated with this private key
-func (s *SecretKey) Public() handel.PublicKey {
+// PublicKey returns the public key associated with this private key. Only
+// useful for testing.
+func (s *SecretKey) PublicKey() handel.PublicKey {
 	return s.publicKey
 }
 
@@ -174,10 +178,17 @@ func (m *bls) UnmarshalBinary(b []byte) error {
 }
 
 func (m *bls) Combine(ms handel.Signature) handel.Signature {
+	if m.e == nil {
+		return ms
+	}
 	m2 := ms.(*bls)
 	res := new(bn256.G1)
 	res.Add(m.e, m2.e)
 	return &bls{e: res}
+}
+
+func (m *bls) String() string {
+	return m.e.String()
 }
 
 // hashedMessage returns the message hashed to G1

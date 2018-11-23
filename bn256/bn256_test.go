@@ -3,9 +3,32 @@ package bn256
 import (
 	"crypto/rand"
 	"testing"
+	"time"
 
+	h "github.com/ConsenSys/handel"
 	"github.com/stretchr/testify/require"
 )
+
+func TestHandel(t *testing.T) {
+	n := 16
+	msg := []byte("Peaches and Cream")
+	secretKeys := make([]h.SecretKey, n)
+	cons := NewConstructor()
+	for i := 0; i < n; i++ {
+		k, err := NewSecretKey(nil)
+		require.NoError(t, err)
+		secretKeys[i] = k
+	}
+	test := h.NewTest(secretKeys, cons, msg)
+	test.Start()
+	defer test.Stop()
+
+	select {
+	case <-test.WaitCompleteSuccess():
+	case <-time.After(1 * time.Second):
+		t.FailNow()
+	}
+}
 
 func TestSign(t *testing.T) {
 	reader := rand.Reader
@@ -17,7 +40,7 @@ func TestSign(t *testing.T) {
 	sig, err := sk.Sign(msg, nil)
 	require.NoError(t, err)
 
-	pk := sk.Public()
+	pk := sk.PublicKey()
 	err = pk.VerifySignature(msg, sig)
 	require.NoError(t, err)
 }
@@ -32,8 +55,8 @@ func TestCombine(t *testing.T) {
 	sk2, err := NewSecretKey(reader)
 	require.NoError(t, err)
 
-	pk1 := sk1.Public()
-	pk2 := sk2.Public()
+	pk1 := sk1.PublicKey()
+	pk2 := sk2.PublicKey()
 	require.NotEqual(t, pk1.String(), pk2.String())
 
 	sig1, err := sk1.Sign(msg, nil)

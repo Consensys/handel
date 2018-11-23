@@ -286,12 +286,12 @@ func (c *binTreePartition) combine(sigs []*sigPair, nbs func(int) BitSet) *sigPa
 		for i := 0; i < bs.BitLength(); i++ {
 			finalBitSet.Set(offset+i, bs.Get(i))
 		}
-		finalSig = finalSig.Combine(s.ms.Signature)
 	}
 
 	combine(sigs[0])
 	for _, s := range sigs[1:] {
 		combine(s)
+		finalSig = finalSig.Combine(s.ms.Signature)
 	}
 
 	return &sigPair{

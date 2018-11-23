@@ -100,7 +100,6 @@ func (f *fifoProcessing) verifySignature(pair *sigPair) error {
 	}
 
 	if ms.BitSet.BitLength() != len(ids) {
-		fmt.Printf(" -- level %d: bitset length: %d vs len(ids) %d", level, ms.BitSet.BitLength(), len(ids))
 		return errors.New("handel: inconsistent bitset with given level")
 	}
 

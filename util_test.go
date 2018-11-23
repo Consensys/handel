@@ -56,8 +56,8 @@ func (f *fakeSecret) PublicKey() PublicKey {
 	return &fakePublic{true}
 }
 
-func (f *fakeSecret) Sign(msg []byte, rand io.Reader) Signature {
-	return &fakeSig{true}
+func (f *fakeSecret) Sign(msg []byte, rand io.Reader) (Signature, error) {
+	return &fakeSig{true}, nil
 }
 
 var fakeConstSig = []byte{0x01, 0x02, 0x3, 0x04}

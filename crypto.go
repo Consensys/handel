@@ -22,7 +22,7 @@ type PublicKey interface {
 // SecretKey is an înterface holding the required functionality of a secret key
 // needed to run the generic tests.
 type SecretKey interface {
-	Sign(msg []byte, r io.Reader) Signature
+	Sign(msg []byte, r io.Reader) (Signature, error)
 	PublicKey() PublicKey
 }
 
