@@ -1,6 +1,6 @@
 package handel
 
-// Bit size of the ID used in Handel. This is fixed at the moment.
+// IDSIZE of the ID used in Handel. This is fixed at the moment.
 const IDSIZE = 32
 
 // Identity holds the public informations of a Handel node
@@ -24,6 +24,34 @@ type Registry interface {
 	// Identities is similar to Identity but returns an array instead that
 	// includes nodes whose IDs are between from inclusive and to exclusive.
 	Identities(from, to int) ([]Identity, bool)
+}
+
+// fixedIdentity is an Identity that takes fixed argument
+type fixedIdentity struct {
+	id   int32
+	addr string
+	p    PublicKey
+}
+
+// NewStaticIdentity returns an Identity fixed by these parameters
+func NewStaticIdentity(id int32, addr string, p PublicKey) Identity {
+	return &fixedIdentity{
+		id:   id,
+		addr: addr,
+		p:    p,
+	}
+}
+
+func (s *fixedIdentity) Address() string {
+	return s.addr
+}
+
+func (s *fixedIdentity) ID() int32 {
+	return s.id
+}
+
+func (s *fixedIdentity) PublicKey() PublicKey {
+	return s.p
 }
 
 // arrayRegistry is a Registry that uses a fixed size array as backend

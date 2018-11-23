@@ -52,12 +52,12 @@ func (f *fakeIdentity) String() string       { return f.Address() }
 type fakeSecret struct {
 }
 
-func (f *fakeSecret) Public() PublicKey {
-	return new(fakePublic)
+func (f *fakeSecret) PublicKey() PublicKey {
+	return &fakePublic{true}
 }
 
-func (f *fakeSecret) Sign(msg []byte, rand io.Reader) (Signature, error) {
-	return &fakeSig{}, nil
+func (f *fakeSecret) Sign(msg []byte, rand io.Reader) Signature {
+	return &fakeSig{true}
 }
 
 var fakeConstSig = []byte{0x01, 0x02, 0x3, 0x04}
@@ -154,30 +154,6 @@ func finalSigPair(level, size int) *sigPair {
 	}
 }
 
-type fakeNetwork struct {
-	id   int32
-	list []Network
-	lis  []Listener
-}
-
-func (f *fakeNetwork) Send(ids []Identity, p *Packet) {
-	for _, id := range ids {
-		go func(i Identity) {
-			f.list[int(i.ID())].(*fakeNetwork).dispatch(p)
-		}(id)
-	}
-}
-
-func (f *fakeNetwork) RegisterListener(l Listener) {
-	f.lis = append(f.lis, l)
-}
-
-func (f *fakeNetwork) dispatch(p *Packet) {
-	for _, l := range f.lis {
-		l.NewPacket(p)
-	}
-}
-
 func mkSigPair(level int) *sigPair {
 	return &sigPair{
 		level: byte(level),
@@ -198,7 +174,7 @@ func FakeSetup(n int) (Registry, []*Handel) {
 	ids := reg.ids
 	nets := make([]Network, n)
 	for i := 0; i < reg.Size(); i++ {
-		nets[i] = &fakeNetwork{ids[i].ID(), nets, nil}
+		nets[i] = &TestNetwork{ids[i].ID(), nets, nil}
 	}
 	cons := new(fakeCons)
 	handels := make([]*Handel, n)

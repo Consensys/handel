@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 )
 
 // PublicKey holds methods to verify a signature and to combine multiple public
@@ -16,6 +17,13 @@ type PublicKey interface {
 	// produced by both individual public keys can be verified by the combined
 	// public key
 	Combine(PublicKey) PublicKey
+}
+
+// SecretKey is an înterface holding the required functionality of a secret key
+// needed to run the generic tests.
+type SecretKey interface {
+	Sign(msg []byte, r io.Reader) Signature
+	PublicKey() PublicKey
 }
 
 // Constructor is used to create empty signatures suitable for unmarshalling and

@@ -10,6 +10,25 @@ import (
 
 var msg = []byte("Sun is Shining...")
 
+func TestHandelTestNetwork(t *testing.T) {
+	n := 16
+	secrets := make([]SecretKey, n)
+	cons := new(fakeCons)
+	for i := 0; i < n; i++ {
+		secrets[i] = new(fakeSecret)
+	}
+	test := NewTest(secrets, cons, msg)
+	test.Start()
+	defer test.Stop()
+
+	select {
+	case <-test.WaitCompleteSuccess():
+		// all good
+	case <-time.After(1 * time.Second):
+		t.FailNow()
+	}
+}
+
 func TestHandelWholeThing(t *testing.T) {
 	//t.Skip()
 	n := 16
@@ -97,9 +116,9 @@ func TestHandelcheckCompletedLevel(t *testing.T) {
 	receiver2 := handels[2]
 	receiver4 := handels[4]
 	inc2 := make(chan *Packet)
-	receiver2.net.(*fakeNetwork).lis = []Listener{ChanListener(inc2)}
+	receiver2.net.(*TestNetwork).lis = []Listener{ChanListener(inc2)}
 	inc4 := make(chan *Packet)
-	receiver4.net.(*fakeNetwork).lis = []Listener{ChanListener(inc4)}
+	receiver4.net.(*TestNetwork).lis = []Listener{ChanListener(inc4)}
 
 	sig2 := fullSigPair(2)
 	// not-complete signature
