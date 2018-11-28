@@ -1,4 +1,4 @@
-package network
+package utils
 
 import (
 	"testing"
@@ -28,7 +28,7 @@ func csvCorrupted() [][]string {
 
 func TestCSVRegistry(t *testing.T) {
 	csv := csvContent()
-	reg, port, err := makeRegistry(csv, 1)
+	reg, port, err := makeRegistry(csv, 1, NewEmptyPublicKeyCsvParser())
 	require.Nil(t, err)
 	require.Equal(t, port, 3001)
 	require.Equal(t, reg.Size(), 3)
@@ -38,6 +38,6 @@ func TestCSVRegistry(t *testing.T) {
 
 func TestCorruptedCSVRegistry(t *testing.T) {
 	csv := csvCorrupted()
-	_, _, err := makeRegistry(csv, 1)
+	_, _, err := makeRegistry(csv, 1, NewEmptyPublicKeyCsvParser())
 	require.NotNil(t, err)
 }

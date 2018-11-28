@@ -5,8 +5,10 @@ import (
 	"fmt"
 
 	h "github.com/ConsenSys/handel"
-	"github.com/ConsenSys/handel/network"
-	"github.com/ConsenSys/handel/network/udp"
+	network "github.com/ConsenSys/handel/network"
+	udp "github.com/ConsenSys/handel/network/udp"
+
+	"github.com/ConsenSys/handel/simulations/utils"
 )
 
 type exampleListener struct {
@@ -37,8 +39,12 @@ func start() {
 	flag.Parse()
 	localPeerID := int32(*lPID)
 
-	registry, port := network.ReadCSV(*reg, localPeerID)
-	net := udp.NewUDPNetwork(port)
+	lineParser := utils.NewEmptyPublicKeyCsvParser()
+
+	registry, port := utils.ReadCSVRegistry(*reg, localPeerID, lineParser)
+
+	enc := network.NewGOBEncoding()
+	net := udp.NewUDPNetwork(port, enc)
 
 	listener := exampleListener{net, registry, localPeerID}
 	net.RegisterListener(listener)
@@ -51,6 +57,9 @@ func start() {
 	peers := removePeer(rids, int(localPeerID))
 
 	net.Send(peers, &packet)
+	//time.Sleep(3 * time.Second)
+	//net.Stop()
+
 	select {}
 }
 
