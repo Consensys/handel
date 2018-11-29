@@ -79,6 +79,10 @@ func (s *cons) PublicKey() handel.PublicKey {
 	return new(publicKey)
 }
 
+func (s *cons) Secretkey() *secretKey {
+	return new(secretKey)
+}
+
 type publicKey struct {
 	p *bn256.G2
 }
@@ -115,39 +119,47 @@ func (p *publicKey) Combine(pp handel.PublicKey) handel.PublicKey {
 	return &publicKey{p3}
 }
 
-// SecretKey holds the secret scalar and can return the corresponding public
+func (p *publicKey) MarshalBinary() ([]byte, error) {
+	return p.p.Marshal(), nil
+}
+
+func (p *publicKey) UnmarshalBinary(buff []byte) error {
+	_, err := p.p.Unmarshal(buff)
+	return err
+}
+
+// secretKey holds the secret scalar and can return the corresponding public
 // key. It can sign messages using the BLS signature scheme.
-type SecretKey struct {
+type secretKey struct {
 	*publicKey
 	s *big.Int
 }
 
-// NewSecretKey returns a new keypair generated from the given reader.
-func NewSecretKey(reader io.Reader) (*SecretKey, error) {
+// NewKeyPair returns a new keypair generated from the given reader.
+func NewKeyPair(reader io.Reader) (handel.SecretKey, handel.PublicKey, error) {
 	if reader == nil {
 		reader = rand.Reader
 	}
 	secret, public, err := bn256.RandomG2(reader)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return &SecretKey{
-		s: secret,
-		publicKey: &publicKey{
+	return &secretKey{
+			s: secret,
+		}, &publicKey{
 			p: public,
-		},
-	}, nil
+		}, nil
 }
 
 // PublicKey returns the public key associated with this private key. Only
 // useful for testing.
-func (s *SecretKey) PublicKey() handel.PublicKey {
+func (s *secretKey) PublicKey() handel.PublicKey {
 	return s.publicKey
 }
 
 // Sign creates a BLS signature S = x * H(m) on a message m using the private
 // key x. The signature S is a point on curve G1.
-func (s *SecretKey) Sign(msg []byte, reader io.Reader) (handel.Signature, error) {
+func (s *secretKey) Sign(msg []byte, reader io.Reader) (handel.Signature, error) {
 	hashed, err := hashedMessage(msg)
 	if err != nil {
 		return nil, err
@@ -155,6 +167,15 @@ func (s *SecretKey) Sign(msg []byte, reader io.Reader) (handel.Signature, error)
 	p := new(bn256.G1)
 	p = p.ScalarMult(hashed, s.s)
 	return &bls{p}, nil
+}
+
+func (s *secretKey) MarshalBinary() ([]byte, error) {
+	return s.s.Bytes(), nil
+}
+
+func (s *secretKey) UnmarshalBinary(buff []byte) error {
+	s.s = s.s.SetBytes(buff)
+	return nil
 }
 
 type bls struct {

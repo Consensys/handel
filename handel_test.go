@@ -13,11 +13,13 @@ var msg = []byte("Sun is Shining...")
 func TestHandelTestNetwork(t *testing.T) {
 	n := 16
 	secrets := make([]SecretKey, n)
+	pubs := make([]PublicKey, n)
 	cons := new(fakeCons)
 	for i := 0; i < n; i++ {
 		secrets[i] = new(fakeSecret)
+		pubs[i] = &fakePublic{true}
 	}
-	test := NewTest(secrets, cons, msg)
+	test := NewTest(secrets, pubs, cons, msg)
 	test.Start()
 	defer test.Stop()
 
