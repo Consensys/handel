@@ -13,13 +13,15 @@ func TestHandel(t *testing.T) {
 	n := 16
 	msg := []byte("Peaches and Cream")
 	secretKeys := make([]h.SecretKey, n)
+	pubKeys := make([]h.PublicKey, n)
 	cons := NewConstructor()
 	for i := 0; i < n; i++ {
-		k, err := NewSecretKey(nil)
+		sec, pub, err := NewKeyPair(nil)
 		require.NoError(t, err)
-		secretKeys[i] = k
+		secretKeys[i] = sec
+		pubKeys[i] = pub
 	}
-	test := h.NewTest(secretKeys, cons, msg)
+	test := h.NewTest(secretKeys, pubKeys, cons, msg)
 	test.Start()
 	defer test.Stop()
 
@@ -34,13 +36,12 @@ func TestSign(t *testing.T) {
 	reader := rand.Reader
 	msg := []byte("Get Funky Tonight")
 
-	sk, err := NewSecretKey(reader)
+	sk, pk, err := NewKeyPair(reader)
 	require.NoError(t, err)
 
 	sig, err := sk.Sign(msg, nil)
 	require.NoError(t, err)
 
-	pk := sk.PublicKey()
 	err = pk.VerifySignature(msg, sig)
 	require.NoError(t, err)
 }
@@ -49,14 +50,12 @@ func TestCombine(t *testing.T) {
 	reader := rand.Reader
 	msg := []byte("Get Funky Tonight")
 
-	sk1, err := NewSecretKey(reader)
+	sk1, pk1, err := NewKeyPair(reader)
 	require.NoError(t, err)
 
-	sk2, err := NewSecretKey(reader)
+	sk2, pk2, err := NewKeyPair(reader)
 	require.NoError(t, err)
 
-	pk1 := sk1.PublicKey()
-	pk2 := sk2.PublicKey()
 	require.NotEqual(t, pk1.String(), pk2.String())
 
 	sig1, err := sk1.Sign(msg, nil)
@@ -70,4 +69,26 @@ func TestCombine(t *testing.T) {
 	sig3 := sig1.Combine(sig2)
 	pk3 := pk1.Combine(pk2)
 	require.NoError(t, pk3.VerifySignature(msg, sig3))
+}
+
+func TestMarshalling(t *testing.T) {
+
+	sk, pk, err := NewKeyPair(nil)
+	require.NoError(t, err)
+
+	buffSK, err := sk.MarshalBinary()
+	require.NoError(t, err)
+
+	buffPK, err := pk.MarshalBinary()
+	require.NoError(t, err)
+
+	cons := NewConstructor()
+
+	sk2 := cons.SecretKey()
+	err = sk2.(*SecretKey).UnmarshalBinary(buffSK)
+	require.NoError(t, err)
+
+	pk2 := cons.PublicKey()
+	err = pk2.(*PublicKey).UnmarshalBinary(buffPK)
+	require.NoError(t, err)
 }

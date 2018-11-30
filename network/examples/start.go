@@ -7,8 +7,7 @@ import (
 	h "github.com/ConsenSys/handel"
 	network "github.com/ConsenSys/handel/network"
 	udp "github.com/ConsenSys/handel/network/udp"
-
-	"github.com/ConsenSys/handel/simulations/utils"
+	"github.com/ConsenSys/handel/simul/lib"
 )
 
 type exampleListener struct {
@@ -35,16 +34,22 @@ func (l exampleListener) NewPacket(packet *h.Packet) {
 
 func start() {
 	lPID := flag.Int("id", -1, "Peer id")
-	reg := flag.String("reg", "", "Path to registry file")
+	regPath := flag.String("reg", "", "Path to registry file")
 	flag.Parse()
 	localPeerID := int32(*lPID)
 
-	lineParser := utils.NewEmptyPublicKeyCsvParser()
-
-	registry, port := utils.ReadCSVRegistry(*reg, localPeerID, lineParser)
+	parser := lib.NewCSVParser()
+	cons := lib.NewEmptyConstructor()
+	registry, node, err := lib.ReadAll(*regPath, int(localPeerID), parser, cons)
+	if err != nil {
+		panic(err)
+	}
 
 	enc := network.NewGOBEncoding()
-	net := udp.NewUDPNetwork(port, enc)
+	net, err := udp.NewNetwork(node.Identity.Address(), enc)
+	if err != nil {
+		panic(err)
+	}
 
 	listener := exampleListener{net, registry, localPeerID}
 	net.RegisterListener(listener)

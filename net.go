@@ -10,7 +10,7 @@ import (
 // transport layer guarantees (such as delivery or in-order).
 type Network interface {
 	// RegisterListener stores a Listener to dispatch incoming messages to it
-	// later on. Implementations must allow multiple Listener to be registered.
+	// later on
 	RegisterListener(Listener)
 	// Send sends the given packet to the given Identity. There can be no
 	// guarantees about the reception of the packet provided by the Network.
@@ -22,6 +22,14 @@ type Network interface {
 // Listeners.
 type Listener interface {
 	NewPacket(*Packet)
+}
+
+// ListenFunc is a wrapper type to be able to register a function as a Listener
+type ListenFunc func(*Packet)
+
+// NewPacket implements the Listener interface
+func (l ListenFunc) NewPacket(p *Packet) {
+	l(p)
 }
 
 // Packet is the general packet that Handel sends out and expects to receive

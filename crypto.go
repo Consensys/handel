@@ -23,7 +23,6 @@ type PublicKey interface {
 // needed to run the generic tests.
 type SecretKey interface {
 	Sign(msg []byte, r io.Reader) (Signature, error)
-	PublicKey() PublicKey
 }
 
 // Constructor is used to create empty signatures suitable for unmarshalling and

@@ -61,29 +61,47 @@ func init() {
 	}
 }
 
-//  cons implements the handel.Constructor interface
-type cons struct {
+// Constructor implements the handel.Constructor interface
+type Constructor struct {
 }
 
 // NewConstructor returns a handel.Constructor capable of creating empty BLS
 // signature object and empty public keys.
-func NewConstructor() handel.Constructor {
-	return &cons{}
+func NewConstructor() *Constructor {
+	return &Constructor{}
 }
 
-func (s *cons) Signature() handel.Signature {
+// Signature implements the handel.Constructor  interface
+func (s *Constructor) Signature() handel.Signature {
 	return new(bls)
 }
 
-func (s *cons) PublicKey() handel.PublicKey {
-	return new(publicKey)
+// PublicKey implements the handel.Constructor interface
+func (s *Constructor) PublicKey() handel.PublicKey {
+	return new(PublicKey)
 }
 
-type publicKey struct {
+// SecretKey implements the simul/lib/Constructor interface
+func (s *Constructor) SecretKey() handel.SecretKey {
+	return new(SecretKey)
+}
+
+// KeyPair implements the simul/lib/Constructor interface
+func (s *Constructor) KeyPair(r io.Reader) (handel.SecretKey, handel.PublicKey) {
+	secret, pub, err := NewKeyPair(r)
+	if err != nil {
+		// this method is only used in simulation code anyway
+		panic(err)
+	}
+	return secret, pub
+}
+
+// PublicKey holds the public key information = point in G2
+type PublicKey struct {
 	p *bn256.G2
 }
 
-func (p *publicKey) String() string {
+func (p *PublicKey) String() string {
 	return p.p.String()
 }
 
@@ -91,7 +109,7 @@ func (p *publicKey) String() string {
 // public key p by verifying that the equality e(H(m), X) == e(H(m), x*B2) ==
 // e(x*H(m), B2) == e(S, B2) holds where e is the pairing operation and B2 is
 // the base point from curve G2.
-func (p *publicKey) VerifySignature(msg []byte, sig handel.Signature) error {
+func (p *PublicKey) VerifySignature(msg []byte, sig handel.Signature) error {
 	ms := sig.(*bls)
 	HM, err := hashedMessage(msg)
 	if err != nil {
@@ -105,44 +123,49 @@ func (p *publicKey) VerifySignature(msg []byte, sig handel.Signature) error {
 	return nil
 }
 
-func (p *publicKey) Combine(pp handel.PublicKey) handel.PublicKey {
+// Combine implements the handel.PublicKey interface
+func (p *PublicKey) Combine(pp handel.PublicKey) handel.PublicKey {
 	if p.p == nil {
 		return pp
 	}
-	p2 := pp.(*publicKey)
+	p2 := pp.(*PublicKey)
 	p3 := new(bn256.G2)
 	p3.Add(p.p, p2.p)
-	return &publicKey{p3}
+	return &PublicKey{p3}
+}
+
+// MarshalBinary implements the simul/lib/PublicKey interface
+func (p *PublicKey) MarshalBinary() ([]byte, error) {
+	return p.p.Marshal(), nil
+}
+
+// UnmarshalBinary implements the simul/lib/PublicKey interface
+func (p *PublicKey) UnmarshalBinary(buff []byte) error {
+	p.p = new(bn256.G2)
+	_, err := p.p.Unmarshal(buff)
+	return err
 }
 
 // SecretKey holds the secret scalar and can return the corresponding public
 // key. It can sign messages using the BLS signature scheme.
 type SecretKey struct {
-	*publicKey
 	s *big.Int
 }
 
-// NewSecretKey returns a new keypair generated from the given reader.
-func NewSecretKey(reader io.Reader) (*SecretKey, error) {
+// NewKeyPair returns a new keypair generated from the given reader.
+func NewKeyPair(reader io.Reader) (*SecretKey, *PublicKey, error) {
 	if reader == nil {
 		reader = rand.Reader
 	}
 	secret, public, err := bn256.RandomG2(reader)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	return &SecretKey{
-		s: secret,
-		publicKey: &publicKey{
+			s: secret,
+		}, &PublicKey{
 			p: public,
-		},
-	}, nil
-}
-
-// PublicKey returns the public key associated with this private key. Only
-// useful for testing.
-func (s *SecretKey) PublicKey() handel.PublicKey {
-	return s.publicKey
+		}, nil
 }
 
 // Sign creates a BLS signature S = x * H(m) on a message m using the private
@@ -155,6 +178,18 @@ func (s *SecretKey) Sign(msg []byte, reader io.Reader) (handel.Signature, error)
 	p := new(bn256.G1)
 	p = p.ScalarMult(hashed, s.s)
 	return &bls{p}, nil
+}
+
+// MarshalBinary implements the simul/lib/SecretKey interface
+func (s *SecretKey) MarshalBinary() ([]byte, error) {
+	return s.s.Bytes(), nil
+}
+
+// UnmarshalBinary implements the simul/lib/SecretKey interface
+func (s *SecretKey) UnmarshalBinary(buff []byte) error {
+	s.s = new(big.Int)
+	s.s = s.s.SetBytes(buff)
+	return nil
 }
 
 type bls struct {
