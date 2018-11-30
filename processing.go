@@ -65,7 +65,6 @@ func newFifoProcessing(store signatureStore, part partitioner,
 // processIncoming simply verifies the signature, stores it, and outputs it
 func (f *fifoProcessing) processIncoming() {
 	for pair := range f.in {
-		logf("fifo: new incoming signature %+v", pair)
 		_, isNew := f.store.MockStore(pair.level, pair.ms)
 		if !isNew {
 			logf("handel: fifo: skipping verification of signature %s", pair.String())
@@ -81,7 +80,7 @@ func (f *fifoProcessing) processIncoming() {
 		f.Lock()
 		done := f.done
 		if !done {
-			logf("handel: handling back verified signature to actors")
+			//logf("handel: handling back verified signature to actors")
 			f.out <- pair
 		}
 		f.Unlock()

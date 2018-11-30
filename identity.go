@@ -1,5 +1,7 @@
 package handel
 
+import "fmt"
+
 // IDSIZE of the ID used in Handel. This is fixed at the moment.
 const IDSIZE = 32
 
@@ -52,6 +54,10 @@ func (s *fixedIdentity) ID() int32 {
 
 func (s *fixedIdentity) PublicKey() PublicKey {
 	return s.p
+}
+
+func (s *fixedIdentity) String() string {
+	return fmt.Sprintf("{id: %d,addr: %s}", s.id, s.addr)
 }
 
 // arrayRegistry is a Registry that uses a fixed size array as backend

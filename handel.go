@@ -2,7 +2,9 @@ package handel
 
 import (
 	"errors"
+	"fmt"
 	"sync"
+	"time"
 )
 
 // Handel is the principal struct that performs the large scale multi-signature
@@ -103,7 +105,7 @@ func (h *Handel) NewPacket(p *Packet) {
 	}
 
 	// sends it to processing
-	h.logf("sending incoming signature from %d to verification thread", p.Origin)
+	h.logf("received packet from %d", p.Origin)
 	h.proc.Incoming() <- sigPair{level: p.Level, ms: ms}
 }
 
@@ -154,7 +156,7 @@ func (h *Handel) startNextLevel() {
 		return
 	}
 	h.sendTo(sp.level, sp.ms, nodes)
-	h.logf("new level %d: sent best signatures (lvl = %d) to %d nodes", h.currLevel, sp.level, len(nodes))
+	h.logf("new level %d: sent best signatures (lvl = %d) to %d nodes (%v)", h.currLevel, sp.level, len(nodes), nodes)
 }
 
 // rangeOnVerified continuously listens on the output channel of the signature
@@ -252,8 +254,9 @@ func (h *Handel) checkCompletedLevel(s *sigPair) {
 	// Now we check from 1st level to this level if we have them all completed.
 	// if it is the case, then we create the combined signature of all these
 	// levels, and send that up to the next. This part is redundant only if we
-	// start the new level, but we might be already at a higher level but with
-	// incomplete signature of this level !
+	// start the new level (that's the same action being done), but we might be
+	// already at a higher level with incomplete signature so this is where it's
+	// important: to improve over existing levels.
 	sp := h.store.Combined(s.level)
 	if sp == nil {
 		return
@@ -323,6 +326,11 @@ func (h *Handel) markCompleted(level byte) {
 }
 
 func (h *Handel) logf(str string, args ...interface{}) {
-	idArg := []interface{}{h.id.ID()}
-	logf("handel %d: "+str, append(idArg, args...)...)
+	now := time.Now()
+	time := fmt.Sprintf("%02d:%02d:%02d:%03d", now.Hour(),
+		now.Minute(),
+		now.Second(),
+		now.Nanosecond())
+	idArg := []interface{}{time, h.id.ID()}
+	logf("%s: handel %d: "+str, append(idArg, args...)...)
 }

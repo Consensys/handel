@@ -24,6 +24,14 @@ type Listener interface {
 	NewPacket(*Packet)
 }
 
+// ListenFunc is a wrapper type to be able to register a function as a Listener
+type ListenFunc func(*Packet)
+
+// NewPacket implements the Listener interface
+func (l ListenFunc) NewPacket(p *Packet) {
+	l(p)
+}
+
 // Packet is the general packet that Handel sends out and expects to receive
 // from the Network. Handel do not provide any authentication nor
 // confidentiality on Packets, it is up to the application layer to add these

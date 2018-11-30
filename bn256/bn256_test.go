@@ -70,3 +70,25 @@ func TestCombine(t *testing.T) {
 	pk3 := pk1.Combine(pk2)
 	require.NoError(t, pk3.VerifySignature(msg, sig3))
 }
+
+func TestMarshalling(t *testing.T) {
+
+	sk, pk, err := NewKeyPair(nil)
+	require.NoError(t, err)
+
+	buffSK, err := sk.MarshalBinary()
+	require.NoError(t, err)
+
+	buffPK, err := pk.MarshalBinary()
+	require.NoError(t, err)
+
+	cons := NewConstructor()
+
+	sk2 := cons.SecretKey()
+	err = sk2.(*SecretKey).UnmarshalBinary(buffSK)
+	require.NoError(t, err)
+
+	pk2 := cons.PublicKey()
+	err = pk2.(*PublicKey).UnmarshalBinary(buffPK)
+	require.NoError(t, err)
+}

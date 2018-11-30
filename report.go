@@ -1,9 +1,34 @@
 package handel
 
-// SimulHandel holds a handel struct but modifies it so that it uses simulation
-// implementation of the different interfaces (store, processing, etc).
-type SimulHandel struct {
+// ReportHandel holds a handel struct but modifies it so it is able to issue
+// some stats.
+type ReportHandel struct {
 	*Handel
+}
+
+// Stats contains different stats about the different components of Handel. Not
+// complete.
+type Stats struct {
+	Network map[string]float64
+	Store   map[string]float64
+}
+
+// NewReportHandel returns a Handel that can report some statistis about its
+// internals
+func NewReportHandel(h *Handel) *ReportHandel {
+	h.net = NewReportNetwork(h.net)
+	h.store = newReportStore(h.store)
+	return &ReportHandel{h}
+}
+
+// Stats returns the stats of internal components of Handel.
+func (r *ReportHandel) Stats() *Stats {
+	s := new(Stats)
+	net := r.Handel.net.(*ReportNetwork)
+	s.Network = net.Values()
+	store := r.Handel.store.(*ReportStore)
+	s.Store = store.Values()
+	return s
 }
 
 // ReportNetwork is a struct that implements the Network interface by augmenting
