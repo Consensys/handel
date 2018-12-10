@@ -113,8 +113,9 @@ func (udpNet *Network) handler() {
 
 func (udpNet *Network) dispatch(p *handel.Packet) {
 	udpNet.RLock()
-	defer udpNet.RUnlock()
-	for _, listener := range udpNet.listeners {
+	listeners := udpNet.listeners
+	udpNet.RUnlock()
+	for _, listener := range listeners {
 		//fmt.Printf("%s -> dispatching packet to listener %p!\n", udpNet.udpSock.LocalAddr().String(), listener)
 		listener.NewPacket(p)
 	}
