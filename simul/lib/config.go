@@ -107,8 +107,12 @@ func (c *Config) selectNetwork(id handel.Identity) (handel.Network, error) {
 	switch c.Network {
 	case "udp":
 		return udp.NewNetwork(id.Address(), encoding)
+	case "quic-test-insecure":
+		cfg := quic.NewInsecureTestConfig()
+		return quic.NewNetwork(id.Address(), encoding, cfg)
 	case "quic":
-		return quic.NewNetwork(id.Address(), encoding)
+		return nil, errors.New("quic implemented implemented only in test mode")
+
 	default:
 		return nil, errors.New("not implemented yet")
 	}
