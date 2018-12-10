@@ -47,7 +47,9 @@ func start() {
 
 	enc := network.NewGOBEncoding()
 	var net h.Network
-	net, err = quic.NewNetwork(node.Identity.Address(), enc)
+	quicConfig := quic.NewInsecureTestConfig()
+
+	net, err = quic.NewNetwork(node.Identity.Address(), enc, quicConfig)
 	if err != nil {
 		panic(err)
 	}

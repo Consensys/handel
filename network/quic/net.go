@@ -2,17 +2,10 @@ package quic
 
 import (
 	"bufio"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/tls"
-	"crypto/x509"
-	"encoding/pem"
 	"io"
 	"io/ioutil"
 	"log"
-	"math/big"
 	"sync"
-	"time"
 
 	h "github.com/ConsenSys/handel"
 	"github.com/ConsenSys/handel/network"
@@ -21,7 +14,7 @@ import (
 
 // Network is a handel.Network implementation using QUIC as its transport layer
 type Network struct {
-	mutex          sync.RWMutex
+	sync.RWMutex
 	listeners      []h.Listener
 	quit           bool
 	enc            network.Encoding
@@ -29,21 +22,18 @@ type Network struct {
 	sessionManager sessionManager
 }
 
-const handshakeTimeout = 2000 * time.Millisecond
-
 // NewNetwork creates Nework baked by QUIC protocol
-func NewNetwork(addr string, enc network.Encoding) (*Network, error) {
-	cfg := generateTLSConfig()
-	qCfg := &quic.Config{HandshakeTimeout: handshakeTimeout} //, AcceptCookie: f}
-	listener, err := quic.ListenAddr(addr, cfg, qCfg)
+func NewNetwork(addr string, enc network.Encoding, cfg Config) (*Network, error) {
+	//	cfg := cfg. generateTLSConfig()
+	qCfg := &quic.Config{HandshakeTimeout: cfg.handshakeTimeout} //, AcceptCookie: f}
+	listener, err := quic.ListenAddr(addr, cfg.tlsCfg, qCfg)
 
 	if err != nil {
 		panic(err)
 	}
 	var listeners []h.Listener
-	sessManager := newSessionManager(handshakeTimeout)
+	sessManager := newSessionManager(cfg.dialer)
 	net := Network{
-		mutex:          sync.RWMutex{},
 		listeners:      listeners,
 		quit:           false,
 		enc:            enc,
@@ -57,15 +47,15 @@ func NewNetwork(addr string, enc network.Encoding) (*Network, error) {
 
 //RegisterListener registers listener for processing incoming packets
 func (quicNet *Network) RegisterListener(listener h.Listener) {
-	quicNet.mutex.Lock()
-	defer quicNet.mutex.Unlock()
+	quicNet.Lock()
+	defer quicNet.Unlock()
 	quicNet.listeners = append(quicNet.listeners, listener)
 }
 
 // Stop stops the network
 func (quicNet *Network) Stop() {
-	quicNet.mutex.Lock()
-	defer quicNet.mutex.Unlock()
+	quicNet.Lock()
+	defer quicNet.Unlock()
 	quicNet.quit = true
 }
 
@@ -101,11 +91,11 @@ func (quicNet *Network) handler() {
 		if err != nil {
 			panic(err)
 		}
-		quicNet.mutex.RLock()
+		quicNet.RLock()
 		quit := quicNet.quit
 		listeners := quicNet.listeners
 		enc := quicNet.enc
-		quicNet.mutex.RUnlock()
+		quicNet.RUnlock()
 
 		if quit {
 			sess.Close()
@@ -137,24 +127,4 @@ func dispatch(listeners []h.Listener, byteReader io.Reader, enc network.Encoding
 	for _, listener := range listeners {
 		listener.NewPacket(packet)
 	}
-}
-
-func generateTLSConfig() *tls.Config {
-	key, err := rsa.GenerateKey(rand.Reader, 1024)
-	if err != nil {
-		panic(err)
-	}
-	template := x509.Certificate{SerialNumber: big.NewInt(1)}
-	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
-	if err != nil {
-		panic(err)
-	}
-	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
-	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-
-	tlsCert, err := tls.X509KeyPair(certPEM, keyPEM)
-	if err != nil {
-		panic(err)
-	}
-	return &tls.Config{Certificates: []tls.Certificate{tlsCert}}
 }

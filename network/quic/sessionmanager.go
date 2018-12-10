@@ -1,15 +1,13 @@
 package quic
 
 import (
-	"time"
-
 	h "github.com/ConsenSys/handel"
 	quic "github.com/lucas-clemente/quic-go"
 )
 
-// The handel protocol is very well suited to fire and forget type of
-// transport (udp for example), with quic or other type of statefull protocol
-// we need to make sure handshake period is handled appropriately.
+// The handel protocol is very well suited to stateless type of
+// transport (udp for example), with stateful protocols (quic, tcp)
+// we need to make sure the session is handled appropriately.
 type sessionManager interface {
 	Dial(identity h.Identity) *result
 }
@@ -29,18 +27,17 @@ type result struct {
 type simpleSesssionManager struct {
 	identities chan idAndResultChan
 	out        chan *result
-	dialer     Dialer
+	dialer     dialer
 }
 
-func newSessionManager(handshakeTimeout time.Duration) sessionManager {
-	dialer := newQuicDialer(handshakeTimeout)
+func newSessionManager(dialer dialer) sessionManager {
 	chanSize := 100
 	sesManager := newSimpleSessionManager(dialer, chanSize)
 	go sesManager.start()
 	return sesManager
 }
 
-func newSimpleSessionManager(dialer Dialer, chanSize int) *simpleSesssionManager {
+func newSimpleSessionManager(dialer dialer, chanSize int) *simpleSesssionManager {
 	sesManager := &simpleSesssionManager{
 		identities: make(chan idAndResultChan, chanSize),
 		out:        make(chan *result, chanSize),
@@ -56,11 +53,7 @@ func (sesManager *simpleSesssionManager) Dial(identity h.Identity) *result {
 	resChan := make(chan *result)
 	defer close(resChan)
 	sesManager.identities <- idAndResultChan{identity, resChan}
-	for x := range resChan {
-		return x
-	}
-	//unreachable code
-	return nil
+	return <-resChan
 }
 
 func (sesManager *simpleSesssionManager) start() {
