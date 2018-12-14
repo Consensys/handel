@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"bufio"
 	"bytes"
 	"io"
 	"io/ioutil"
@@ -10,6 +11,7 @@ import (
 // Command is a wrapper around Go's Cmd that can also output the log on demand
 type Command struct {
 	*exec.Cmd
+	pipe   io.Reader
 	stdOut *bytes.Buffer
 	stdErr *bytes.Buffer
 }
@@ -20,25 +22,37 @@ func NewCommand(cmd string, args ...string) *Command {
 	c.stdOut = new(bytes.Buffer)
 	c.stdErr = new(bytes.Buffer)
 	c.Cmd = exec.Command(cmd, args...)
-	c.Cmd.Stdout = c.stdOut
-	c.Cmd.Stderr = c.stdErr
+
+	outPipe, err := c.StdoutPipe()
+	if err != nil {
+		panic(err)
+	}
+	errPipe, err := c.StderrPipe()
+	if err != nil {
+		panic(err)
+	}
+	c.pipe = io.MultiReader(outPipe, errPipe)
 	return c
 }
 
-// Stdout returns the standard output as a string
-func (c *Command) Stdout() string {
-	return c.read(c.stdOut)
+// LineOutput continuously reads the stdout + stderr buffer and sends line by line
+// output on the channel
+func (c *Command) LineOutput() chan string {
+	outCh := make(chan string, 1)
+	go func() {
+		scanner := bufio.NewScanner(c.pipe)
+		for scanner.Scan() {
+			outCh <- scanner.Text()
+		}
+	}()
+	return outCh
 }
 
-func (c *Command) read(r io.Reader) string {
-	buffOut, err := ioutil.ReadAll(r)
+// ReadAll reads everything in the stdout + stderr reader
+func (c *Command) ReadAll() string {
+	buffOut, err := ioutil.ReadAll(c.pipe)
 	if err != nil {
 		panic("cant read output of command" + err.Error())
 	}
 	return string(buffOut)
-}
-
-// Stderr returns the standard error  as a string
-func (c *Command) Stderr() string {
-	return c.read(c.stdErr)
 }

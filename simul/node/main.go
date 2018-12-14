@@ -84,5 +84,6 @@ func main() {
 			panic("max timeout")
 		}
 	}
+	time.Sleep(1000 * time.Millisecond)
 	fmt.Println("finished")
 }

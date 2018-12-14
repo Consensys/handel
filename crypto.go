@@ -103,6 +103,6 @@ func (m *MultiSignature) Unmarshal(b []byte, s Signature, nbs func(b int) BitSet
 }
 
 func (m *MultiSignature) String() string {
-	return fmt.Sprintf("{bs (len %d - card %d): %s, ms: %s}",
-		m.BitSet.BitLength(), m.BitSet.Cardinality(), m.BitSet, m.Signature)
+	return fmt.Sprintf("{bitset %d/%d}",
+		m.BitSet.Cardinality(), m.BitSet.BitLength())
 }

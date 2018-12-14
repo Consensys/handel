@@ -3,7 +3,13 @@
 // test locally).
 package platform
 
-import "github.com/ConsenSys/handel/simul/lib"
+import (
+	"os"
+	"os/signal"
+	"syscall"
+
+	"github.com/ConsenSys/handel/simul/lib"
+)
 
 // The Life of a simulation:
 //
@@ -44,8 +50,8 @@ type Platform interface {
 
 var localhost = "localhost"
 
-// NewPlatform returns the appropriate platform
-// [deterlab,localhost]
+// NewPlatform returns the appropriate platform [deterlab,localhost]
+// and setups the Cleanup call in case of a signal interruption
 func NewPlatform(t string) Platform {
 	var p Platform
 	switch t {
@@ -54,5 +60,20 @@ func NewPlatform(t string) Platform {
 	default:
 		panic("no platform of this name " + t)
 	}
+	catchSIGINT(p)
 	return p
+}
+
+func catchSIGINT(p Platform) {
+	c := make(chan os.Signal, 2)
+	signal.Notify(c, syscall.SIGINT)
+	signal.Notify(c, syscall.SIGTERM)
+	go func() {
+		<-c
+		if err := p.Cleanup(); err == nil {
+			os.Exit(0)
+		} else {
+			os.Exit(1)
+		}
+	}()
 }

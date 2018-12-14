@@ -29,11 +29,6 @@ type signatureProcessing interface {
 	Verified() chan sigPair
 }
 
-type verifiedSig struct {
-	sigPair
-	new bool
-}
-
 // fifoProcessing implements the signatureProcessing interface using a simple
 // fifo queue, verifying all incoming signatures, not matter relevant or not.
 type fifoProcessing struct {
@@ -67,7 +62,7 @@ func (f *fifoProcessing) processIncoming() {
 	for pair := range f.in {
 		_, isNew := f.store.MockStore(pair.level, pair.ms)
 		if !isNew {
-			logf("handel: fifo: skipping verification of signature %s", pair.String())
+			//logf("handel: fifo: skipping verification of signature %s", pair.String())
 			continue
 		}
 
@@ -112,6 +107,7 @@ func (f *fifoProcessing) verifySignature(pair *sigPair) error {
 	}
 
 	if err := aggregateKey.VerifySignature(f.msg, ms.Signature); err != nil {
+		logf("processing err: from %d -> level %d -> %s", pair.origin, pair.level, ms.String())
 		return fmt.Errorf("handel: %s", err)
 	}
 	return nil

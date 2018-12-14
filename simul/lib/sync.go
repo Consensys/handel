@@ -25,12 +25,12 @@ import (
 // field, as to re-use the UDP code already present.
 type SyncMaster struct {
 	sync.Mutex
-	addr     string
-	exp      int
-	n        *udp.Network
-	readys   map[string]bool
-	done     bool
-	waitDone chan bool
+	addr      string
+	exp       int
+	n         *udp.Network
+	readys    map[string]bool
+	done      bool
+	waitSetup chan bool
 }
 
 // NewSyncMaster returns an SyncMaster that listens on the given address,
@@ -46,14 +46,14 @@ func NewSyncMaster(addr string, expected int) *SyncMaster {
 	s.n = n
 	s.addr = addr
 	s.readys = make(map[string]bool)
-	s.waitDone = make(chan bool, 1)
+	s.waitSetup = make(chan bool, 1)
 	return s
 }
 
 // WaitAllSetup returns a channel that is filled wen all the nodes have replied
 // and the master have sent the START message.
 func (s *SyncMaster) WaitAllSetup() chan bool {
-	return s.waitDone
+	return s.waitSetup
 }
 
 // NewPacket implements the Listener interface
@@ -98,7 +98,7 @@ func (s *SyncMaster) checkStart() {
 	go func() {
 		s.n.Send(ids, packet)
 		s.n.Stop()
-		s.waitDone <- true
+		s.waitSetup <- true
 	}()
 }
 
