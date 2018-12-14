@@ -280,3 +280,25 @@ func TestIsSet(t *testing.T) {
 		require.Equal(t, test.expected, res, "%d - failed: %v", i, test)
 	}
 }
+
+func TestPartitionerRandomBin(t *testing.T) {
+	n := 16
+	reg := FakeRegistry(n)
+
+	// try two different seeds
+	s1 := []byte("Hello World")
+	s2 := []byte("Sun is Shining")
+	r1 := newRandomBinTree(1, reg, s1)
+	r2 := newRandomBinTree(1, reg, s2)
+
+	ids1, more := r1.PickNextAt(3, 5)
+	require.True(t, more)
+	ids2, more := r2.PickNextAt(3, 5)
+	require.True(t, more)
+
+	require.NotEqual(t, ids1, ids2)
+
+	ids3, ok := r1.PickNextAt(3, 5)
+	require.True(t, ok)
+	require.NotEqual(t, ids1, ids3)
+}

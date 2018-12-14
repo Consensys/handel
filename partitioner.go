@@ -1,8 +1,12 @@
 package handel
 
 import (
+	cryptoRand "crypto/rand"
+	"encoding/binary"
 	"errors"
 	"math"
+	"math/rand"
+	mathRand "math/rand"
 )
 
 // partitioner is a generic interface holding the logic used to partition the
@@ -336,4 +340,102 @@ func (c *binTreePartition) combine(sigs []*sigPair, nbs func(int) BitSet) *sigPa
 			BitSet:    finalBitSet,
 		},
 	}
+}
+
+// randomBinTree adds randomization to a binTreePartition. Basically the only
+// impacted method is `PickNextAt`: it now returns nodes in a candidate set in a
+// random order
+type randomBinTree struct {
+	*binTreePartition
+	r       *mathRand.Rand
+	genesis [8]byte
+	seeds   map[int]int64
+}
+
+// seed can be nil --> fixed 8-byte slice of /dev/urandom taken as the seed
+func newRandomBinTree(id int32, reg Registry, seed []byte) partitioner {
+	b := newBinTreePartition(id, reg)
+	if seed == nil {
+		seed = make([]byte, 8)
+		cryptoRand.Read(seed)
+	}
+	var source [8]byte
+	copy(source[:], seed)
+	rnd := mathRand.New(&cryptoSource{})
+	return &randomBinTree{
+		binTreePartition: b.(*binTreePartition),
+		r:                rnd,
+		genesis:          source,
+		seeds:            computeSeeds(b.MaxLevel(), rnd),
+	}
+}
+
+// PickNextAt implements the partitioner interface but returns randomized slice
+// of identities. It keeps track of the last seen id in the randomized list.
+func (r *randomBinTree) PickNextAt(level, count int) ([]Identity, bool) {
+	min, max, err := r.rangeLevel(level)
+	if err != nil {
+		return nil, false
+	}
+
+	cardinality := max - min
+
+	// the picked map is used differently than in binTreePartitioner -
+	// the int stored indicates the minimum index in the permutation of that
+	// level we should start picking identities again.
+	minPicked, ok := r.picked[level]
+	if !ok {
+		minPicked = 0
+	}
+
+	seed, ok := r.seeds[level]
+	if !ok {
+		logf("random bin. tree: seed not found - internal error")
+		return nil, false
+	}
+
+	upTo := minPicked + count
+	if upTo > cardinality {
+		upTo = cardinality
+	}
+
+	rnd := mathRand.New(mathRand.NewSource(seed))
+	perm := rnd.Perm(cardinality)
+	ids := make([]Identity, 0, count)
+	for i := minPicked; i < upTo; i++ {
+		// take the randomized index of the sublist
+		randomPermIndex := perm[i]
+		// compute the global index of the Identity we want
+		globalIndex := min + randomPermIndex
+		randomID, ok := r.reg.Identity(globalIndex)
+		if !ok {
+			continue
+		}
+		ids = append(ids, randomID)
+	}
+	r.picked[level] = upTo
+	return ids, true
+}
+
+func computeSeeds(levels int, r *rand.Rand) map[int]int64 {
+	m := make(map[int]int64)
+	for i := 1; i <= levels; i++ {
+		m[i] = r.Int63()
+	}
+	return m
+}
+
+// random permutation based on /dev/urandom
+// taken from
+// https://stackoverflow.com/questions/40965044/using-crypto-rand
+// -for-generating-permutations-with-rand-perm
+type cryptoSource [8]byte
+
+func (s *cryptoSource) Int63() int64 {
+	cryptoRand.Read(s[:])
+	return int64(binary.BigEndian.Uint64(s[:]) & (1<<63 - 1))
+}
+
+func (s *cryptoSource) Seed(seed int64) {
+	panic("seed")
 }
