@@ -1,6 +1,7 @@
 package lib
 
 import (
+	"errors"
 	"os"
 	"time"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/ConsenSys/handel"
 	"github.com/ConsenSys/handel/bn256"
 	"github.com/ConsenSys/handel/network"
+	"github.com/ConsenSys/handel/network/quic"
 	"github.com/ConsenSys/handel/network/udp"
 )
 
@@ -93,16 +95,26 @@ func (c *Config) NewNetwork(id handel.Identity) handel.Network {
 	if c.Network == "" {
 		c.Network = "udp"
 	}
+	net, err := c.selectNetwork(id)
+	if err != nil {
+		panic(err)
+	}
+	return net
+}
+
+func (c *Config) selectNetwork(id handel.Identity) (handel.Network, error) {
 	encoding := c.NewEncoding()
 	switch c.Network {
 	case "udp":
-		n, err := udp.NewNetwork(id.Address(), encoding)
-		if err != nil {
-			panic(err)
-		}
-		return n
+		return udp.NewNetwork(id.Address(), encoding)
+	case "quic-test-insecure":
+		cfg := quic.NewInsecureTestConfig()
+		return quic.NewNetwork(id.Address(), encoding, cfg)
+	case "quic":
+		return nil, errors.New("quic implemented implemented only in test mode")
+
 	default:
-		panic("not implemented yet")
+		return nil, errors.New("not implemented yet")
 	}
 }
 
