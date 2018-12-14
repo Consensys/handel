@@ -12,6 +12,12 @@ import (
 	quic "github.com/lucas-clemente/quic-go"
 )
 
+// This implementation spawns new session per every packet.
+// This simplifies the session managment part but on the other hand prevents
+// us from benefiting from the 0-RTT feature of quic.
+// TODO add another Network quic implementation with session caching which will
+// allow to enable 0-RTT
+
 // Network is a handel.Network implementation using QUIC as its transport layer
 type Network struct {
 	sync.RWMutex
@@ -113,6 +119,9 @@ func handleSession(sess quic.Session, listeners []h.Listener, enc network.Encodi
 	}
 	reader := bufio.NewReader(stream)
 	dispatch(listeners, reader, enc)
+	// This implementation creates new session for every packet
+	// after packet is delivered the session has to be drined and closed
+	// see: lucas-clemente/quic-go#1618 (comment)
 	io.Copy(ioutil.Discard, stream)
 	stream.Close()
 	sess.Close()
