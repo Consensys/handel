@@ -20,7 +20,7 @@ func TestSyncer(t *testing.T) {
 	var slaves = make([]*SyncSlave, len(slaveAddrs))
 	doneSlave := make(chan bool, len(slaveAddrs))
 	for i, addr := range slaveAddrs {
-		slaves[i] = NewSyncSlave(addr, masterAddr)
+		slaves[i] = NewSyncSlave(addr, masterAddr, i)
 		defer slaves[i].Stop()
 	}
 

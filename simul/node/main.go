@@ -49,9 +49,9 @@ func main() {
 	reporter := h.NewReportHandel(handel)
 
 	// 4. Sync with master - wait for the START signal
-	syncer := lib.NewSyncSlave(*syncAddr, *master)
+	syncer := lib.NewSyncSlave(*syncAddr, *master, *id)
 	select {
-	case <-syncer.WaitStart():
+	case <-syncer.WaitMaster():
 		now := time.Now()
 		formatted := fmt.Sprintf("%02d:%02d:%02d:%03d", now.Hour(),
 			now.Minute(),
@@ -71,7 +71,7 @@ func main() {
 		out <- true
 	}()
 
-	// 5. Wait for final signatures !
+	// 6. Wait for final signatures !
 	enough := false
 	for !enough {
 		select {
@@ -84,6 +84,19 @@ func main() {
 			panic("max timeout")
 		}
 	}
-	time.Sleep(1000 * time.Millisecond)
-	fmt.Println("finished")
+	fmt.Println("finished -> sending state to sync master")
+	// 7. Sync with master - wait to close our node
+	syncer.Reset()
+	select {
+	case <-syncer.WaitMaster():
+		now := time.Now()
+		formatted := fmt.Sprintf("%02d:%02d:%02d:%03d", now.Hour(),
+			now.Minute(),
+			now.Second(),
+			now.Nanosecond())
+
+		fmt.Printf("\n%s [+] %s synced - closing shop\n", formatted, node.Identity.Address())
+	case <-time.After(BeaconTimeout):
+		panic("Haven't received beacon in time!")
+	}
 }

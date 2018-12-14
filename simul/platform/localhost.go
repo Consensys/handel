@@ -100,6 +100,7 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 					fmt.Printf("NODE %d: %s\n", j, str)
 				}
 			}()
+			time.Sleep(200 * time.Millisecond)
 			if err := commands[j].Wait(); err != nil {
 				fmt.Printf("node %d: %s\n", j, commands[j].ReadAll())
 
@@ -115,13 +116,22 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 
 	// 4. Wait for the master to have synced up every node
 	select {
-	case <-master.WaitAllSetup():
+	case <-master.WaitAll():
+		master.Reset()
 		fmt.Printf("[+] Master full synchronization done.\n")
-	case <-time.After(2 * time.Minute):
+	case <-time.After(5 * time.Minute):
 		panic("timeout after 2 mn")
 	}
 
-	// 5. Wait for all of them to either finish of error or max timeout
+	// 5. Wait all finished - then tell them to quit
+	select {
+	case <-master.WaitAll():
+		fmt.Printf("[+] Master - finished synchronization done.\n")
+	case <-time.After(l.c.GetMaxTimeout()):
+		panic(fmt.Sprintf("timeout after %s", l.c.GetMaxTimeout()))
+	}
+
+	// 6. Wait for all binaries to finish - clean finishing
 	maxTimeout := make(chan bool, 1)
 	go func() { <-time.After(l.c.GetMaxTimeout()); maxTimeout <- true }()
 	var nOk, nErr int
@@ -139,7 +149,8 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 			break
 		}
 	}
-	fmt.Println("[+] Successful round ", idx)
+
+	fmt.Printf("[+] Round finished - success !")
 	/*for i, command := range commands {*/
 	//if str := command.Stdout(); str != "" {
 	//fmt.Printf(" ----- node %d output -----\n\t%s\n ----------------\n", i, str)
