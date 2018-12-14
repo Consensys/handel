@@ -6,7 +6,7 @@ import (
 
 	h "github.com/ConsenSys/handel"
 	network "github.com/ConsenSys/handel/network"
-	udp "github.com/ConsenSys/handel/network/udp"
+	quic "github.com/ConsenSys/handel/network/quic"
 	"github.com/ConsenSys/handel/simul/lib"
 )
 
@@ -46,7 +46,10 @@ func start() {
 	}
 
 	enc := network.NewGOBEncoding()
-	net, err := udp.NewNetwork(node.Identity.Address(), enc)
+	var net h.Network
+	quicConfig := quic.NewInsecureTestConfig()
+
+	net, err = quic.NewNetwork(node.Identity.Address(), enc, quicConfig)
 	if err != nil {
 		panic(err)
 	}
