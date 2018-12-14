@@ -25,12 +25,12 @@ import (
 // field, as to re-use the UDP code already present.
 type SyncMaster struct {
 	sync.Mutex
-	addr     string
-	exp      int
-	n        *udp.Network
-	readys   map[string]bool
-	done     bool
-	waitDone chan bool
+	addr    string
+	exp     int
+	n       *udp.Network
+	readys  map[string]bool
+	done    bool
+	waitAll chan bool
 }
 
 // NewSyncMaster returns an SyncMaster that listens on the given address,
@@ -46,39 +46,52 @@ func NewSyncMaster(addr string, expected int) *SyncMaster {
 	s.n = n
 	s.addr = addr
 	s.readys = make(map[string]bool)
-	s.waitDone = make(chan bool, 1)
+	s.waitAll = make(chan bool, 1)
 	return s
 }
 
-// WaitAllSetup returns a channel that is filled wen all the nodes have replied
+// WaitAll returns a channel that is filled wen all the nodes have replied
 // and the master have sent the START message.
-func (s *SyncMaster) WaitAllSetup() chan bool {
-	return s.waitDone
+func (s *SyncMaster) WaitAll() chan bool {
+	return s.waitAll
+}
+
+// Reset the syncmaster to its initial step - new calls to WaitAll can be made.
+func (s *SyncMaster) Reset() {
+	s.Lock()
+	defer s.Unlock()
+	s.done = false
+	s.readys = make(map[string]bool)
+	s.waitAll = make(chan bool, 1)
 }
 
 // NewPacket implements the Listener interface
 func (s *SyncMaster) NewPacket(p *handel.Packet) {
 	s.Lock()
 	defer s.Unlock()
-	defer s.checkStart()
 	msg := new(syncMessage)
 	if err := msg.FromBytes(p.MultiSig); err != nil {
 		panic(err)
 	}
-	if msg.State != READY {
+
+	switch msg.State {
+	case READY:
+		s.handleReady(msg)
+	default:
 		panic("receiving something unexpected")
-	}
-	_, stored := s.readys[msg.Addr]
-	if !stored {
-		s.readys[msg.Addr] = true
 	}
 }
 
-// checkStart looks if everybody have sent the READY message
-func (s *SyncMaster) checkStart() {
+func (s *SyncMaster) handleReady(incoming *syncMessage) {
+	_, stored := s.readys[incoming.Addr]
+	if !stored {
+		s.readys[incoming.Addr] = true
+	}
+
 	if s.done {
 		return
 	}
+
 	if len(s.readys) < s.exp {
 		return
 	}
@@ -97,9 +110,15 @@ func (s *SyncMaster) checkStart() {
 	}
 	go func() {
 		s.n.Send(ids, packet)
-		s.n.Stop()
-		s.waitDone <- true
+		s.waitAll <- true
 	}()
+}
+
+// Stop stops the network layer of the syncmaster
+func (s *SyncMaster) Stop() {
+	s.Lock()
+	defer s.Unlock()
+	s.n.Stop()
 }
 
 // SyncSlave sends its state to the master and waits for a START message
@@ -141,9 +160,9 @@ func (s *SyncSlave) sendReadyState() {
 	fmt.Printf("%s -> sending ready state to %s\n", s.own, s.master)
 }
 
-// WaitStart returns a channel that receives a value when the sync master sends
+// WaitMaster returns a channel that receives a value when the sync master sends
 // the START message
-func (s *SyncSlave) WaitStart() chan bool {
+func (s *SyncSlave) WaitMaster() chan bool {
 	return s.waitCh
 }
 
@@ -165,7 +184,19 @@ func (s *SyncSlave) NewPacket(p *handel.Packet) {
 	}
 	s.done = true
 	s.waitCh <- true
+}
 
+// Reset re-initializes the syncslave to its initial state - it sends its status
+// to the master and new calls to WaitMaster can be made.
+func (s *SyncSlave) Reset() {
+	s.Lock()
+	defer s.Unlock()
+	s.done = false
+	go s.sendReadyState()
+}
+
+// Stop the network layer of the syncslave
+func (s *SyncSlave) Stop() {
 	s.net.Stop()
 }
 

@@ -6,16 +6,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type combineTest struct {
-	sigs []*sigPair
-	exp  *sigPair
-}
-
 func TestPartitionerBinTreeCombine(t *testing.T) {
 	n := 16
 	reg := FakeRegistry(n)
 	ct := newBinTreePartition(1, reg)
 
+	type combineTest struct {
+		sigs  []*sigPair
+		level int
+		exp   *sigPair
+	}
 	sig3 := &fakeSig{true}
 	bs3 := NewWilffBitset(n / 2)
 	for i := 0; i < bs3.BitLength(); i++ {
@@ -36,17 +36,17 @@ func TestPartitionerBinTreeCombine(t *testing.T) {
 
 	var tests = []combineTest{
 		// all good, we should have the first half of signature returned (
-		{sigPairs(0, 1, 2, 3), &sigPair{level: 4, ms: &MultiSignature{Signature: sig3, BitSet: bs3}}},
+		{sigPairs(0, 1, 2, 3), 4, &sigPair{level: 4, ms: &MultiSignature{Signature: sig3, BitSet: bs3}}},
 		// only one to combine
-		{sigPairs(2), &sigPair{level: 3, ms: &MultiSignature{Signature: sig2, BitSet: bs2}}},
-		{nil, nil},
+		{sigPairs(2), 3, &sigPair{level: 3, ms: &MultiSignature{Signature: sig2, BitSet: bs2}}},
+		{nil, 0, nil},
 		// with holes
-		{pairs3, final4},
+		{pairs3, 4, final4},
 	}
 
 	for i, test := range tests {
 		t.Logf(" -- test %d -- ", i)
-		res := ct.Combine(test.sigs, false, NewWilffBitset)
+		res := ct.Combine(test.sigs, test.level, NewWilffBitset)
 		if test.exp == nil {
 			require.Nil(t, res)
 			continue
@@ -99,30 +99,36 @@ func TestPartitionerBinTreeCombineFull(t *testing.T) {
 		final4.ms.BitSet.Set(i, false)
 	}
 
+	type combineTest struct {
+		sigs []*sigPair
+		exp  *MultiSignature
+	}
+
 	var tests = []combineTest{
 		// all good, we should have the first half of signature returned (
-		{sigPairs(0, 1, 2, 3), &sigPair{level: 3, ms: &MultiSignature{Signature: sig3, BitSet: bs3}}},
+		{sigPairs(0, 1, 2, 3), &MultiSignature{Signature: sig3, BitSet: bs3}},
 		// only one to combine
-		{sigPairs(2), &sigPair{level: 2, ms: &MultiSignature{Signature: sig2, BitSet: bs2}}},
+		{sigPairs(2), &MultiSignature{Signature: sig2, BitSet: bs2}},
 		{nil, nil},
 		// with holes
-		{pairs3, final4},
+		{pairs3, final4.ms},
 	}
 
 	for i, test := range tests {
 		t.Logf(" -- test %d -- ", i)
-		res := ct.Combine(test.sigs, true, NewWilffBitset)
-		if test.exp == nil {
-			require.Nil(t, res)
-			continue
+		res := ct.CombineFull(test.sigs, NewWilffBitset)
+		if res == nil {
+			if test.exp == nil {
+				continue
+			}
+			t.Fatal("should not have got nil output")
 		}
-		require.Equal(t, test.exp.ms.Signature, res.ms.Signature)
-		require.Equal(t, test.exp.ms.BitSet.BitLength(), res.ms.BitSet.BitLength())
-		require.Equal(t, test.exp.level, res.level)
-		require.Equal(t, n, res.ms.BitSet.BitLength())
+		require.Equal(t, test.exp.Signature, res.Signature)
+		require.Equal(t, test.exp.BitSet.BitLength(), res.BitSet.BitLength())
+		require.Equal(t, n, res.BitSet.BitLength())
 
-		bs1 := test.exp.ms.BitSet
-		bs2 := res.ms.BitSet
+		bs1 := test.exp.BitSet
+		bs2 := res.BitSet
 		for i := 0; i < bs1.BitLength(); i++ {
 			require.Equal(t, bs1.Get(i), bs2.Get(i))
 		}

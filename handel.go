@@ -105,8 +105,8 @@ func (h *Handel) NewPacket(p *Packet) {
 	}
 
 	// sends it to processing
-	h.logf("received packet from %d", p.Origin)
-	h.proc.Incoming() <- sigPair{level: p.Level, ms: ms}
+	h.logf("received packet from %d for level %d: %s", p.Origin, p.Level, ms.String())
+	h.proc.Incoming() <- sigPair{origin: p.Origin, level: p.Level, ms: ms}
 }
 
 // Start the Handel protocol by sending signatures to peers in the first level,
@@ -144,19 +144,12 @@ func (h *Handel) startNextLevel() {
 		h.logf("protocol finished at level %d", h.currLevel)
 		return
 	}
+	h.sendBestToLevel(int(h.currLevel))
+	/*// take the best we have so far at the max level we are at*/
+	//sp := h.store.Combined(h.currLevel)
+	//// increase the max level we are at
 	h.currLevel++
-	sp := h.store.Combined(h.currLevel - 1)
-	if sp == nil {
-		h.logf("no signature to send ...?")
-		return
-	}
-	nodes, ok := h.part.PickNextAt(int(h.currLevel), h.c.CandidateCount)
-	if !ok {
-		// XXX This should not happen, but what if ?
-		return
-	}
-	h.sendTo(sp.level, sp.ms, nodes)
-	h.logf("new level %d: sent best signatures (lvl = %d) to %d nodes (%v)", h.currLevel, sp.level, len(nodes), nodes)
+	h.logf("Passing to a new level %d -> %d", h.currLevel-1, h.currLevel)
 }
 
 // rangeOnVerified continuously listens on the output channel of the signature
@@ -165,6 +158,7 @@ func (h *Handel) startNextLevel() {
 // manner, global lock is held during the call to actors.
 func (h *Handel) rangeOnVerified() {
 	for v := range h.proc.Verified() {
+		h.logf("new verified signature received -> %s", v.String())
 		h.store.Store(v.level, v.ms)
 		h.Lock()
 		for _, actor := range h.actors {
@@ -249,6 +243,7 @@ func (h *Handel) checkCompletedLevel(s *sigPair) {
 	// if the combined signature has enough cardinality to pass to higher levels
 	if s.level == h.currLevel {
 		h.startNextLevel()
+		return
 	}
 
 	// Now we check from 1st level to this level if we have them all completed.
@@ -257,24 +252,37 @@ func (h *Handel) checkCompletedLevel(s *sigPair) {
 	// start the new level (that's the same action being done), but we might be
 	// already at a higher level with incomplete signature so this is where it's
 	// important: to improve over existing levels.
-	sp := h.store.Combined(s.level)
+	h.sendBestToLevel(int(s.level))
+}
+
+// sendBestToLevel computes the best signature possible at the given level, with
+// the bitset's size corresponding to the given level, and sends it out to new
+// nodes at the level.  This call may not send signatures if the level given is
+// already at the maximum level so it's not possible to send a `Combined`
+// signature anymore - this handel node can fetch its full signature already
+func (h *Handel) sendBestToLevel(lvl int) {
+	level := byte(lvl)
+	sp := h.store.Combined(level)
 	if sp == nil {
+		panic("THIS SHOULD NOT HAPPEN AT ALL")
+	}
+	fullSize, err := h.part.Size(int(level + 1))
+	if err != nil {
+		h.logf("reached maximum size")
 		return
 	}
-	fullSize, err = h.part.Size(int(sp.level))
-	if sp.ms.Cardinality() != fullSize {
-		return
+	if sp.ms.BitLength() != fullSize {
+		panic("THIS SHOULD NOT HAPPEN AT ALL #2")
 	}
 	// TODO: if no new nodes are available, maybe send to same nodes again
 	// in case for full signatures ?
 	newNodes, ok := h.part.PickNextAt(int(sp.level), h.c.CandidateCount)
 	if ok {
-		h.logf("sending complete signature for level %d to %d new nodes", sp.level, len(newNodes))
-		h.sendTo(s.level, ms, newNodes)
+		h.logf("sending complete signature for level %d (size %d) to %d new nodes", sp.level, sp.ms.BitSet.BitLength(), len(newNodes))
+		h.sendTo(sp.level, sp.ms, newNodes)
 	} else {
-		h.logf("no new nodes for completed level %d", s.level)
+		h.logf("no new nodes for completed level %d", sp.level)
 	}
-
 }
 
 func (h *Handel) sendTo(lvl byte, ms *MultiSignature, ids []Identity) {
@@ -327,10 +335,9 @@ func (h *Handel) markCompleted(level byte) {
 
 func (h *Handel) logf(str string, args ...interface{}) {
 	now := time.Now()
-	time := fmt.Sprintf("%02d:%02d:%02d:%03d", now.Hour(),
+	time := fmt.Sprintf("%02d:%02d:%02d", now.Hour(),
 		now.Minute(),
-		now.Second(),
-		now.Nanosecond())
+		now.Second())
 	idArg := []interface{}{time, h.id.ID()}
 	logf("%s: handel %d: "+str, append(idArg, args...)...)
 }

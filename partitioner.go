@@ -33,7 +33,12 @@ type partitioner interface {
 	// should be set to false, as handel does not send full-size bitsets. All
 	// signatures must be valid signatures. The return value can be nil if no
 	// sigPairs have been given.
-	Combine(sigs []*sigPair, full bool, nbs func(int) BitSet) *sigPair
+	Combine(sigs []*sigPair, level int, nbs func(int) BitSet) *sigPair
+	// CombineFull is similar to Combine but it returns the full multisignature
+	// whose bitset's length is equal to the size of the registry. This length
+	// corresponds to the MaxLevel() + 1 - but this level is not considered a
+	// "valid" level from a Handel perspective.
+	CombineFull(sigs []*sigPair, nbs func(int) BitSet) *MultiSignature
 }
 
 // binTreePartition is a partitioner implementation using a binomial tree
@@ -199,50 +204,80 @@ func (c *binTreePartition) Size(level int) (int, error) {
 	return max - min, nil
 }
 
-func (c *binTreePartition) Combine(sigs []*sigPair, full bool, nbs func(int) BitSet) *sigPair {
-	if full {
-		return c.combineFull(sigs, nbs)
-	}
-	return c.combine(sigs, nbs)
-}
-
 // combines all all given different-level signatures into one signature
 // that has a bitset's size equal to the size of the set of participants,i.e. a
 // signature ready to be dispatched to any application.
-func (c *binTreePartition) combineFull(sigs []*sigPair, nbs func(int) BitSet) *sigPair {
+func (c *binTreePartition) Combine(sigs []*sigPair, level int, nbs func(int) BitSet) *sigPair {
 	if len(sigs) == 0 {
 		return nil
 	}
 
+	for _, s := range sigs {
+		if int(s.level) > level {
+			logf("invalid combination of signature / requested level")
+			return nil
+		}
+	}
+
+	// taking the "rangeInverse" gives us the range covering all signatures
+	// with a level inferior than "level" - it's the range nodes at the
+	// corresponding candidate set expect to receive.
+	globalMin, globalMax, err := c.rangeLevelInverse(level)
+	if err != nil {
+		logf(err.Error())
+		return nil
+	}
+	bitset := nbs(globalMax - globalMin)
+	combined := func(s *sigPair, final BitSet) {
+		// compute the offset of this signature compared to the global bitset
+		// index
+		min, _, _ := c.rangeLevel(int(s.level))
+		offset := min - globalMin
+		bs := s.ms.BitSet
+		for i := 0; i < bs.BitLength(); i++ {
+			final.Set(offset+i, bs.Get(i))
+		}
+	}
+
+	ms := c.combineSize(sigs, bitset, combined)
+	return &sigPair{
+		level: byte(level),
+		ms:    ms,
+	}
+}
+
+func (c *binTreePartition) CombineFull(sigs []*sigPair, nbs func(int) BitSet) *MultiSignature {
+	if len(sigs) == 0 {
+		return nil
+	}
 	var finalBitSet = nbs(c.reg.Size())
 
 	// set the bits corresponding to the level to the final bitset
-	var combineBitSet = func(s *sigPair) {
+	var combineBitSet = func(s *sigPair, final BitSet) {
 		min, _, _ := c.rangeLevel(int(s.level))
 		bs := s.ms.BitSet
 		for i := 0; i < bs.BitLength(); i++ {
-			finalBitSet.Set(min+i, bs.Get(i))
+			final.Set(min+i, bs.Get(i))
 		}
 	}
+	return c.combineSize(sigs, finalBitSet, combineBitSet)
+}
+
+// combineSize combines all given signature witht he combine function on the
+// bitset using `bs`
+func (c *binTreePartition) combineSize(sigs []*sigPair, bs BitSet, combine func(*sigPair, BitSet)) *MultiSignature {
 
 	var finalSig = sigs[0].ms.Signature
-	combineBitSet(sigs[0])
+	combine(sigs[0], bs)
 
-	var maxLvl = sigs[0].level
 	for _, s := range sigs[1:] {
 		// combine both signatures
 		finalSig = finalSig.Combine(s.ms.Signature)
-		combineBitSet(s)
-		if s.level > maxLvl {
-			maxLvl = s.level
-		}
+		combine(s, bs)
 	}
-	return &sigPair{
-		level: maxLvl,
-		ms: &MultiSignature{
-			BitSet:    finalBitSet,
-			Signature: finalSig,
-		},
+	return &MultiSignature{
+		BitSet:    bs,
+		Signature: finalSig,
 	}
 }
 

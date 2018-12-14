@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/ConsenSys/handel/simul/lib"
@@ -14,6 +15,8 @@ type localPlatform struct {
 	regPath  string
 	binPath  string
 	confPath string
+	sync.Mutex
+	cmds []*Command
 }
 
 // NewLocalhost returns a Platform that is executing binaries on localhost
@@ -28,8 +31,7 @@ func (l *localPlatform) Configure(c *lib.Config) error {
 	pack := "github.com/ConsenSys/handel/simul/node"
 	cmd := NewCommand("go", "build", "-o", l.binPath, pack)
 	if err := cmd.Run(); err != nil {
-		fmt.Println("stdout -> " + cmd.Stdout())
-		fmt.Println("stderr -> " + cmd.Stderr())
+		fmt.Println("command output -> " + cmd.ReadAll())
 		return err
 	}
 	// write config
@@ -41,6 +43,14 @@ func (l *localPlatform) Configure(c *lib.Config) error {
 
 func (l *localPlatform) Cleanup() error {
 	os.RemoveAll(l.regPath)
+	l.Lock()
+	defer l.Unlock()
+
+	for _, c := range l.cmds {
+		if err := c.Process.Kill(); err != nil {
+			//fmt.Printf("[-] error killing command %d: %s\n", i, err)
+		}
+	}
 	return nil
 }
 
@@ -67,7 +77,6 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 		"-master", masterAddr}
 
 	for i := 0; i < r.Nodes; i++ {
-
 		// 3.1 prepare args
 		args := make([]string, len(sameArgs))
 		copy(args, sameArgs)
@@ -80,28 +89,29 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 		go func(j int) {
 			fmt.Printf("[+] Starting node %d.\n", j)
 			if err := commands[j].Start(); err != nil {
-				fmt.Printf("node %d:\n\t-stdout: %s\n\t-stderr%s\n",
-					j, commands[j].Stdout(), commands[j].Stderr())
+				fmt.Printf("node %d: %s\n",
+					j, commands[j].ReadAll())
 				errCh <- j
 				return
 			}
 
-			/*go func() {*/
-			//for range time.NewTicker(100 * time.Millisecond).C {
-			//if str := commands[j].Stdout(); str != "" {
-			//fmt.Printf(" ----- node %d output -----\n\t%s\n ----------------\n", j, str)
-			//}
-			//}
-			/*}()*/
+			go func() {
+				for str := range commands[j].LineOutput() {
+					fmt.Printf("NODE %d: %s\n", j, str)
+				}
+			}()
 			if err := commands[j].Wait(); err != nil {
-				fmt.Printf("node %d:\n\t-stdout: %s\n\t-stderr%s\n",
-					j, commands[j].Stdout(), commands[j].Stderr())
+				fmt.Printf("node %d: %s\n", j, commands[j].ReadAll())
 
 				errCh <- j
 			}
 			doneCh <- j
 		}(i)
 	}
+
+	l.Lock()
+	l.cmds = commands
+	l.Unlock()
 
 	// 4. Wait for the master to have synced up every node
 	select {
@@ -130,13 +140,12 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 		}
 	}
 	fmt.Println("[+] Successful round ", idx)
+	/*for i, command := range commands {*/
+	//if str := command.Stdout(); str != "" {
+	//fmt.Printf(" ----- node %d output -----\n\t%s\n ----------------\n", i, str)
+	//}
 
-	for i, command := range commands {
-		if str := command.Stdout(); str != "" {
-			fmt.Printf(" ----- node %d output -----\n\t%s\n ----------------\n", i, str)
-		}
-
-	}
+	/*}*/
 	return nil
 }
 
