@@ -26,7 +26,7 @@ type Handel struct {
 	// signature over the message
 	sig Signature
 	// partitions the set of nodes at different levels
-	part partitioner
+	part Partitioner
 	// signature store with different merging/caching strategy
 	store signatureStore
 	// processing of signature - verification strategy
@@ -58,10 +58,18 @@ type Handel struct {
 // DefaultConfig() is used.
 func NewHandel(n Network, r Registry, id Identity, c Constructor,
 	msg []byte, s Signature, conf ...*Config) *Handel {
+
+	var config *Config
+	if len(conf) > 0 && conf[0] != nil {
+		config = mergeWithDefault(conf[0], r.Size())
+	} else {
+		config = DefaultConfig(r.Size())
+	}
 	h := &Handel{
+		c:        config,
 		net:      n,
 		reg:      r,
-		part:     newBinTreePartition(id.ID(), r),
+		part:     config.NewPartitioner(id.ID(), r),
 		id:       id,
 		cons:     c,
 		msg:      msg,
@@ -72,12 +80,6 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 	h.actors = []actor{
 		actorFunc(h.checkCompletedLevel),
 		actorFunc(h.checkFinalSignature),
-	}
-
-	if len(conf) > 0 && conf[0] != nil {
-		h.c = mergeWithDefault(conf[0], r.Size())
-	} else {
-		h.c = DefaultConfig(r.Size())
 	}
 
 	h.threshold = h.c.ContributionsThreshold(h.reg.Size())
@@ -105,7 +107,7 @@ func (h *Handel) NewPacket(p *Packet) {
 	}
 
 	// sends it to processing
-	h.logf("received packet from %d for level %d: %s", p.Origin, p.Level, ms.String())
+	//h.logf("received packet from %d for level %d: %s", p.Origin, p.Level, ms.String())
 	h.proc.Incoming() <- sigPair{origin: p.Origin, level: p.Level, ms: ms}
 }
 
@@ -261,6 +263,10 @@ func (h *Handel) checkCompletedLevel(s *sigPair) {
 // already at the maximum level so it's not possible to send a `Combined`
 // signature anymore - this handel node can fetch its full signature already
 func (h *Handel) sendBestToLevel(lvl int) {
+	if lvl+1 > h.part.MaxLevel() {
+		h.logf("skip sending best -> reached maximum level ")
+		return
+	}
 	level := byte(lvl)
 	sp := h.store.Combined(level)
 	if sp == nil {
@@ -268,8 +274,7 @@ func (h *Handel) sendBestToLevel(lvl int) {
 	}
 	fullSize, err := h.part.Size(int(level + 1))
 	if err != nil {
-		h.logf("reached maximum size")
-		return
+		panic(err)
 	}
 	if sp.ms.BitLength() != fullSize {
 		panic("THIS SHOULD NOT HAPPEN AT ALL #2")
@@ -278,7 +283,8 @@ func (h *Handel) sendBestToLevel(lvl int) {
 	// in case for full signatures ?
 	newNodes, ok := h.part.PickNextAt(int(sp.level), h.c.CandidateCount)
 	if ok {
-		h.logf("sending complete signature for level %d (size %d) to %d new nodes", sp.level, sp.ms.BitSet.BitLength(), len(newNodes))
+		//h.logf("sending complete signature for level %d (size %d) to %d new nodes", sp.level, sp.ms.BitSet.BitLength(), len(newNodes))
+		h.logf("sending out complete signature at lvl %d (size %d) to %v", sp.level, sp.ms.BitSet.BitLength(), newNodes)
 		h.sendTo(sp.level, sp.ms, newNodes)
 	} else {
 		h.logf("no new nodes for completed level %d", sp.level)
@@ -309,7 +315,7 @@ func (h *Handel) parsePacket(p *Packet) (*MultiSignature, error) {
 		return nil, errors.New("handel: packet's origin out of range")
 	}
 
-	if int(p.Level) > log2(h.reg.Size()) {
+	if int(p.Level) < 1 || int(p.Level) > log2(h.reg.Size()) {
 		return nil, errors.New("handel: packet's level out of range")
 	}
 

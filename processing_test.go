@@ -10,7 +10,7 @@ import (
 func TestProcessingFifo(t *testing.T) {
 	n := 16
 	registry := FakeRegistry(n)
-	partitioner := newBinTreePartition(1, registry)
+	partitioner := NewBinPartitioner(1, registry)
 	cons := new(fakeCons)
 
 	type testProcess struct {

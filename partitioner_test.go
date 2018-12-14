@@ -9,7 +9,7 @@ import (
 func TestPartitionerBinTreeCombine(t *testing.T) {
 	n := 16
 	reg := FakeRegistry(n)
-	ct := newBinTreePartition(1, reg)
+	ct := NewBinPartitioner(1, reg)
 
 	type combineTest struct {
 		sigs  []*sigPair
@@ -68,7 +68,7 @@ func TestPartitionerBinTreeCombine(t *testing.T) {
 func TestPartitionerBinTreeCombineFull(t *testing.T) {
 	n := 16
 	reg := FakeRegistry(n)
-	ct := newBinTreePartition(1, reg)
+	ct := NewBinPartitioner(1, reg)
 
 	sig3 := &fakeSig{true}
 	bs3 := NewWilffBitset(n)
@@ -148,7 +148,7 @@ func TestPartitionerBinTreeMaxLevel(t *testing.T) {
 	for i, test := range tests {
 		t.Logf(" -- test %d -- ", i)
 		reg := FakeRegistry(test.n)
-		ct := newBinTreePartition(1, reg)
+		ct := NewBinPartitioner(1, reg)
 		require.Equal(t, test.exp, ct.MaxLevel())
 	}
 }
@@ -156,7 +156,7 @@ func TestPartitionerBinTreeMaxLevel(t *testing.T) {
 func TestPartitionerBinTreePickNextAt(t *testing.T) {
 	n := 16
 	reg := FakeRegistry(n)
-	ct := newBinTreePartition(1, reg)
+	ct := NewBinPartitioner(1, reg)
 
 	type pickTest struct {
 		level int
@@ -188,7 +188,7 @@ func TestPartitionerBinTreePickNextAt(t *testing.T) {
 func TestPartitionerBinTreeRangeAt(t *testing.T) {
 	n := 16
 	reg := FakeRegistry(n)
-	ct := newBinTreePartition(1, reg).(*binTreePartition)
+	ct := NewBinPartitioner(1, reg).(*binomialPartitioner)
 
 	type rangeTest struct {
 		level int
@@ -229,7 +229,7 @@ func TestPartitionerBinTreeRangeAt(t *testing.T) {
 func TestPartitionerBinTreeRangeAtInverse(t *testing.T) {
 	n := 16
 	reg := FakeRegistry(n)
-	ct := newBinTreePartition(1, reg).(*binTreePartition)
+	ct := NewBinPartitioner(1, reg).(*binomialPartitioner)
 
 	type rangeTest struct {
 		level int
@@ -288,15 +288,20 @@ func TestPartitionerRandomBin(t *testing.T) {
 	// try two different seeds
 	s1 := []byte("Hello World")
 	s2 := []byte("Sun is Shining")
-	r1 := newRandomBinTree(1, reg, s1)
-	r2 := newRandomBinTree(1, reg, s2)
+	r1 := NewRandomBinPartitioner(1, reg, s1)
+	r2 := NewRandomBinPartitioner(1, reg, s2)
+	r3 := NewBinPartitioner(1, reg)
 
 	ids1, more := r1.PickNextAt(3, 5)
 	require.True(t, more)
 	ids2, more := r2.PickNextAt(3, 5)
 	require.True(t, more)
 
+	ids11, more := r3.PickNextAt(3, 5)
+	require.True(t, more)
+
 	require.NotEqual(t, ids1, ids2)
+	require.NotEqual(t, ids1, ids11)
 
 	ids3, ok := r1.PickNextAt(3, 5)
 	require.True(t, ok)

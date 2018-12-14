@@ -33,6 +33,11 @@ type Config struct {
 	// NewBitSet returns an empty bitset. This function is used to parse
 	// incoming packets containing bitsets.
 	NewBitSet func(bitlength int) BitSet
+
+	// NewPartitioner returns the Partitioner to use for this Handel round. If
+	// nil, it returns the RandomBinPartitioner. The id is the ID Handel is
+	// responsible for and reg is the global registry of participants.
+	NewPartitioner func(id int32, reg Registry) Partitioner
 }
 
 // DefaultConfig returns a default configuration for Handel.
@@ -43,6 +48,7 @@ func DefaultConfig(size int) *Config {
 		LevelTimeout:      DefaultLevelTimeout,
 		UpdatePeriod:      DefaultUpdatePeriod,
 		NewBitSet:         DefaultBitSet,
+		NewPartitioner:    DefaultPartitioner,
 	}
 }
 
@@ -62,6 +68,12 @@ const DefaultUpdatePeriod = 50 * time.Millisecond
 // DefaultBitSet returns the default implementation used by Handel, i.e. the
 // WilffBitSet
 var DefaultBitSet = func(bitlength int) BitSet { return NewWilffBitset(bitlength) }
+
+// DefaultPartitioner returns the default implementation of the Partitioner used
+// by Handel, i.e. RandomBinPartitioner.
+var DefaultPartitioner = func(id int32, reg Registry) Partitioner {
+	return NewRandomBinPartitioner(id, reg, nil)
+}
 
 // ContributionsThreshold returns the threshold of contributions required in a
 // multi-signature to be considered valid and be passed up to the application
@@ -87,6 +99,9 @@ func mergeWithDefault(c *Config, size int) *Config {
 	}
 	if c.NewBitSet == nil {
 		c2.NewBitSet = DefaultBitSet
+	}
+	if c.NewPartitioner == nil {
+		c2.NewPartitioner = DefaultPartitioner
 	}
 	return &c2
 }

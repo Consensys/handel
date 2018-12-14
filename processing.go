@@ -34,7 +34,7 @@ type signatureProcessing interface {
 type fifoProcessing struct {
 	sync.Mutex
 	store signatureStore
-	part  partitioner
+	part  Partitioner
 	cons  Constructor
 	msg   []byte
 	in    chan sigPair
@@ -45,7 +45,7 @@ type fifoProcessing struct {
 // newFifoProcessing returns a signatureProcessing implementation using a fifo
 // queue. It needs the store to store the valid signatures, the partitioner +
 // constructor + msg to verify the signatures.
-func newFifoProcessing(store signatureStore, part partitioner,
+func newFifoProcessing(store signatureStore, part Partitioner,
 	c Constructor, msg []byte) signatureProcessing {
 	return &fifoProcessing{
 		part:  part,

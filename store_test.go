@@ -9,7 +9,7 @@ import (
 func TestStoreCombined(t *testing.T) {
 	n := 8
 	reg := FakeRegistry(n)
-	part := newBinTreePartition(1, reg)
+	part := NewBinPartitioner(1, reg)
 
 	type combineTest struct {
 		sigs  []*sigPair
@@ -43,7 +43,7 @@ func TestStoreCombined(t *testing.T) {
 func TestStoreHighest(t *testing.T) {
 	n := 8
 	reg := FakeRegistry(n)
-	part := newBinTreePartition(1, reg)
+	part := NewBinPartitioner(1, reg)
 	store := newReplaceStore(part, NewWilffBitset)
 
 	store.Store(3, &MultiSignature{BitSet: NewWilffBitset(4), Signature: &fakeSig{true}})
@@ -64,7 +64,7 @@ func TestStoreHighest(t *testing.T) {
 func TestStoreFullSignature(t *testing.T) {
 	n := 8
 	reg := FakeRegistry(n)
-	part := newBinTreePartition(1, reg)
+	part := NewBinPartitioner(1, reg)
 	store := newReplaceStore(part, NewWilffBitset)
 	bs1 := NewWilffBitset(1)
 	bs1.Set(0, true)
@@ -78,7 +78,7 @@ func TestStoreFullSignature(t *testing.T) {
 func TestStoreReplace(t *testing.T) {
 	n := 8
 	reg := FakeRegistry(n)
-	part := newBinTreePartition(1, reg)
+	part := NewBinPartitioner(1, reg)
 	sig0 := &sigPair{level: 0, ms: fullSig(0)}
 	sig1 := &sigPair{level: 1, ms: fullSig(1)}
 	sig2 := &sigPair{level: 2, ms: fullSig(2)}

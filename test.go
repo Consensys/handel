@@ -2,7 +2,6 @@ package handel
 
 import (
 	"crypto/rand"
-	"fmt"
 	"time"
 )
 
@@ -114,9 +113,9 @@ func (t *Test) waitFinalSig(i int) {
 	for {
 		select {
 		case ms := <-ch:
-			fmt.Println("+++++++ t.reg ", t.reg)
-			fmt.Println("+++++++ ms", ms)
-			fmt.Println("+++++++ ms.BitSet ", ms.BitSet)
+			/*fmt.Println("+++++++ t.reg ", t.reg)*/
+			//fmt.Println("+++++++ ms", ms)
+			/*fmt.Println("+++++++ ms.BitSet ", ms.BitSet)*/
 			if ms.BitSet.Cardinality() == t.reg.Size() {
 				// one full !
 				t.finished <- i

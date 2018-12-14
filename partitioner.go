@@ -9,11 +9,11 @@ import (
 	mathRand "math/rand"
 )
 
-// partitioner is a generic interface holding the logic used to partition the
-// nodes in different buckets.  The only partitioner implemented is
+// Partitioner is a generic interface holding the logic used to partition the
+// nodes in different buckets.  The only Partitioner implemented is
 // binTreePartition using binomial tree to partition, as in the original San
 // Fermin paper.
-type partitioner interface {
+type Partitioner interface {
 	// returns the maximum number of levels this partitioning strategy will use
 	// given the list of participants
 	MaxLevel() int
@@ -45,11 +45,11 @@ type partitioner interface {
 	CombineFull(sigs []*sigPair, nbs func(int) BitSet) *MultiSignature
 }
 
-// binTreePartition is a partitioner implementation using a binomial tree
+// binomialPartitioner is a partitioner implementation using a binomial tree
 // splitting based on the common length prefix, as in the San Fermin paper.
 // It returns new nodes just based on the index alone (no considerations of
 // close proximity for example).
-type binTreePartition struct {
+type binomialPartitioner struct {
 	// candidatetree computes according to the point of view of this node's id.
 	id      int
 	bitsize int
@@ -60,10 +60,10 @@ type binTreePartition struct {
 	picked map[int]int
 }
 
-// newBinTreePartition returns a binTreePartition using the given ID as its
+// NewBinPartitioner returns a binTreePartition using the given ID as its
 // anchor point in the ID list, and the given registry.
-func newBinTreePartition(id int32, reg Registry) partitioner {
-	return &binTreePartition{
+func NewBinPartitioner(id int32, reg Registry) Partitioner {
+	return &binomialPartitioner{
 		size:    reg.Size(),
 		reg:     reg,
 		id:      int(id),
@@ -72,14 +72,14 @@ func newBinTreePartition(id int32, reg Registry) partitioner {
 	}
 }
 
-func (c *binTreePartition) MaxLevel() int {
+func (c *binomialPartitioner) MaxLevel() int {
 	return log2(c.reg.Size())
 }
 
 // IdentitiesAt returns the set of identities that corresponds to the given
 // level. It uses the same logic as rangeLevel but returns directly the set of
 // identities.
-func (c *binTreePartition) IdentitiesAt(level int) ([]Identity, error) {
+func (c *binomialPartitioner) IdentitiesAt(level int) ([]Identity, error) {
 	min, max, err := c.rangeLevel(level)
 	if err != nil {
 		return nil, err
@@ -100,7 +100,7 @@ func (c *binTreePartition) IdentitiesAt(level int) ([]Identity, error) {
 // construction as described in the San Fermin paper. Level starts at one and
 // ends at the bitsize length. The equality between common prefix length (CPL)
 // and level (l) is CPL = bitsize - l.
-func (c *binTreePartition) rangeLevel(level int) (min int, max int, err error) {
+func (c *binomialPartitioner) rangeLevel(level int) (min int, max int, err error) {
 	if level < 0 || level > c.bitsize {
 		return 0, 0, errors.New("handel: invalid level for computing candidate set")
 	}
@@ -143,7 +143,7 @@ func (c *binTreePartition) rangeLevel(level int) (min int, max int, err error) {
 // "opposite" group of what rangeLevel returns. It is typically needed to
 // compute in what candidate set an ID belongs, or where does a signature in our
 // candidate set fits. see CombineF function for one usage.
-func (c *binTreePartition) rangeLevelInverse(level int) (min int, max int, err error) {
+func (c *binomialPartitioner) rangeLevelInverse(level int) (min int, max int, err error) {
 	if level < 0 || level > c.bitsize+1 {
 		return 0, 0, errors.New("handel: invalid level for computing candidate set")
 	}
@@ -175,7 +175,7 @@ func (c *binTreePartition) rangeLevelInverse(level int) (min int, max int, err e
 
 // PickNext returns a set of un-picked identities at the given level, up to
 // *count* elements. If no identities could have been picked, it returns false.
-func (c *binTreePartition) PickNextAt(level, count int) ([]Identity, bool) {
+func (c *binomialPartitioner) PickNextAt(level, count int) ([]Identity, bool) {
 	min, max, err := c.rangeLevel(level)
 	if err != nil {
 		return nil, false
@@ -200,7 +200,7 @@ func (c *binTreePartition) PickNextAt(level, count int) ([]Identity, bool) {
 	return ids, true
 }
 
-func (c *binTreePartition) Size(level int) (int, error) {
+func (c *binomialPartitioner) Size(level int) (int, error) {
 	min, max, err := c.rangeLevel(level)
 	if err != nil {
 		return 0, err
@@ -211,7 +211,7 @@ func (c *binTreePartition) Size(level int) (int, error) {
 // combines all all given different-level signatures into one signature
 // that has a bitset's size equal to the size of the set of participants,i.e. a
 // signature ready to be dispatched to any application.
-func (c *binTreePartition) Combine(sigs []*sigPair, level int, nbs func(int) BitSet) *sigPair {
+func (c *binomialPartitioner) Combine(sigs []*sigPair, level int, nbs func(int) BitSet) *sigPair {
 	if len(sigs) == 0 {
 		return nil
 	}
@@ -250,7 +250,7 @@ func (c *binTreePartition) Combine(sigs []*sigPair, level int, nbs func(int) Bit
 	}
 }
 
-func (c *binTreePartition) CombineFull(sigs []*sigPair, nbs func(int) BitSet) *MultiSignature {
+func (c *binomialPartitioner) CombineFull(sigs []*sigPair, nbs func(int) BitSet) *MultiSignature {
 	if len(sigs) == 0 {
 		return nil
 	}
@@ -269,7 +269,7 @@ func (c *binTreePartition) CombineFull(sigs []*sigPair, nbs func(int) BitSet) *M
 
 // combineSize combines all given signature witht he combine function on the
 // bitset using `bs`
-func (c *binTreePartition) combineSize(sigs []*sigPair, bs BitSet, combine func(*sigPair, BitSet)) *MultiSignature {
+func (c *binomialPartitioner) combineSize(sigs []*sigPair, bs BitSet, combine func(*sigPair, BitSet)) *MultiSignature {
 
 	var finalSig = sigs[0].ms.Signature
 	combine(sigs[0], bs)
@@ -289,7 +289,7 @@ func (c *binTreePartition) combineSize(sigs []*sigPair, bs BitSet, combine func(
 // that has a bitset's size equal to the highest level given + 1. The +1 is
 // necessary because it covers the whole space in the bitset of all signatures
 // together, while the max level only covers its respective signature.
-func (c *binTreePartition) combine(sigs []*sigPair, nbs func(int) BitSet) *sigPair {
+func (c *binomialPartitioner) combine(sigs []*sigPair, nbs func(int) BitSet) *sigPair {
 	if len(sigs) == 0 {
 		return nil
 	}
@@ -342,19 +342,21 @@ func (c *binTreePartition) combine(sigs []*sigPair, nbs func(int) BitSet) *sigPa
 	}
 }
 
-// randomBinTree adds randomization to a binTreePartition. Basically the only
-// impacted method is `PickNextAt`: it now returns nodes in a candidate set in a
-// random order
-type randomBinTree struct {
-	*binTreePartition
+// randomBinPartitioner is a Partitioner similar to binTreePartition with
+// randomization.  Basically the only impacted method is `PickNextAt`: it now
+// returns nodes in a candidate set in a random order.
+type randomBinPartitioner struct {
+	*binomialPartitioner
 	r       *mathRand.Rand
 	genesis [8]byte
 	seeds   map[int]int64
 }
 
-// seed can be nil --> fixed 8-byte slice of /dev/urandom taken as the seed
-func newRandomBinTree(id int32, reg Registry, seed []byte) partitioner {
-	b := newBinTreePartition(id, reg)
+// NewRandomBinPartitioner returns a randomBinPartitioner initialized with the
+// given seed. If the seed is nil, it reads from Golang's cryptographically secure
+// random source with `crypto.Read`.
+func NewRandomBinPartitioner(id int32, reg Registry, seed []byte) Partitioner {
+	b := NewBinPartitioner(id, reg)
 	if seed == nil {
 		seed = make([]byte, 8)
 		cryptoRand.Read(seed)
@@ -362,17 +364,17 @@ func newRandomBinTree(id int32, reg Registry, seed []byte) partitioner {
 	var source [8]byte
 	copy(source[:], seed)
 	rnd := mathRand.New(&cryptoSource{})
-	return &randomBinTree{
-		binTreePartition: b.(*binTreePartition),
-		r:                rnd,
-		genesis:          source,
-		seeds:            computeSeeds(b.MaxLevel(), rnd),
+	return &randomBinPartitioner{
+		binomialPartitioner: b.(*binomialPartitioner),
+		r:                   rnd,
+		genesis:             source,
+		seeds:               computeSeeds(b.MaxLevel(), rnd),
 	}
 }
 
 // PickNextAt implements the partitioner interface but returns randomized slice
 // of identities. It keeps track of the last seen id in the randomized list.
-func (r *randomBinTree) PickNextAt(level, count int) ([]Identity, bool) {
+func (r *randomBinPartitioner) PickNextAt(level, count int) ([]Identity, bool) {
 	min, max, err := r.rangeLevel(level)
 	if err != nil {
 		return nil, false

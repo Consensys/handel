@@ -57,10 +57,10 @@ type replaceStore struct {
 	// used to create empty bitset for aggregating multi-signatures
 	nbs func(int) BitSet
 	// used to compute bitset length for missing multi-signatures
-	part partitioner
+	part Partitioner
 }
 
-func newReplaceStore(part partitioner, nbs func(int) BitSet) *replaceStore {
+func newReplaceStore(part Partitioner, nbs func(int) BitSet) *replaceStore {
 	return &replaceStore{
 		nbs:  nbs,
 		part: part,

@@ -11,7 +11,7 @@ import (
 var msg = []byte("Sun is Shining...")
 
 func TestHandelTestNetwork(t *testing.T) {
-	n := 16
+	n := 32
 	secrets := make([]SecretKey, n)
 	pubs := make([]PublicKey, n)
 	cons := new(fakeCons)
@@ -113,23 +113,24 @@ func TestHandelcheckCompletedLevel(t *testing.T) {
 	_, handels := FakeSetup(n)
 	defer CloseHandels(handels)
 
-	// 1 should send to 2 only a full signature
+	// simulate not-complete signature of level 1 on node 1
+	// checkCompletedLevel should not react in any way
 	sender := handels[1]
 	receiver2 := handels[2]
-	receiver4 := handels[4]
 	inc2 := make(chan *Packet)
 	receiver2.net.(*TestNetwork).lis = []Listener{ChanListener(inc2)}
-	inc4 := make(chan *Packet)
-	receiver4.net.(*TestNetwork).lis = []Listener{ChanListener(inc4)}
 
-	sig2 := fullSigPair(2)
+	sig0 := fullSigPair(1)
 	// not-complete signature
-	sig22 := fullSigPair(2)
-	sig22.ms.BitSet.Set(0, false)
+	sig02 := fullSigPair(1)
+	sig02.ms.BitSet.Set(0, false)
 
-	// send not full signature
-	sender.store.Store(2, sig22.ms)
-	sender.checkCompletedLevel(sig22)
+	// node 0 corresponds to level 1 in node's 1 view.
+	// => store incomplete signature as if it was an empty signature from node 0
+	// node 1 should NOT send anything to node 2 (or 3 but we're only verifying
+	// node 2 since it will send to both anyway)
+	sender.store.Store(1, sig02.ms)
+	sender.checkCompletedLevel(sig02)
 	select {
 	case <-inc2:
 		t.Fatal("should not have received anything")
@@ -138,12 +139,11 @@ func TestHandelcheckCompletedLevel(t *testing.T) {
 	}
 
 	// send full signature
-	sender.store.Store(2, sig2.ms)
-	sender.store.Store(1, fullSigPair(1).ms)
-	sender.store.Store(0, fullSigPair(1).ms)
-	sender.checkCompletedLevel(sig2)
+	// node 2 should react
+	sender.store.Store(1, sig0.ms)
+	sender.checkCompletedLevel(sig0)
 	select {
-	case p := <-inc4:
+	case p := <-inc2:
 		require.Equal(t, int32(1), p.Origin)
 		require.Equal(t, byte(2), p.Level)
 	case <-time.After(20 * time.Millisecond):
@@ -241,7 +241,7 @@ func TestHandelParsePacket(t *testing.T) {
 		reg:  registry,
 		cons: new(fakeCons),
 		msg:  msg,
-		part: newBinTreePartition(ids[1].ID(), registry),
+		part: NewBinPartitioner(ids[1].ID(), registry),
 	}
 	type packetTest struct {
 		*Packet
