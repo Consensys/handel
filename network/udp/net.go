@@ -23,7 +23,13 @@ type Network struct {
 
 // NewNetwork creates Nework baked by udp protocol
 func NewNetwork(addr string, enc network.Encoding) (*Network, error) {
-	udpAddr, err := net.ResolveUDPAddr("udp4", addr)
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+	newAddr := net.JoinHostPort("0.0.0.0", port)
+
+	udpAddr, err := net.ResolveUDPAddr("udp4", newAddr)
 	if err != nil {
 		return nil, err
 	}
