@@ -38,7 +38,9 @@ type Stats struct {
 func NewStats(defs map[string]string, df DataFilter) *Stats {
 	s := new(Stats).init()
 	s.setDefaultValues(defs)
-	s.filter = df
+	if df != nil {
+		s.filter = df
+	}
 	// TODO
 	// let the filter figure out itself what it is supposed to be doing
 	// s.filter = NewDataFilter(rc)

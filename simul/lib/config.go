@@ -2,7 +2,9 @@ package lib
 
 import (
 	"errors"
+	"net"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -11,6 +13,7 @@ import (
 	"github.com/ConsenSys/handel/network"
 	"github.com/ConsenSys/handel/network/quic"
 	"github.com/ConsenSys/handel/network/udp"
+	"github.com/ConsenSys/handel/simul/monitor"
 )
 
 // Message that will get signed
@@ -73,6 +76,9 @@ func LoadConfig(path string) *Config {
 	_, err := toml.DecodeFile(path, c)
 	if err != nil {
 		panic(err)
+	}
+	if c.MonitorPort == 0 {
+		c.MonitorPort = monitor.DefaultSinkPort
 	}
 	return c
 }
@@ -152,6 +158,12 @@ func (c *Config) GetMaxTimeout() time.Duration {
 		panic(err)
 	}
 	return dd
+}
+
+// GetMonitorAddress returns a full IP address composed of the given address
+// apprended with the port from the config.
+func (c *Config) GetMonitorAddress(ip string) string {
+	return net.JoinHostPort(ip, strconv.Itoa(c.MonitorPort))
 }
 
 // Duration is an alias for time.Duration

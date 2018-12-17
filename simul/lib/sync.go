@@ -92,7 +92,7 @@ func (s *SyncMaster) handleReady(incoming *syncMessage) {
 		return
 	}
 
-	fmt.Print(s.String())
+	//fmt.Print(s.String())
 	if len(s.readys) < s.exp {
 		return
 	}

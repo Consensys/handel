@@ -57,16 +57,16 @@ type Monitor struct {
 	// send the name of the connection when finishd
 	done chan string
 
-	SinkPort     uint16
+	sinkPort     uint16
 	sinkPortChan chan uint16
 }
 
-// NewMonitor returns a new monitor given the stats
-func NewMonitor(stats *Stats) *Monitor {
+// NewDefaultMonitor returns a new monitor given the stats
+func NewDefaultMonitor(stats *Stats) *Monitor {
 	return &Monitor{
 		conns:        make(map[string]net.Conn),
 		stats:        stats,
-		SinkPort:     DefaultSinkPort,
+		sinkPort:     DefaultSinkPort,
 		measures:     make(chan *singleMeasure),
 		done:         make(chan string),
 		listenerLock: new(sync.Mutex),
@@ -74,15 +74,22 @@ func NewMonitor(stats *Stats) *Monitor {
 	}
 }
 
+// NewMonitor returns a monitor listening on the given port
+func NewMonitor(port int, stats *Stats) *Monitor {
+	m := NewDefaultMonitor(stats)
+	m.sinkPort = uint16(port)
+	return m
+}
+
 // Listen will start listening for incoming connections on this address
 // It needs the stats struct pointer to update when measures come
 // Return an error if something went wrong during the connection setup
 func (m *Monitor) Listen() error {
-	ln, err := net.Listen("tcp", Sink+":"+strconv.Itoa(int(m.SinkPort)))
+	ln, err := net.Listen("tcp", Sink+":"+strconv.Itoa(int(m.sinkPort)))
 	if err != nil {
 		return fmt.Errorf("Error while monitor is binding address: %v", err)
 	}
-	if m.SinkPort == 0 {
+	if m.sinkPort == 0 {
 		_, p, _ := net.SplitHostPort(ln.Addr().String())
 		var p2 uint16
 		fmt.Sscanf(p, "%d", &p2)
@@ -91,7 +98,7 @@ func (m *Monitor) Listen() error {
 	m.listenerLock.Lock()
 	m.listener = ln
 	m.listenerLock.Unlock()
-	log.Lvl2("Monitor listening for stats on", Sink, ":", m.SinkPort)
+	log.Lvl2("Monitor listening for stats on", Sink, ":", m.sinkPort)
 	finished := false
 	go func() {
 		for {

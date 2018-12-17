@@ -14,8 +14,8 @@ func TestProxy(t *testing.T) {
 	stat := NewStats(m, nil)
 	fresh := stat.String()
 	// First set up monitor listening
-	monitor := NewMonitor(stat)
-	monitor.SinkPort = 0
+	monitor := NewDefaultMonitor(stat)
+	monitor.sinkPort = 0
 	done := make(chan bool, 2)
 	go func() {
 		// See dedis/onet#262 for ideas on a proper fix for all this hard-coding of ports.

@@ -184,7 +184,7 @@ func TestStatsAverageFiltered(t *testing.T) {
 func TestStatsString(t *testing.T) {
 	rc := map[string]string{"servers": "10", "hosts": "10"}
 	rs := NewStats(rc, nil)
-	m := NewMonitor(rs)
+	m := NewDefaultMonitor(rs)
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)

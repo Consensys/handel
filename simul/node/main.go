@@ -8,6 +8,7 @@ import (
 
 	h "github.com/ConsenSys/handel"
 	"github.com/ConsenSys/handel/simul/lib"
+	"github.com/ConsenSys/handel/simul/monitor"
 )
 
 var beaconBytes = []byte{0x01, 0x02, 0x03}
@@ -21,16 +22,26 @@ var id = flag.Int("id", -1, "peer id")
 var run = flag.Int("run", -1, "which RunConfig should we run")
 var master = flag.String("master", "", "master address to synchronize")
 var syncAddr = flag.String("sync", "", "address to listen for master START")
+var monitorAddr = flag.String("monitor", "", "address to send measurements")
 
-// XXX maybe try with a database-backed registry if loading file in memory is
-// too much when overloading
+var isMonitoring bool
 
 func main() {
 	flag.Parse()
 	//
 	// SETUP PHASE
 	//
-	// 1. load all needed structures
+	if *monitorAddr != "" {
+		isMonitoring = true
+		if err := monitor.ConnectSink(*monitorAddr); err != nil {
+			panic(err)
+		}
+		defer monitor.EndAndCleanup()
+	}
+	// first load the measurement unit if needed
+	// load all needed structures
+	// XXX maybe try with a database-backed registry if loading file in memory is
+	// too much when overloading
 	config := lib.LoadConfig(*configFile)
 	runConf := config.Runs[*run]
 
@@ -39,16 +50,16 @@ func main() {
 	registry, node, err := lib.ReadAll(*registryFile, *id, parser, cons)
 	network := config.NewNetwork(node.Identity)
 
-	// 2. make the signature
+	// make the signature
 	signature, err := node.Sign(lib.Message, nil)
 	if err != nil {
 		panic(err)
 	}
-	// 3. Setup report handel
+	// Setup report handel
 	handel := h.NewHandel(network, registry, node.Identity, cons.Handel(), lib.Message, signature)
 	reporter := h.NewReportHandel(handel)
 
-	// 4. Sync with master - wait for the START signal
+	// Sync with master - wait for the START signal
 	syncer := lib.NewSyncSlave(*syncAddr, *master, *id)
 	select {
 	case <-syncer.WaitMaster():
@@ -63,7 +74,8 @@ func main() {
 		panic("Haven't received beacon in time!")
 	}
 
-	// 5. Start handel and run a timeout on the whole thing
+	// Start handel and run a timeout on the whole thing
+	signatureGen := monitor.NewTimeMeasure("sigen")
 	go reporter.Start()
 	out := make(chan bool, 1)
 	go func() {
@@ -71,7 +83,7 @@ func main() {
 		out <- true
 	}()
 
-	// 6. Wait for final signatures !
+	// Wait for final signatures !
 	enough := false
 	for !enough {
 		select {
@@ -84,8 +96,10 @@ func main() {
 			panic("max timeout")
 		}
 	}
+	signatureGen.Record()
 	fmt.Println("finished -> sending state to sync master")
-	// 7. Sync with master - wait to close our node
+
+	// Sync with master - wait to close our node
 	syncer.Reset()
 	select {
 	case <-syncer.WaitMaster():
