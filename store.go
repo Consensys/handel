@@ -28,9 +28,8 @@ type signatureStore interface {
 	Best(level byte) (*MultiSignature, bool)
 	// Combined returns the best combined multi-signature possible containing
 	// all levels below and up to the given level parameters. The resulting
-	// bitset size is the size associated to the level in the sigpair, which is
-	// the maximum level signature + 1. Can return nil if no signature stored
-	// yet.
+	// bitset size is the size associated to the level+1 candidate set.
+	// Can return nil if no signature stored yet.
 	Combined(level byte) *sigPair
 	// HighestCombined returns the best combined multi-signature possible. The
 	// bitset size is the size associated to the level in the sigpair, which is
@@ -44,8 +43,9 @@ type signatureStore interface {
 }
 
 type sigPair struct {
-	level byte
-	ms    *MultiSignature
+	origin int32
+	level  byte
+	ms     *MultiSignature
 }
 
 // replaceStore is a signatureStore that only stores multisignature if it
@@ -57,10 +57,10 @@ type replaceStore struct {
 	// used to create empty bitset for aggregating multi-signatures
 	nbs func(int) BitSet
 	// used to compute bitset length for missing multi-signatures
-	part partitioner
+	part Partitioner
 }
 
-func newReplaceStore(part partitioner, nbs func(int) BitSet) *replaceStore {
+func newReplaceStore(part Partitioner, nbs func(int) BitSet) *replaceStore {
 	return &replaceStore{
 		nbs:  nbs,
 		part: part,
@@ -113,22 +113,24 @@ func (r *replaceStore) FullSignature() *MultiSignature {
 	for k, ms := range r.m {
 		sigs = append(sigs, &sigPair{level: k, ms: ms})
 	}
-	sp := r.part.Combine(sigs, true, r.nbs)
-	if sp == nil {
-		return nil
-	}
-
-	return sp.ms
+	return r.part.CombineFull(sigs, r.nbs)
 }
 
 func (r *replaceStore) Highest() *sigPair {
 	r.Lock()
 	defer r.Unlock()
 	sigs := make([]*sigPair, 0, len(r.m))
+	var maxLevel byte
 	for k, ms := range r.m {
 		sigs = append(sigs, &sigPair{level: k, ms: ms})
+		if k > maxLevel {
+			maxLevel = k
+		}
 	}
-	return r.part.Combine(sigs, false, r.nbs)
+	if maxLevel < byte(r.part.MaxLevel()) {
+		maxLevel++
+	}
+	return r.part.Combine(sigs, int(maxLevel), r.nbs)
 }
 
 func (r *replaceStore) Combined(level byte) *sigPair {
@@ -141,7 +143,10 @@ func (r *replaceStore) Combined(level byte) *sigPair {
 		}
 		sigs = append(sigs, &sigPair{level: k, ms: ms})
 	}
-	return r.part.Combine(sigs, false, r.nbs)
+	if level < byte(r.part.MaxLevel()) {
+		level++
+	}
+	return r.part.Combine(sigs, int(level), r.nbs)
 }
 
 func (r *replaceStore) store(level byte, ms *MultiSignature) {

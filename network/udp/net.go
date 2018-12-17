@@ -2,17 +2,18 @@ package udp
 
 import (
 	"bufio"
-	"fmt"
 	"io"
 	"log"
 	"net"
 	"sync"
 
+	"github.com/ConsenSys/handel"
 	h "github.com/ConsenSys/handel"
 	"github.com/ConsenSys/handel/network"
 )
 
-type udpNet struct {
+// Network is a handel.Network implementation using UDP as its transport layer
+type Network struct {
 	sync.RWMutex
 	udpSock   *net.UDPConn
 	listeners []h.Listener
@@ -20,46 +21,46 @@ type udpNet struct {
 	enc       network.Encoding
 }
 
-// NewUDPNetwork creates Nework baked by udp protocol
-func NewUDPNetwork(listenPort int, enc network.Encoding) *udpNet {
-	addr := fmt.Sprintf("0.0.0.0:%d", listenPort)
+// NewNetwork creates Nework baked by udp protocol
+func NewNetwork(addr string, enc network.Encoding) (*Network, error) {
 	udpAddr, err := net.ResolveUDPAddr("udp4", addr)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	udpSock, err := net.ListenUDP("udp", udpAddr)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	listeners := []h.Listener{}
-	udpNet := &udpNet{sync.RWMutex{}, udpSock, listeners, false, enc}
+	udpNet := &Network{sync.RWMutex{}, udpSock, listeners, false, enc}
 	go udpNet.handler()
-	return udpNet
+	return udpNet, nil
 }
 
-func (udpNet *udpNet) Stop() {
+// Stop closes
+func (udpNet *Network) Stop() {
 	udpNet.Lock()
 	defer udpNet.Unlock()
 	udpNet.quit = true
 }
 
 //RegisterListener registers listener for processing incoming packets
-func (udpNet *udpNet) RegisterListener(listener h.Listener) {
+func (udpNet *Network) RegisterListener(listener h.Listener) {
 	udpNet.Lock()
 	defer udpNet.Unlock()
 	udpNet.listeners = append(udpNet.listeners, listener)
 }
 
 //Send sends a packet to supplied identities
-func (udpNet *udpNet) Send(identities []h.Identity, packet *h.Packet) {
+func (udpNet *Network) Send(identities []h.Identity, packet *h.Packet) {
 	for _, id := range identities {
 		udpNet.send(id, packet)
 	}
 }
 
-func (udpNet *udpNet) send(identity h.Identity, packet *h.Packet) {
+func (udpNet *Network) send(identity h.Identity, packet *h.Packet) {
 	addr := identity.Address()
 	udpAddr, err := net.ResolveUDPAddr("udp4", addr)
 	if err != nil {
@@ -84,34 +85,38 @@ func (udpNet *udpNet) send(identity h.Identity, packet *h.Packet) {
 		panic(err)
 	}
 	byteWriter.Flush()
+	//fmt.Printf("%s -> sending packet to %s\n", udpSock.LocalAddr().String(), addr)
 }
 
-func (udpNet *udpNet) handler() {
+func (udpNet *Network) handler() {
+	enc := udpNet.enc
 	for {
 		//udpNet.quit and udpNet.listeners have to be guarded by a read lock
 		udpNet.RLock()
 		quit := udpNet.quit
-		listeners := udpNet.listeners
-		enc := udpNet.enc
 		udpNet.RUnlock()
 
 		if quit {
 			return
 		}
-		packetHandler(listeners, udpNet.udpSock, enc)
+		socket := udpNet.udpSock
+		reader := bufio.NewReader(socket)
+		var byteReader io.Reader = bufio.NewReader(reader)
+		packet, err := enc.Decode(byteReader)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		udpNet.dispatch(packet)
 	}
 }
 
-func packetHandler(listeners []h.Listener, udpSock *net.UDPConn, enc network.Encoding) {
-	reader := bufio.NewReader(udpSock)
-	var byteReader io.Reader = bufio.NewReader(reader)
-
-	packet, err := enc.Decode(byteReader)
-
-	if err != nil {
-		log.Println(err)
-	}
+func (udpNet *Network) dispatch(p *handel.Packet) {
+	udpNet.RLock()
+	listeners := udpNet.listeners
+	udpNet.RUnlock()
 	for _, listener := range listeners {
-		listener.NewPacket(packet)
+		//fmt.Printf("%s -> dispatching packet to listener %p!\n", udpNet.udpSock.LocalAddr().String(), listener)
+		listener.NewPacket(p)
 	}
 }

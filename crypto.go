@@ -23,7 +23,6 @@ type PublicKey interface {
 // needed to run the generic tests.
 type SecretKey interface {
 	Sign(msg []byte, r io.Reader) (Signature, error)
-	PublicKey() PublicKey
 }
 
 // Constructor is used to create empty signatures suitable for unmarshalling and
@@ -104,6 +103,6 @@ func (m *MultiSignature) Unmarshal(b []byte, s Signature, nbs func(b int) BitSet
 }
 
 func (m *MultiSignature) String() string {
-	return fmt.Sprintf("{bs (len %d - card %d): %s, ms: %s}",
-		m.BitSet.BitLength(), m.BitSet.Cardinality(), m.BitSet, m.Signature)
+	return fmt.Sprintf("{bitset %d/%d}",
+		m.BitSet.Cardinality(), m.BitSet.BitLength())
 }

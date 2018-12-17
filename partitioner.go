@@ -1,15 +1,19 @@
 package handel
 
 import (
+	cryptoRand "crypto/rand"
+	"encoding/binary"
 	"errors"
 	"math"
+	"math/rand"
+	mathRand "math/rand"
 )
 
-// partitioner is a generic interface holding the logic used to partition the
-// nodes in different buckets.  The only partitioner implemented is
+// Partitioner is a generic interface holding the logic used to partition the
+// nodes in different buckets.  The only Partitioner implemented is
 // binTreePartition using binomial tree to partition, as in the original San
 // Fermin paper.
-type partitioner interface {
+type Partitioner interface {
 	// returns the maximum number of levels this partitioning strategy will use
 	// given the list of participants
 	MaxLevel() int
@@ -33,14 +37,19 @@ type partitioner interface {
 	// should be set to false, as handel does not send full-size bitsets. All
 	// signatures must be valid signatures. The return value can be nil if no
 	// sigPairs have been given.
-	Combine(sigs []*sigPair, full bool, nbs func(int) BitSet) *sigPair
+	Combine(sigs []*sigPair, level int, nbs func(int) BitSet) *sigPair
+	// CombineFull is similar to Combine but it returns the full multisignature
+	// whose bitset's length is equal to the size of the registry. This length
+	// corresponds to the MaxLevel() + 1 - but this level is not considered a
+	// "valid" level from a Handel perspective.
+	CombineFull(sigs []*sigPair, nbs func(int) BitSet) *MultiSignature
 }
 
-// binTreePartition is a partitioner implementation using a binomial tree
+// binomialPartitioner is a partitioner implementation using a binomial tree
 // splitting based on the common length prefix, as in the San Fermin paper.
 // It returns new nodes just based on the index alone (no considerations of
 // close proximity for example).
-type binTreePartition struct {
+type binomialPartitioner struct {
 	// candidatetree computes according to the point of view of this node's id.
 	id      int
 	bitsize int
@@ -51,10 +60,10 @@ type binTreePartition struct {
 	picked map[int]int
 }
 
-// newBinTreePartition returns a binTreePartition using the given ID as its
+// NewBinPartitioner returns a binTreePartition using the given ID as its
 // anchor point in the ID list, and the given registry.
-func newBinTreePartition(id int32, reg Registry) partitioner {
-	return &binTreePartition{
+func NewBinPartitioner(id int32, reg Registry) Partitioner {
+	return &binomialPartitioner{
 		size:    reg.Size(),
 		reg:     reg,
 		id:      int(id),
@@ -63,14 +72,14 @@ func newBinTreePartition(id int32, reg Registry) partitioner {
 	}
 }
 
-func (c *binTreePartition) MaxLevel() int {
+func (c *binomialPartitioner) MaxLevel() int {
 	return log2(c.reg.Size())
 }
 
 // IdentitiesAt returns the set of identities that corresponds to the given
 // level. It uses the same logic as rangeLevel but returns directly the set of
 // identities.
-func (c *binTreePartition) IdentitiesAt(level int) ([]Identity, error) {
+func (c *binomialPartitioner) IdentitiesAt(level int) ([]Identity, error) {
 	min, max, err := c.rangeLevel(level)
 	if err != nil {
 		return nil, err
@@ -91,7 +100,7 @@ func (c *binTreePartition) IdentitiesAt(level int) ([]Identity, error) {
 // construction as described in the San Fermin paper. Level starts at one and
 // ends at the bitsize length. The equality between common prefix length (CPL)
 // and level (l) is CPL = bitsize - l.
-func (c *binTreePartition) rangeLevel(level int) (min int, max int, err error) {
+func (c *binomialPartitioner) rangeLevel(level int) (min int, max int, err error) {
 	if level < 0 || level > c.bitsize {
 		return 0, 0, errors.New("handel: invalid level for computing candidate set")
 	}
@@ -134,7 +143,7 @@ func (c *binTreePartition) rangeLevel(level int) (min int, max int, err error) {
 // "opposite" group of what rangeLevel returns. It is typically needed to
 // compute in what candidate set an ID belongs, or where does a signature in our
 // candidate set fits. see CombineF function for one usage.
-func (c *binTreePartition) rangeLevelInverse(level int) (min int, max int, err error) {
+func (c *binomialPartitioner) rangeLevelInverse(level int) (min int, max int, err error) {
 	if level < 0 || level > c.bitsize+1 {
 		return 0, 0, errors.New("handel: invalid level for computing candidate set")
 	}
@@ -166,7 +175,7 @@ func (c *binTreePartition) rangeLevelInverse(level int) (min int, max int, err e
 
 // PickNext returns a set of un-picked identities at the given level, up to
 // *count* elements. If no identities could have been picked, it returns false.
-func (c *binTreePartition) PickNextAt(level, count int) ([]Identity, bool) {
+func (c *binomialPartitioner) PickNextAt(level, count int) ([]Identity, bool) {
 	min, max, err := c.rangeLevel(level)
 	if err != nil {
 		return nil, false
@@ -191,7 +200,7 @@ func (c *binTreePartition) PickNextAt(level, count int) ([]Identity, bool) {
 	return ids, true
 }
 
-func (c *binTreePartition) Size(level int) (int, error) {
+func (c *binomialPartitioner) Size(level int) (int, error) {
 	min, max, err := c.rangeLevel(level)
 	if err != nil {
 		return 0, err
@@ -199,50 +208,80 @@ func (c *binTreePartition) Size(level int) (int, error) {
 	return max - min, nil
 }
 
-func (c *binTreePartition) Combine(sigs []*sigPair, full bool, nbs func(int) BitSet) *sigPair {
-	if full {
-		return c.combineFull(sigs, nbs)
-	}
-	return c.combine(sigs, nbs)
-}
-
 // combines all all given different-level signatures into one signature
 // that has a bitset's size equal to the size of the set of participants,i.e. a
 // signature ready to be dispatched to any application.
-func (c *binTreePartition) combineFull(sigs []*sigPair, nbs func(int) BitSet) *sigPair {
+func (c *binomialPartitioner) Combine(sigs []*sigPair, level int, nbs func(int) BitSet) *sigPair {
 	if len(sigs) == 0 {
 		return nil
 	}
 
+	for _, s := range sigs {
+		if int(s.level) > level {
+			logf("invalid combination of signature / requested level")
+			return nil
+		}
+	}
+
+	// taking the "rangeInverse" gives us the range covering all signatures
+	// with a level inferior than "level" - it's the range nodes at the
+	// corresponding candidate set expect to receive.
+	globalMin, globalMax, err := c.rangeLevelInverse(level)
+	if err != nil {
+		logf(err.Error())
+		return nil
+	}
+	bitset := nbs(globalMax - globalMin)
+	combined := func(s *sigPair, final BitSet) {
+		// compute the offset of this signature compared to the global bitset
+		// index
+		min, _, _ := c.rangeLevel(int(s.level))
+		offset := min - globalMin
+		bs := s.ms.BitSet
+		for i := 0; i < bs.BitLength(); i++ {
+			final.Set(offset+i, bs.Get(i))
+		}
+	}
+
+	ms := c.combineSize(sigs, bitset, combined)
+	return &sigPair{
+		level: byte(level),
+		ms:    ms,
+	}
+}
+
+func (c *binomialPartitioner) CombineFull(sigs []*sigPair, nbs func(int) BitSet) *MultiSignature {
+	if len(sigs) == 0 {
+		return nil
+	}
 	var finalBitSet = nbs(c.reg.Size())
 
 	// set the bits corresponding to the level to the final bitset
-	var combineBitSet = func(s *sigPair) {
+	var combineBitSet = func(s *sigPair, final BitSet) {
 		min, _, _ := c.rangeLevel(int(s.level))
 		bs := s.ms.BitSet
 		for i := 0; i < bs.BitLength(); i++ {
-			finalBitSet.Set(min+i, bs.Get(i))
+			final.Set(min+i, bs.Get(i))
 		}
 	}
+	return c.combineSize(sigs, finalBitSet, combineBitSet)
+}
+
+// combineSize combines all given signature witht he combine function on the
+// bitset using `bs`
+func (c *binomialPartitioner) combineSize(sigs []*sigPair, bs BitSet, combine func(*sigPair, BitSet)) *MultiSignature {
 
 	var finalSig = sigs[0].ms.Signature
-	combineBitSet(sigs[0])
+	combine(sigs[0], bs)
 
-	var maxLvl = sigs[0].level
 	for _, s := range sigs[1:] {
 		// combine both signatures
 		finalSig = finalSig.Combine(s.ms.Signature)
-		combineBitSet(s)
-		if s.level > maxLvl {
-			maxLvl = s.level
-		}
+		combine(s, bs)
 	}
-	return &sigPair{
-		level: maxLvl,
-		ms: &MultiSignature{
-			BitSet:    finalBitSet,
-			Signature: finalSig,
-		},
+	return &MultiSignature{
+		BitSet:    bs,
+		Signature: finalSig,
 	}
 }
 
@@ -250,7 +289,7 @@ func (c *binTreePartition) combineFull(sigs []*sigPair, nbs func(int) BitSet) *s
 // that has a bitset's size equal to the highest level given + 1. The +1 is
 // necessary because it covers the whole space in the bitset of all signatures
 // together, while the max level only covers its respective signature.
-func (c *binTreePartition) combine(sigs []*sigPair, nbs func(int) BitSet) *sigPair {
+func (c *binomialPartitioner) combine(sigs []*sigPair, nbs func(int) BitSet) *sigPair {
 	if len(sigs) == 0 {
 		return nil
 	}
@@ -301,4 +340,104 @@ func (c *binTreePartition) combine(sigs []*sigPair, nbs func(int) BitSet) *sigPa
 			BitSet:    finalBitSet,
 		},
 	}
+}
+
+// randomBinPartitioner is a Partitioner similar to binTreePartition with
+// randomization.  Basically the only impacted method is `PickNextAt`: it now
+// returns nodes in a candidate set in a random order.
+type randomBinPartitioner struct {
+	*binomialPartitioner
+	r       *mathRand.Rand
+	genesis [8]byte
+	seeds   map[int]int64
+}
+
+// NewRandomBinPartitioner returns a randomBinPartitioner initialized with the
+// given seed. If the seed is nil, it reads from Golang's cryptographically secure
+// random source with `crypto.Read`.
+func NewRandomBinPartitioner(id int32, reg Registry, seed []byte) Partitioner {
+	b := NewBinPartitioner(id, reg)
+	if seed == nil {
+		seed = make([]byte, 8)
+		cryptoRand.Read(seed)
+	}
+	var source [8]byte
+	copy(source[:], seed)
+	rnd := mathRand.New(&cryptoSource{})
+	return &randomBinPartitioner{
+		binomialPartitioner: b.(*binomialPartitioner),
+		r:                   rnd,
+		genesis:             source,
+		seeds:               computeSeeds(b.MaxLevel(), rnd),
+	}
+}
+
+// PickNextAt implements the partitioner interface but returns randomized slice
+// of identities. It keeps track of the last seen id in the randomized list.
+func (r *randomBinPartitioner) PickNextAt(level, count int) ([]Identity, bool) {
+	min, max, err := r.rangeLevel(level)
+	if err != nil {
+		return nil, false
+	}
+
+	cardinality := max - min
+
+	// the picked map is used differently than in binTreePartitioner -
+	// the int stored indicates the minimum index in the permutation of that
+	// level we should start picking identities again.
+	minPicked, ok := r.picked[level]
+	if !ok {
+		minPicked = 0
+	}
+
+	seed, ok := r.seeds[level]
+	if !ok {
+		logf("random bin. tree: seed not found - internal error")
+		return nil, false
+	}
+
+	upTo := minPicked + count
+	if upTo > cardinality {
+		upTo = cardinality
+	}
+
+	rnd := mathRand.New(mathRand.NewSource(seed))
+	perm := rnd.Perm(cardinality)
+	ids := make([]Identity, 0, count)
+	for i := minPicked; i < upTo; i++ {
+		// take the randomized index of the sublist
+		randomPermIndex := perm[i]
+		// compute the global index of the Identity we want
+		globalIndex := min + randomPermIndex
+		randomID, ok := r.reg.Identity(globalIndex)
+		if !ok {
+			continue
+		}
+		ids = append(ids, randomID)
+	}
+	r.picked[level] = upTo
+	return ids, true
+}
+
+func computeSeeds(levels int, r *rand.Rand) map[int]int64 {
+	m := make(map[int]int64)
+	for i := 1; i <= levels; i++ {
+		m[i] = r.Int63()
+	}
+	return m
+}
+
+// random permutation based on /dev/urandom
+// taken from
+// https://stackoverflow.com/questions/40965044/using-crypto-rand
+// -for-generating-permutations-with-rand-perm
+type cryptoSource [8]byte
+
+func (s *cryptoSource) Int63() int64 {
+	cryptoRand.Read(s[:])
+	return int64(binary.BigEndian.Uint64(s[:]) & (1<<63 - 1))
+}
+
+func (s *cryptoSource) Seed(seed int64) {
+	panic("seed")
 }

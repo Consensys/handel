@@ -29,17 +29,12 @@ type signatureProcessing interface {
 	Verified() chan sigPair
 }
 
-type verifiedSig struct {
-	sigPair
-	new bool
-}
-
 // fifoProcessing implements the signatureProcessing interface using a simple
 // fifo queue, verifying all incoming signatures, not matter relevant or not.
 type fifoProcessing struct {
 	sync.Mutex
 	store signatureStore
-	part  partitioner
+	part  Partitioner
 	cons  Constructor
 	msg   []byte
 	in    chan sigPair
@@ -50,7 +45,7 @@ type fifoProcessing struct {
 // newFifoProcessing returns a signatureProcessing implementation using a fifo
 // queue. It needs the store to store the valid signatures, the partitioner +
 // constructor + msg to verify the signatures.
-func newFifoProcessing(store signatureStore, part partitioner,
+func newFifoProcessing(store signatureStore, part Partitioner,
 	c Constructor, msg []byte) signatureProcessing {
 	return &fifoProcessing{
 		part:  part,
@@ -65,10 +60,9 @@ func newFifoProcessing(store signatureStore, part partitioner,
 // processIncoming simply verifies the signature, stores it, and outputs it
 func (f *fifoProcessing) processIncoming() {
 	for pair := range f.in {
-		logf("fifo: new incoming signature %+v", pair)
 		_, isNew := f.store.MockStore(pair.level, pair.ms)
 		if !isNew {
-			logf("handel: fifo: skipping verification of signature %s", pair.String())
+			//logf("handel: fifo: skipping verification of signature %s", pair.String())
 			continue
 		}
 
@@ -81,7 +75,7 @@ func (f *fifoProcessing) processIncoming() {
 		f.Lock()
 		done := f.done
 		if !done {
-			logf("handel: handling back verified signature to actors")
+			//logf("handel: handling back verified signature to actors")
 			f.out <- pair
 		}
 		f.Unlock()
@@ -113,6 +107,7 @@ func (f *fifoProcessing) verifySignature(pair *sigPair) error {
 	}
 
 	if err := aggregateKey.VerifySignature(f.msg, ms.Signature); err != nil {
+		logf("processing err: from %d -> level %d -> %s", pair.origin, pair.level, ms.String())
 		return fmt.Errorf("handel: %s", err)
 	}
 	return nil

@@ -6,10 +6,44 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestStoreCombined(t *testing.T) {
+	n := 8
+	reg := FakeRegistry(n)
+	part := NewBinPartitioner(1, reg)
+
+	type combineTest struct {
+		sigs  []*sigPair
+		level int
+		exp   *sigPair
+	}
+
+	sig0 := fullSigPair(0)
+	sig01 := *sig0
+	sig01.level = 1
+	sig1 := fullSigPair(1)
+	sig2 := fullSigPair(2)
+
+	var tests = []combineTest{
+		{[]*sigPair{sig0, sig1}, 1, sig2},
+		{[]*sigPair{sig0}, 0, &sig01},
+	}
+
+	for i, test := range tests {
+		t.Logf(" -- test %d --", i)
+		store := newReplaceStore(part, NewWilffBitset)
+		for _, sigs := range test.sigs {
+			store.Store(sigs.level, sigs.ms)
+		}
+		sp := store.Combined(byte(test.level))
+		require.Equal(t, test.exp, sp)
+	}
+
+}
+
 func TestStoreHighest(t *testing.T) {
 	n := 8
 	reg := FakeRegistry(n)
-	part := newBinTreePartition(1, reg)
+	part := NewBinPartitioner(1, reg)
 	store := newReplaceStore(part, NewWilffBitset)
 
 	store.Store(3, &MultiSignature{BitSet: NewWilffBitset(4), Signature: &fakeSig{true}})
@@ -17,8 +51,8 @@ func TestStoreHighest(t *testing.T) {
 	pair := store.Highest()
 
 	require.NotNil(t, pair)
-	require.Equal(t, 4, int(pair.level))
-	require.Equal(t, 8, pair.ms.BitSet.BitLength())
+	require.Equal(t, 3, int(pair.level))
+	require.Equal(t, 4, pair.ms.BitSet.BitLength())
 
 	// weird case with 0 and 1
 	store = newReplaceStore(part, NewWilffBitset)
@@ -30,7 +64,7 @@ func TestStoreHighest(t *testing.T) {
 func TestStoreFullSignature(t *testing.T) {
 	n := 8
 	reg := FakeRegistry(n)
-	part := newBinTreePartition(1, reg)
+	part := NewBinPartitioner(1, reg)
 	store := newReplaceStore(part, NewWilffBitset)
 	bs1 := NewWilffBitset(1)
 	bs1.Set(0, true)
@@ -44,17 +78,17 @@ func TestStoreFullSignature(t *testing.T) {
 func TestStoreReplace(t *testing.T) {
 	n := 8
 	reg := FakeRegistry(n)
-	part := newBinTreePartition(1, reg)
-	sig0 := &sigPair{0, fullSig(0)}
-	sig1 := &sigPair{1, fullSig(1)}
-	sig2 := &sigPair{2, fullSig(2)}
-	sig3 := &sigPair{3, fullSig(3)}
+	part := NewBinPartitioner(1, reg)
+	sig0 := &sigPair{level: 0, ms: fullSig(0)}
+	sig1 := &sigPair{level: 1, ms: fullSig(1)}
+	sig2 := &sigPair{level: 2, ms: fullSig(2)}
+	sig3 := &sigPair{level: 3, ms: fullSig(3)}
 
-	fullBs3 := NewWilffBitset(n)
-	for i := 0; i < n; i++ {
+	fullBs3 := NewWilffBitset(n / 2)
+	for i := 0; i < fullBs3.BitLength(); i++ {
 		fullBs3.Set(i, true)
 	}
-	fullSig3 := &sigPair{4, newSig(fullBs3)}
+	fullSig3 := &sigPair{level: 3, ms: newSig(fullBs3)}
 	fullBs2 := NewWilffBitset(pow2(3 - 1))
 	// only signature 2 present so no 0, 1
 	for i := 2; i < fullBs2.BitLength(); i++ {

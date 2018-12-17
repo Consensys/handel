@@ -2,7 +2,6 @@ package handel
 
 import (
 	"crypto/rand"
-	"fmt"
 	"time"
 )
 
@@ -24,7 +23,7 @@ type Test struct {
 }
 
 // NewTest returns all handels instances ready to go !
-func NewTest(keys []SecretKey, c Constructor, msg []byte) *Test {
+func NewTest(keys []SecretKey, pubs []PublicKey, c Constructor, msg []byte) *Test {
 	n := len(keys)
 	ids := make([]Identity, n)
 	sigs := make([]Signature, n)
@@ -32,7 +31,7 @@ func NewTest(keys []SecretKey, c Constructor, msg []byte) *Test {
 	handels := make([]*Handel, n)
 	var err error
 	for i := 0; i < n; i++ {
-		pk := keys[i].PublicKey()
+		pk := pubs[i]
 		id := int32(i)
 		ids[i] = NewStaticIdentity(id, "", pk)
 		sigs[i], err = keys[i].Sign(msg, rand.Reader)
@@ -114,9 +113,9 @@ func (t *Test) waitFinalSig(i int) {
 	for {
 		select {
 		case ms := <-ch:
-			fmt.Println("+++++++ t.reg ", t.reg)
-			fmt.Println("+++++++ ms", ms)
-			fmt.Println("+++++++ ms.BitSet ", ms.BitSet)
+			/*fmt.Println("+++++++ t.reg ", t.reg)*/
+			//fmt.Println("+++++++ ms", ms)
+			/*fmt.Println("+++++++ ms.BitSet ", ms.BitSet)*/
 			if ms.BitSet.Cardinality() == t.reg.Size() {
 				// one full !
 				t.finished <- i

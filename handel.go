@@ -2,7 +2,9 @@ package handel
 
 import (
 	"errors"
+	"fmt"
 	"sync"
+	"time"
 )
 
 // Handel is the principal struct that performs the large scale multi-signature
@@ -24,7 +26,7 @@ type Handel struct {
 	// signature over the message
 	sig Signature
 	// partitions the set of nodes at different levels
-	part partitioner
+	part Partitioner
 	// signature store with different merging/caching strategy
 	store signatureStore
 	// processing of signature - verification strategy
@@ -56,10 +58,18 @@ type Handel struct {
 // DefaultConfig() is used.
 func NewHandel(n Network, r Registry, id Identity, c Constructor,
 	msg []byte, s Signature, conf ...*Config) *Handel {
+
+	var config *Config
+	if len(conf) > 0 && conf[0] != nil {
+		config = mergeWithDefault(conf[0], r.Size())
+	} else {
+		config = DefaultConfig(r.Size())
+	}
 	h := &Handel{
+		c:        config,
 		net:      n,
 		reg:      r,
-		part:     newBinTreePartition(id.ID(), r),
+		part:     config.NewPartitioner(id.ID(), r),
 		id:       id,
 		cons:     c,
 		msg:      msg,
@@ -70,12 +80,6 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 	h.actors = []actor{
 		actorFunc(h.checkCompletedLevel),
 		actorFunc(h.checkFinalSignature),
-	}
-
-	if len(conf) > 0 && conf[0] != nil {
-		h.c = mergeWithDefault(conf[0], r.Size())
-	} else {
-		h.c = DefaultConfig(r.Size())
 	}
 
 	h.threshold = h.c.ContributionsThreshold(h.reg.Size())
@@ -103,8 +107,8 @@ func (h *Handel) NewPacket(p *Packet) {
 	}
 
 	// sends it to processing
-	h.logf("sending incoming signature from %d to verification thread", p.Origin)
-	h.proc.Incoming() <- sigPair{level: p.Level, ms: ms}
+	//h.logf("received packet from %d for level %d: %s", p.Origin, p.Level, ms.String())
+	h.proc.Incoming() <- sigPair{origin: p.Origin, level: p.Level, ms: ms}
 }
 
 // Start the Handel protocol by sending signatures to peers in the first level,
@@ -142,19 +146,12 @@ func (h *Handel) startNextLevel() {
 		h.logf("protocol finished at level %d", h.currLevel)
 		return
 	}
+	h.sendBestToLevel(int(h.currLevel))
+	/*// take the best we have so far at the max level we are at*/
+	//sp := h.store.Combined(h.currLevel)
+	//// increase the max level we are at
 	h.currLevel++
-	sp := h.store.Combined(h.currLevel - 1)
-	if sp == nil {
-		h.logf("no signature to send ...?")
-		return
-	}
-	nodes, ok := h.part.PickNextAt(int(h.currLevel), h.c.CandidateCount)
-	if !ok {
-		// XXX This should not happen, but what if ?
-		return
-	}
-	h.sendTo(sp.level, sp.ms, nodes)
-	h.logf("new level %d: sent best signatures (lvl = %d) to %d nodes", h.currLevel, sp.level, len(nodes))
+	h.logf("Passing to a new level %d -> %d", h.currLevel-1, h.currLevel)
 }
 
 // rangeOnVerified continuously listens on the output channel of the signature
@@ -163,6 +160,7 @@ func (h *Handel) startNextLevel() {
 // manner, global lock is held during the call to actors.
 func (h *Handel) rangeOnVerified() {
 	for v := range h.proc.Verified() {
+		h.logf("new verified signature received -> %s", v.String())
 		h.store.Store(v.level, v.ms)
 		h.Lock()
 		for _, actor := range h.actors {
@@ -247,31 +245,50 @@ func (h *Handel) checkCompletedLevel(s *sigPair) {
 	// if the combined signature has enough cardinality to pass to higher levels
 	if s.level == h.currLevel {
 		h.startNextLevel()
+		return
 	}
 
 	// Now we check from 1st level to this level if we have them all completed.
 	// if it is the case, then we create the combined signature of all these
 	// levels, and send that up to the next. This part is redundant only if we
-	// start the new level, but we might be already at a higher level but with
-	// incomplete signature of this level !
-	sp := h.store.Combined(s.level)
-	if sp == nil {
+	// start the new level (that's the same action being done), but we might be
+	// already at a higher level with incomplete signature so this is where it's
+	// important: to improve over existing levels.
+	h.sendBestToLevel(int(s.level))
+}
+
+// sendBestToLevel computes the best signature possible at the given level, with
+// the bitset's size corresponding to the given level, and sends it out to new
+// nodes at the level.  This call may not send signatures if the level given is
+// already at the maximum level so it's not possible to send a `Combined`
+// signature anymore - this handel node can fetch its full signature already
+func (h *Handel) sendBestToLevel(lvl int) {
+	if lvl+1 > h.part.MaxLevel() {
+		h.logf("skip sending best -> reached maximum level ")
 		return
 	}
-	fullSize, err = h.part.Size(int(sp.level))
-	if sp.ms.Cardinality() != fullSize {
-		return
+	level := byte(lvl)
+	sp := h.store.Combined(level)
+	if sp == nil {
+		panic("THIS SHOULD NOT HAPPEN AT ALL")
+	}
+	fullSize, err := h.part.Size(int(level + 1))
+	if err != nil {
+		panic(err)
+	}
+	if sp.ms.BitLength() != fullSize {
+		panic("THIS SHOULD NOT HAPPEN AT ALL #2")
 	}
 	// TODO: if no new nodes are available, maybe send to same nodes again
 	// in case for full signatures ?
 	newNodes, ok := h.part.PickNextAt(int(sp.level), h.c.CandidateCount)
 	if ok {
-		h.logf("sending complete signature for level %d to %d new nodes", sp.level, len(newNodes))
-		h.sendTo(s.level, ms, newNodes)
+		//h.logf("sending complete signature for level %d (size %d) to %d new nodes", sp.level, sp.ms.BitSet.BitLength(), len(newNodes))
+		h.logf("sending out complete signature at lvl %d (size %d) to %v", sp.level, sp.ms.BitSet.BitLength(), newNodes)
+		h.sendTo(sp.level, sp.ms, newNodes)
 	} else {
-		h.logf("no new nodes for completed level %d", s.level)
+		h.logf("no new nodes for completed level %d", sp.level)
 	}
-
 }
 
 func (h *Handel) sendTo(lvl byte, ms *MultiSignature, ids []Identity) {
@@ -298,7 +315,7 @@ func (h *Handel) parsePacket(p *Packet) (*MultiSignature, error) {
 		return nil, errors.New("handel: packet's origin out of range")
 	}
 
-	if int(p.Level) > log2(h.reg.Size()) {
+	if int(p.Level) < 1 || int(p.Level) > log2(h.reg.Size()) {
 		return nil, errors.New("handel: packet's level out of range")
 	}
 
@@ -323,6 +340,10 @@ func (h *Handel) markCompleted(level byte) {
 }
 
 func (h *Handel) logf(str string, args ...interface{}) {
-	idArg := []interface{}{h.id.ID()}
-	logf("handel %d: "+str, append(idArg, args...)...)
+	now := time.Now()
+	time := fmt.Sprintf("%02d:%02d:%02d", now.Hour(),
+		now.Minute(),
+		now.Second())
+	idArg := []interface{}{time, h.id.ID()}
+	logf("%s: handel %d: "+str, append(idArg, args...)...)
 }

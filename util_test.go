@@ -178,8 +178,13 @@ func FakeSetup(n int) (Registry, []*Handel) {
 	}
 	cons := new(fakeCons)
 	handels := make([]*Handel, n)
+	newPartitioner := func(id int32, reg Registry) Partitioner {
+		return NewRandomBinPartitioner(id, reg, nil)
+		//return NewBinPartitioner(id,reg)
+	}
+	conf := &Config{NewPartitioner: newPartitioner}
 	for i := 0; i < n; i++ {
-		handels[i] = NewHandel(nets[i], reg, ids[i], cons, msg, &fakeSig{true})
+		handels[i] = NewHandel(nets[i], reg, ids[i], cons, msg, &fakeSig{true}, conf)
 	}
 	return reg, handels
 }
