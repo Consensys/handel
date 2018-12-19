@@ -272,22 +272,22 @@ func (h *Handel) sendBestToLevel(lvl int) {
 	if sp == nil {
 		panic("THIS SHOULD NOT HAPPEN AT ALL")
 	}
-	fullSize, err := h.part.Size(int(level + 1))
-	if err != nil {
-		panic(err)
-	}
-	if sp.ms.BitLength() != fullSize {
-		panic("THIS SHOULD NOT HAPPEN AT ALL #2")
-	}
+	/*fullSize, err := h.part.Size(int(level + 1))*/
+	//if err != nil {
+	//panic(err)
+	//}
+	//if sp.ms.BitLength() != fullSize {
+	//panic("THIS SHOULD NOT HAPPEN AT ALL #2")
+	/*}*/
 	// TODO: if no new nodes are available, maybe send to same nodes again
 	// in case for full signatures ?
-	newNodes, ok := h.part.PickNextAt(int(sp.level), h.c.CandidateCount)
+	newNodes, ok := h.part.PickNextAt(int(lvl), h.c.CandidateCount)
 	if ok {
 		//h.logf("sending complete signature for level %d (size %d) to %d new nodes", sp.level, sp.ms.BitSet.BitLength(), len(newNodes))
-		h.logf("sending out complete signature at lvl %d (size %d) to %v", sp.level, sp.ms.BitSet.BitLength(), newNodes)
-		h.sendTo(sp.level, sp.ms, newNodes)
+		h.logf("sending out complete signature at lvl %d (size %d) to %v", lvl, sp.BitSet.BitLength(), newNodes)
+		h.sendTo(byte(lvl), sp, newNodes)
 	} else {
-		h.logf("no new nodes for completed level %d", sp.level)
+		h.logf("no new nodes for completed level %d", level)
 	}
 }
 
