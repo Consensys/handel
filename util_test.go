@@ -169,6 +169,10 @@ func sigPairs(lvls ...int) []*sigPair {
 	return s
 }
 
+func sigs(sigs ...*sigPair) []*sigPair {
+	return sigs
+}
+
 func FakeSetup(n int) (Registry, []*Handel) {
 	reg := FakeRegistry(n).(*arrayRegistry)
 	ids := reg.ids
