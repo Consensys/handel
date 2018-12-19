@@ -30,7 +30,10 @@ type Partitioner interface {
 	// Combine takes a list of signature paired with their level and returns all
 	// signatures correctly combined according to the partition strategy.
 	// All signatures must be valid signatures. The return value can be nil if no
-	// sigPairs have been given.
+	// sigPairs have been given.It returns a MultiSignature whose's BitSet's
+	// size is equal to the size of the level given in parameter + 1. The +1 is
+	// there because it is a combined signature, therefore, encompassing all
+	// signatures of levels up to the given level included.
 	Combine(sigs []*sigPair, level int, nbs func(int) BitSet) *MultiSignature
 	// CombineFull is similar to Combine but it returns the full multisignature
 	// whose bitset's length is equal to the size of the registry. This length
@@ -214,9 +217,6 @@ func (c *binomialPartitioner) Size(level int) (int, error) {
 	return max - min, nil
 }
 
-// combines all all given different-level signatures into one signature
-// that has a bitset's size equal to the size of the set of participants,i.e. a
-// signature ready to be dispatched to any application.
 func (c *binomialPartitioner) Combine(sigs []*sigPair, level int, nbs func(int) BitSet) *MultiSignature {
 	if len(sigs) == 0 {
 		return nil
@@ -237,7 +237,9 @@ func (c *binomialPartitioner) Combine(sigs []*sigPair, level int, nbs func(int) 
 		logf(err.Error())
 		return nil
 	}
-	bitset := nbs(globalMax - globalMin)
+	size := globalMax - globalMin
+	bitset := nbs(size)
+	//fmt.Printf("\t -- Combine(lvl %d) => min %d max %d -> size %d\n", level, globalMin, globalMax, size)
 	combined := func(s *sigPair, final BitSet) {
 		// compute the offset of this signature compared to the global bitset
 		// index
@@ -423,7 +425,7 @@ func (r *randomBinPartitioner) PickNextAt(level, count int) ([]Identity, bool) {
 
 func computeSeeds(levels int, r *rand.Rand) map[int]int64 {
 	m := make(map[int]int64)
-	for i := 1; i <= levels; i++ {
+	for i := 0; i <= levels; i++ {
 		m[i] = r.Int63()
 	}
 	return m
