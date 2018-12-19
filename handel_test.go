@@ -11,7 +11,7 @@ import (
 var msg = []byte("Sun is Shining...")
 
 func TestHandelTestNetwork(t *testing.T) {
-	n := 32
+	n := 37
 	secrets := make([]SecretKey, n)
 	pubs := make([]PublicKey, n)
 	cons := new(fakeCons)
@@ -33,7 +33,7 @@ func TestHandelTestNetwork(t *testing.T) {
 
 func TestHandelWholeThing(t *testing.T) {
 	//t.Skip()
-	n := 16
+	n := 5
 	reg, handels := FakeSetup(n)
 	defer CloseHandels(handels)
 	//PrintLog = false
@@ -55,6 +55,7 @@ func TestHandelWholeThing(t *testing.T) {
 		doneCh[i] = make(chan bool, 10)
 	}
 
+	//var cc int32
 	for _, h := range handels {
 		go func(hh *Handel) {
 			var wgDone bool
@@ -63,8 +64,12 @@ func TestHandelWholeThing(t *testing.T) {
 				select {
 				case ms := <-hh.FinalSignatures():
 					if !wgDone {
+						//c := atomic.AddInt32(&cc, 1)
+						//fmt.Printf(" +++ TEST - HANDEL %d FINISHED %d/%d+++ sig %d\n", id, c, n, ms.Cardinality())
 						wg.Done()
 						wgDone = true
+					} else {
+						//fmt.Printf(" +++ TEST - HANDEL %d FINISHED -> sig %d +++ \n", id, ms.Cardinality())
 					}
 					verif <- sigTest{ms: &ms, sender: hh}
 				case <-doneCh[id]:

@@ -6,11 +6,8 @@
 + require only signature + message for Handel
 + Do we need to Origin in the packet ? -> we should not need to check
 
-+ Contributions Threshold put as percentage (int is ambiguous)
-
 + CandidateCount / UpdatePeriod
     - periodic 
-
 
 + if already completed level, skip verification
  -- basic check in synchronous manner
@@ -22,16 +19,15 @@
   signature
 
 + optimizations:
-    - check signature in a separate go routine
     - check signatures that are "best" for us in priority
 
 + Network: send to  a list of identities  (potential optimizations for example
   only sign a message once if same for multiple identities)
 
-+ Measurement architecture / interface bla bla
-
 + Adapt it to NON POWER OF TWO --> see partitioner test failing with non-power
   of two
 
 + potential callback on processing to verify packet signature
-+ add "TryAdd" 
+
+
++ What to do when we receive BEST signature for lower levels ?

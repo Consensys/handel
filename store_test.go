@@ -7,14 +7,14 @@ import (
 )
 
 func TestStoreCombined(t *testing.T) {
-	n := 8
+	n := 9
 	reg := FakeRegistry(n)
-	part := NewBinPartitioner(1, reg)
 
 	type combineTest struct {
+		id    int32
 		sigs  []*sigPair
 		level int
-		exp   *sigPair
+		exp   *MultiSignature
 	}
 
 	sig0 := fullSigPair(0)
@@ -23,13 +23,20 @@ func TestStoreCombined(t *testing.T) {
 	sig1 := fullSigPair(1)
 	sig2 := fullSigPair(2)
 
+	sig4 := fullSigPair(4)
+	bs5 := finalBitset(n)
+
 	var tests = []combineTest{
-		{[]*sigPair{sig0, sig1}, 1, sig2},
-		{[]*sigPair{sig0}, 0, &sig01},
+		{1, sigs(sig0, sig1), 1, sig2.ms},
+		{1, sigs(sig0), 0, sig01.ms},
+		{8, sigs(sig0), 0, sig01.ms},
+		// combined with the rest
+		{8, sigs(sig0, sig4), 5, &MultiSignature{Signature: &fakeSig{true}, BitSet: bs5}},
 	}
 
 	for i, test := range tests {
 		t.Logf(" -- test %d --", i)
+		part := NewBinPartitioner(test.id, reg)
 		store := newReplaceStore(part, NewWilffBitset)
 		for _, sigs := range test.sigs {
 			store.Store(sigs.level, sigs.ms)
@@ -37,28 +44,6 @@ func TestStoreCombined(t *testing.T) {
 		sp := store.Combined(byte(test.level))
 		require.Equal(t, test.exp, sp)
 	}
-
-}
-
-func TestStoreHighest(t *testing.T) {
-	n := 8
-	reg := FakeRegistry(n)
-	part := NewBinPartitioner(1, reg)
-	store := newReplaceStore(part, NewWilffBitset)
-
-	store.Store(3, &MultiSignature{BitSet: NewWilffBitset(4), Signature: &fakeSig{true}})
-	store.Store(2, &MultiSignature{BitSet: NewWilffBitset(2), Signature: &fakeSig{true}})
-	pair := store.Highest()
-
-	require.NotNil(t, pair)
-	require.Equal(t, 3, int(pair.level))
-	require.Equal(t, 4, pair.ms.BitSet.BitLength())
-
-	// weird case with 0 and 1
-	store = newReplaceStore(part, NewWilffBitset)
-	store.Store(0, &MultiSignature{BitSet: NewWilffBitset(1), Signature: &fakeSig{true}})
-	store.Store(1, &MultiSignature{BitSet: NewWilffBitset(1), Signature: &fakeSig{true}})
-	pair = store.Highest()
 }
 
 func TestStoreFullSignature(t *testing.T) {
@@ -149,6 +134,6 @@ func TestStoreReplace(t *testing.T) {
 		ms, ok := store.Best(test.best)
 		require.Equal(t, test.eqMs, ms)
 		require.Equal(t, test.eqBool, ok)
-		require.Equal(t, test.highest, store.Highest())
+		//require.Equal(t, test.highest, store.Highest())
 	}
 }
