@@ -233,7 +233,6 @@ func (a *awsPlatform) startSlave(nodeAndSync aws.NodeAndSync, idx int) {
 	}
 
 	for i := 0; i < len(cpyFiles); i++ {
-		fmt.Println("Running Slave", i, cpyFiles[i])
 		_, err := slaveController.Run(cpyFiles[i])
 		if err != nil {
 			panic(err)
