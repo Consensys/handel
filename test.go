@@ -2,6 +2,7 @@ package handel
 
 import (
 	"crypto/rand"
+	"fmt"
 	"time"
 )
 
@@ -20,6 +21,10 @@ type Test struct {
 	// complete success channel gets notified when all handel instances have
 	// output a complete multi-signature
 	completeSuccess chan bool
+	// list of IDs that are offline during the test
+	offline []int32
+	// threshold of contributions necessary
+	threshold int
 }
 
 // NewTest returns all handels instances ready to go !
@@ -52,18 +57,45 @@ func NewTest(keys []SecretKey, pubs []PublicKey, c Constructor, msg []byte) *Tes
 		finished:        make(chan int, n),
 		completed:       make(map[int]bool),
 		completeSuccess: make(chan bool, 1),
+		offline:         make([]int32, 0),
+		threshold:       n,
 	}
+}
+
+// SetOfflineNodes sets the given list of node's ID as offline nodes - the
+// designated nodes won't run during the simulation.
+func (t *Test) SetOfflineNodes(ids ...int32) {
+	t.offline = append(t.offline, ids...)
+}
+
+// SetThreshold sets the minimum threshold of contributions required to be
+// present in the multisignature created by Handel nodes. By default, it is
+// equal to the size of the participant's set.
+func (t *Test) SetThreshold(threshold int) {
+	t.threshold = threshold
 }
 
 // Start manually every handel instances and starts go routine to listen to the
 // final signatures output from the handel instances.
 func (t *Test) Start() {
 	for i, handel := range t.handels {
+		if t.isOffline(handel.id.ID()) {
+			continue
+		}
 		idx := i
 		go handel.Start()
 		go t.waitFinalSig(idx)
 	}
 	go t.watchComplete()
+}
+
+func (t *Test) isOffline(nodeID int32) bool {
+	for _, id := range t.offline {
+		if id == nodeID {
+			return true
+		}
+	}
+	return false
 }
 
 // Stop manually every handel instances
@@ -93,6 +125,7 @@ func (t *Test) watchComplete() {
 		select {
 		case i := <-t.finished:
 			t.completed[i] = true
+			fmt.Printf("\n +++ %s +++\n\n", t.String())
 			if t.allCompleted() {
 				// signature that to success channel
 				t.completeSuccess <- true
@@ -116,7 +149,7 @@ func (t *Test) waitFinalSig(i int) {
 			/*fmt.Println("+++++++ t.reg ", t.reg)*/
 			//fmt.Println("+++++++ ms", ms)
 			/*fmt.Println("+++++++ ms.BitSet ", ms.BitSet)*/
-			if ms.BitSet.Cardinality() == t.reg.Size() {
+			if ms.BitSet.Cardinality() >= t.threshold {
 				// one full !
 				t.finished <- i
 				return
@@ -134,6 +167,17 @@ func (t *Test) allCompleted() bool {
 		}
 	}
 	return true
+}
+
+func (t *Test) String() string {
+	count := 0
+	for _, f := range t.completed {
+		if f {
+			count++
+		}
+	}
+	online := len(t.handels) - len(t.offline)
+	return fmt.Sprintf("test network - finished %d / online %d / total %d", count, online, len(t.handels))
 }
 
 // TestNetwork is a simple Network implementation using local dispatch functions
