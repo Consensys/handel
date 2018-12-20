@@ -116,16 +116,16 @@ func TestMultiRegionManager(t *testing.T) {
 func TestAllInstancesRunningBlock(t *testing.T) {
 	manager, _ := newMockManager()
 	k := 0
-	tries := &k
+	tries := k
 	delay := func() {
-		*tries = *tries + 1
-		if *tries >= 3 {
+		tries = tries + 1
+		if tries >= 3 {
 			manager.StartInstances()
 		}
 	}
 	attempts, err := WaitUntilAllInstancesRunning(manager, delay)
 	require.Nil(t, err)
-	require.Equal(t, attempts, *tries)
+	require.Equal(t, attempts, tries)
 
 	insances := manager.Instances()
 	for _, inst := range insances {

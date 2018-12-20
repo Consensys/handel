@@ -66,8 +66,8 @@ func (c MasterCommands) ShareRegistryFile() map[int]string {
 }
 
 // Start starts master executable
-func (c MasterCommands) Start(masterAddr string, nbOfNodes int) string {
-	return "nohup " + c.MasterBinPath + " -masterAddr " + masterAddr + " -nbOfNodes " + strconv.Itoa(nbOfNodes) + " > " + logFile
+func (c MasterCommands) Start(masterAddr string, nbOfNodes, timeOut int) string {
+	return "nohup " + c.MasterBinPath + " -masterAddr " + masterAddr + " -nbOfNodes " + strconv.Itoa(nbOfNodes) + " -timeOut " + strconv.Itoa(timeOut) + " > " + logFile
 }
 
 // Configure copies files form the shared directory to slave local storage

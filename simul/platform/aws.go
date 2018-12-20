@@ -25,7 +25,10 @@ type awsPlatform struct {
 	slaveCMDS     aws.SlaveCommands
 }
 
-// cross-compilation options
+//TODO this options should be placed in separate config
+const masterTimeOut = 2
+
+// cross-compilation option
 const targetSystem = "linux"
 const targetArch = "amd64"
 const user = "ubuntu"
@@ -90,7 +93,7 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 	masterNode := lib.GenerateNode(cons, -1, masterAddr)
 	nodeAndSync := aws.NodeAndSync{masterNode, ""}
 	//Create master controller
-	master, err := aws.NewSSHNodeContlorrer(nodeAndSync, a.pemBytes, a.user)
+	master, err := aws.NewSSHNodeController(nodeAndSync, a.pemBytes, a.user)
 	if err != nil {
 		return err
 	}
@@ -145,12 +148,12 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 		// TODO This might become a problem for large number of slaves,
 		// limit numebr of go-routines running concurrently if this is the case
 		go func(slave aws.NodeAndSync) {
-			fmt.Println("    - Slave", slave.Address())
-			slaveNodeController, err := aws.NewSSHNodeContlorrer(slave, a.pemBytes, a.user)
+			slaveNodeController, err := aws.NewSSHNodeController(slave, a.pemBytes, a.user)
 			if err != nil {
 				panic(err)
 			}
 			configureSlave(slaveNodeController, slaveCmds)
+			fmt.Println("    - Slave", slave.Address())
 			wg.Done()
 		}(nodeAndSync)
 		a.allSlaveNodes = append(a.allSlaveNodes, nodeAndSync)
@@ -173,7 +176,8 @@ func configureSlave(slaveNodeController aws.NodeController, slaveCmds map[int]st
 }
 
 func (a *awsPlatform) Cleanup() error {
-	return nil
+	a.master.Close()
+	return a.aws.StopInstances()
 }
 
 func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
@@ -202,8 +206,8 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 		}
 	}
 
-	masterStart := a.masterCMDS.Start(a.master.Node().Address(), r.Nodes)
-	fmt.Println("       Exec:", len(masterStart)+1, masterStart)
+	masterStart := a.masterCMDS.Start(a.master.Node().Address(), r.Nodes, masterTimeOut)
+	fmt.Println("       Exec:", len(shareRegistryFile)+1, masterStart)
 	a.master.Start(masterStart)
 
 	//*** Starte slaves
@@ -223,7 +227,7 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 
 func (a *awsPlatform) startSlave(nodeAndSync aws.NodeAndSync, idx int) {
 	cpyFiles := a.slaveCMDS.CopyRegistryFileFromSharedDirToLocalStorage()
-	slaveController, err := aws.NewSSHNodeContlorrer(nodeAndSync, a.pemBytes, a.user)
+	slaveController, err := aws.NewSSHNodeController(nodeAndSync, a.pemBytes, a.user)
 
 	if err != nil {
 		panic(err)

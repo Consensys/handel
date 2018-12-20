@@ -18,8 +18,8 @@ type sshController struct {
 	node    NodeAndSync
 }
 
-// NewSSHNodeContlorrer creates ssh based NodeController
-func NewSSHNodeContlorrer(node NodeAndSync, pemBytes []byte, user string) (NodeController, error) {
+// NewSSHNodeController creates ssh based NodeController
+func NewSSHNodeController(node NodeAndSync, pemBytes []byte, user string) (NodeController, error) {
 	sshHost, err := sshHostAddr(node.Address())
 
 	if err != nil {
@@ -103,7 +103,7 @@ func (sshCMD *sshController) Run(command string) (string, error) {
 
 	err = session.Run(command)
 	if err != nil {
-		fmt.Println("SSH Run error ", err)
+		fmt.Println("SSH Run error ", command, sshCMD.sshHost, err)
 		return "", err
 	}
 	return stdoutBuf.String(), nil

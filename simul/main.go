@@ -18,7 +18,7 @@ var configFlag = flag.String("config", "", "TOML encoded config file")
 var platformFlag = flag.String("platform", "", "name of the platform to run on")
 var runTimeout = flag.Duration("run-timeout", 2*time.Minute, "timeout of a given run")
 var pemFile = flag.String("pemFile", "", "location of the .pem file for EC2 ssh")
-var regions = flag.String("regions", "us-west-2", "list of AWS regions")
+var regions = flag.String("regions", "us-west-2", "list of AWS regions, for example -regions \"reg1 reg2 reg3\" ")
 
 func main() {
 	flag.Parse()
@@ -32,7 +32,7 @@ func main() {
 		panic(err)
 	}
 
-	plat.Cleanup()
+	defer plat.Cleanup()
 
 	timeout := *runTimeout * time.Duration(c.Retrials)
 	for i, rc := range c.Runs {

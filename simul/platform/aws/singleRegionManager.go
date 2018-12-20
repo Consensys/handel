@@ -128,10 +128,6 @@ func (a *singleRegionAWSManager) StartInstances() error {
 	return err
 }
 
-// TODO extract common logic with StartInstances:
-// stopInstances and startInstances have identical structure,
-// unfortunetly the types involwed are diffrent
-// (StopInstancesInput / StartInstancesInput) this makes refactoring trickier
 func (a *singleRegionAWSManager) StopInstances() error {
 	instanceIds := instanceToInstanceID(a.instances)
 	input := &ec2.StopInstancesInput{

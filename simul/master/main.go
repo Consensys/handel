@@ -9,6 +9,7 @@ import (
 )
 
 var nbOfNodes = flag.Int("nbOfNodes", 0, "number of slave nodes")
+var timeOut = flag.Int("timeOut", 0, "timeout in minutes")
 var masterAddr = flag.String("masterAddr", "", "master address")
 
 func main() {
@@ -21,19 +22,19 @@ func main() {
 		fmt.Printf("[+] Master full synchronization done.\n")
 		master.Reset()
 
-	case <-time.After(3 * time.Minute):
-		fmt.Println("timeout after 2 mn")
-		panic("timeout after 2 mn")
+	case <-time.After(time.Duration(*timeOut) * time.Minute):
+		msg := fmt.Sprintf("timeout after %d mn", *timeOut)
+		fmt.Println(msg)
+		panic(fmt.Sprintf("timeout after %d mn", *timeOut))
 	}
 
-	// 5. Wait all finished - then tell them to quit
 	select {
 	case <-master.WaitAll():
 		fmt.Printf("[+] Master - finished synchronization done.\n")
-	case <-time.After(3 * time.Minute):
-		fmt.Println("timeout after 3 mn")
-
-		panic(fmt.Sprintf("timeout after 3 mn"))
+	case <-time.After(time.Duration(*timeOut) * time.Minute):
+		msg := fmt.Sprintf("timeout after %d mn", *timeOut)
+		fmt.Println(msg)
+		panic(msg)
 	}
 
 }
