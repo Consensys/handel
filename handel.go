@@ -104,6 +104,7 @@ func (h *Handel) NewPacket(p *Packet) {
 	ms, err := h.parsePacket(p)
 	if err != nil {
 		h.logf("invalid packet: %s", err)
+		return
 	}
 
 	// sends it to processing
@@ -210,9 +211,9 @@ func (h *Handel) checkFinalSignature(s *sigPair) {
 		return
 	}
 
-	new := sig.Cardinality()
+	newCard := sig.Cardinality()
 	local := h.best.Cardinality()
-	if new > local {
+	if newCard > local {
 		newBest(sig)
 	}
 }
@@ -370,9 +371,9 @@ func (h *Handel) markCompleted(level byte) {
 
 func (h *Handel) logf(str string, args ...interface{}) {
 	now := time.Now()
-	time := fmt.Sprintf("%02d:%02d:%02d", now.Hour(),
+	timeSpent := fmt.Sprintf("%02d:%02d:%02d", now.Hour(),
 		now.Minute(),
 		now.Second())
-	idArg := []interface{}{time, h.id.ID()}
+	idArg := []interface{}{timeSpent, h.id.ID()}
 	logf("%s: handel %d: "+str, append(idArg, args...)...)
 }
