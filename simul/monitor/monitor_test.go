@@ -20,7 +20,7 @@ func TestMonitorReadyNormal(t *testing.T) {
 	stat := NewStats(m, nil)
 	fresh := stat.String()
 	// First set up monitor listening
-	mon := NewMonitor(stat)
+	mon := NewDefaultMonitor(stat)
 	go mon.Listen()
 	time.Sleep(100 * time.Millisecond)
 
@@ -77,12 +77,12 @@ func setupMonitor(t *testing.T) (*Monitor, *Stats) {
 	m["servers"] = "1"
 	stat := NewStats(m, nil)
 	// First set up monitor listening
-	mon := NewMonitor(stat)
+	mon := NewDefaultMonitor(stat)
 	go mon.Listen()
 	time.Sleep(100 * time.Millisecond)
 
 	// Then measure
-	err := ConnectSink("localhost:" + strconv.Itoa(int(mon.SinkPort)))
+	err := ConnectSink("localhost:" + strconv.Itoa(int(mon.sinkPort)))
 	if err != nil {
 		t.Fatal(fmt.Sprintf("Error starting monitor: %s", err))
 	}

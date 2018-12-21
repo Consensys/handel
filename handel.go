@@ -103,11 +103,12 @@ func (h *Handel) NewPacket(p *Packet) {
 	}
 	ms, err := h.parsePacket(p)
 	if err != nil {
-		h.logf(err.Error())
+		h.logf("invalid packet: %s", err)
+		return
 	}
 
 	// sends it to processing
-	//h.logf("received packet from %d for level %d: %s", p.Origin, p.Level, ms.String())
+	h.logf("received packet from %d for level %d: %s", p.Origin, p.Level, ms.String())
 	h.proc.Incoming() <- sigPair{origin: p.Origin, level: p.Level, ms: ms}
 }
 
@@ -146,7 +147,8 @@ func (h *Handel) startNextLevel() {
 		h.logf("protocol finished at level %d", h.currLevel)
 		return
 	}
-	h.sendBestToLevel(int(h.currLevel))
+	//h.findNextLevel()
+	h.sendBestUpTo(int(h.currLevel))
 	/*// take the best we have so far at the max level we are at*/
 	//sp := h.store.Combined(h.currLevel)
 	//// increase the max level we are at
@@ -209,9 +211,9 @@ func (h *Handel) checkFinalSignature(s *sigPair) {
 		return
 	}
 
-	new := sig.Cardinality()
+	newCard := sig.Cardinality()
 	local := h.best.Cardinality()
-	if new > local {
+	if newCard > local {
 		newBest(sig)
 	}
 }
@@ -254,44 +256,72 @@ func (h *Handel) checkCompletedLevel(s *sigPair) {
 	// start the new level (that's the same action being done), but we might be
 	// already at a higher level with incomplete signature so this is where it's
 	// important: to improve over existing levels.
-	h.sendBestToLevel(int(s.level))
+	h.sendBestUpTo(int(s.level))
 }
 
-// sendBestToLevel computes the best signature possible at the given level, with
-// the bitset's size corresponding to the given level, and sends it out to new
-// nodes at the level.  This call may not send signatures if the level given is
-// already at the maximum level so it's not possible to send a `Combined`
-// signature anymore - this handel node can fetch its full signature already
-func (h *Handel) sendBestToLevel(lvl int) {
+// sendBestUpTo computes the best signature possible at the given level, and
+// sends it out to new nodes at level at least level + 1. It may send it to
+// nodes at highest level if the intermediate levels are empty (it happens if n
+// is not a power of two).  This call may not send signatures if the level given
+// is already at the maximum level so it's not possible to send a `Combined`
+// signature anymore - this handel node can fetch its full signature already.
+func (h *Handel) sendBestUpTo(lvl int) {
 	if lvl+1 > h.part.MaxLevel() {
 		h.logf("skip sending best -> reached maximum level ")
 		return
 	}
-	level := byte(lvl)
-	sp := h.store.Combined(level)
+
+	levelToSend, err := h.findNextLevel(lvl)
+	if err != nil {
+		h.logf("can't sendBestUpTo: %s", err)
+		return
+	}
+
+	sp := h.store.Combined(byte(levelToSend) - 1)
 	if sp == nil {
 		panic("THIS SHOULD NOT HAPPEN AT ALL")
 	}
-	fullSize, err := h.part.Size(int(level + 1))
-	if err != nil {
-		panic(err)
-	}
-	if sp.ms.BitLength() != fullSize {
-		panic("THIS SHOULD NOT HAPPEN AT ALL #2")
-	}
+	// just checking
+	// XXX Not possible to do this check anymore since two same levels from the
+	// perspective of two nodes may not have the cardinality when not using N as
+	// power of two.
+	/*fullSize, err := h.part.Size(levelToSend)*/
+	//if err != nil {
+	//panic(err)
+	//}
+	//if sp.BitLength() != fullSize {
+	//fmt.Printf("lvl %d -> levelToSend %d, sp.BitLength() %d vs fullSize %d\n", lvl, levelToSend, sp.BitLength(), fullSize)
+	//panic("THIS SHOULD NOT HAPPEN AT ALL #2")
+	/*}*/
 	// TODO: if no new nodes are available, maybe send to same nodes again
 	// in case for full signatures ?
-	newNodes, ok := h.part.PickNextAt(int(sp.level), h.c.CandidateCount)
+	newNodes, ok := h.part.PickNextAt(levelToSend, h.c.CandidateCount)
 	if ok {
 		//h.logf("sending complete signature for level %d (size %d) to %d new nodes", sp.level, sp.ms.BitSet.BitLength(), len(newNodes))
-		h.logf("sending out complete signature at lvl %d (size %d) to %v", sp.level, sp.ms.BitSet.BitLength(), newNodes)
-		h.sendTo(sp.level, sp.ms, newNodes)
+		h.logf("sending out complete signature of lvl %d (actual lvl %d & size %d) to %v", lvl, levelToSend, sp.BitSet.BitLength(), newNodes)
+		h.sendTo(levelToSend, sp, newNodes)
 	} else {
-		h.logf("no new nodes for completed level %d", sp.level)
+		h.logf("no new nodes for completed level %d", levelToSend)
 	}
 }
 
-func (h *Handel) sendTo(lvl byte, ms *MultiSignature, ids []Identity) {
+// findNextLevel loops from lvl+1 to max level to find a level which is not
+// empty and returns that level
+func (h *Handel) findNextLevel(lvl int) (int, error) {
+	for l := lvl + 1; lvl <= h.part.MaxLevel(); l++ {
+		_, err := h.part.Size(l)
+		if err != nil {
+			if err == errEmptyLevel {
+				continue
+			}
+			return 0, err
+		}
+		return l, nil
+	}
+	return 0, errors.New("no non-empty level found")
+}
+
+func (h *Handel) sendTo(lvl int, ms *MultiSignature, ids []Identity) {
 	buff, err := ms.MarshalBinary()
 	if err != nil {
 		h.logf("error marshalling multi-signature: %s", err)
@@ -300,7 +330,7 @@ func (h *Handel) sendTo(lvl byte, ms *MultiSignature, ids []Identity) {
 
 	packet := &Packet{
 		Origin:   h.id.ID(),
-		Level:    lvl,
+		Level:    byte(lvl),
 		MultiSig: buff,
 	}
 	h.net.Send(ids, packet)
@@ -341,9 +371,9 @@ func (h *Handel) markCompleted(level byte) {
 
 func (h *Handel) logf(str string, args ...interface{}) {
 	now := time.Now()
-	time := fmt.Sprintf("%02d:%02d:%02d", now.Hour(),
+	timeSpent := fmt.Sprintf("%02d:%02d:%02d", now.Hour(),
 		now.Minute(),
 		now.Second())
-	idArg := []interface{}{time, h.id.ID()}
+	idArg := []interface{}{timeSpent, h.id.ID()}
 	logf("%s: handel %d: "+str, append(idArg, args...)...)
 }

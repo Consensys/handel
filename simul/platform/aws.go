@@ -176,8 +176,8 @@ func configureSlave(slaveNodeController aws.NodeController, slaveCmds map[int]st
 }
 
 func (a *awsPlatform) Cleanup() error {
-	a.master.Close()
-	return a.aws.StopInstances()
+	//a.master.Close()
+	return nil //a.aws.StopInstances()
 }
 
 func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {

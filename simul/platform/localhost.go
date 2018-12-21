@@ -74,7 +74,8 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 	errCh := make(chan int, r.Nodes)
 	sameArgs := []string{"-config", l.confPath,
 		"-registry", l.regPath,
-		"-master", masterAddr}
+		"-master", masterAddr,
+		"-monitor", l.c.GetMonitorAddress("127.0.0.1")}
 
 	for i := 0; i < r.Nodes; i++ {
 		// 3.1 prepare args
@@ -150,7 +151,7 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 		}
 	}
 
-	fmt.Printf("[+] Round finished - success !")
+	fmt.Printf("[+] Localhost round %d finished - success !\n", idx)
 	/*for i, command := range commands {*/
 	//if str := command.Stdout(); str != "" {
 	//fmt.Printf(" ----- node %d output -----\n\t%s\n ----------------\n", i, str)

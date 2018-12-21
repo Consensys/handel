@@ -36,5 +36,4 @@ func main() {
 		fmt.Println(msg)
 		panic(msg)
 	}
-
 }

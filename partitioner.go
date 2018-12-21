@@ -28,16 +28,13 @@ type Partitioner interface {
 	// this level, it returns false.
 	PickNextAt(level, count int) ([]Identity, bool)
 	// Combine takes a list of signature paired with their level and returns all
-	// signatures correctly combined according to the partition strategy. The
-	// full boolean argument specifies whether the result must be a signature
-	// over the FULL bitset or just over the maximum level + 1, to cover all
-	// bitset ranges. Typically, one sets full to True when one dispatches the
-	// final signature to the application above, which expects a full size
-	// bitset. For sending "partial" multi-signatures between handel nodes, full
-	// should be set to false, as handel does not send full-size bitsets. All
-	// signatures must be valid signatures. The return value can be nil if no
-	// sigPairs have been given.
-	Combine(sigs []*sigPair, level int, nbs func(int) BitSet) *sigPair
+	// signatures correctly combined according to the partition strategy.
+	// All signatures must be valid signatures. The return value can be nil if no
+	// sigPairs have been given.It returns a MultiSignature whose's BitSet's
+	// size is equal to the size of the level given in parameter + 1. The +1 is
+	// there because it is a combined signature, therefore, encompassing all
+	// signatures of levels up to the given level included.
+	Combine(sigs []*sigPair, level int, nbs func(int) BitSet) *MultiSignature
 	// CombineFull is similar to Combine but it returns the full multisignature
 	// whose bitset's length is equal to the size of the registry. This length
 	// corresponds to the MaxLevel() + 1 - but this level is not considered a
@@ -93,81 +90,93 @@ func (c *binomialPartitioner) IdentitiesAt(level int) ([]Identity, error) {
 
 }
 
+// errEmptyLevel is returned when a range for a requested level is empty. This
+// can happen is the number of nodes is not a perfect power of two.
+var errEmptyLevel = errors.New("empty level")
+
 // rangeLevel returns the range [min,max[ that maps to the set of identity
 // comprised at the given level from the point of view of the ID of the
-// binTreePartition. At each increasing level, a node should contact nodes from a
-// exponentially increasing larger set of nodes, using the binomial tree
-// construction as described in the San Fermin paper. Level starts at one and
-// ends at the bitsize length. The equality between common prefix length (CPL)
-// and level (l) is CPL = bitsize - l.
+// binTreePartition. At each increasing level, a node should contact nodes from
+// a exponentially increasing larger set of nodes, using the binomial tree
+// construction as described in the San Fermin paper. Level starts at 0 (same
+// node) and ends at the bitsize length + 1 (whole ID range).
+// It returns errEmptyLevel if the range corresponding to the given level is
+// empty.It returns an error if the level requested is out of bound.
 func (c *binomialPartitioner) rangeLevel(level int) (min int, max int, err error) {
-	if level < 0 || level > c.bitsize {
+	if level < 0 || level > c.bitsize+1 {
 		return 0, 0, errors.New("handel: invalid level for computing candidate set")
 	}
 
-	max = c.size
-	var maxIdx = level - 1
+	max = pow2(log2(c.size))
+	var inverseIdx = level - 1
 	// Use a binary-search like algo over the bitstring of the id from highest
 	// bit to lower bits as long as we are above the requested common prefix
 	// length to pinpoint the requested range.
-	for idx := c.bitsize - 1; idx >= maxIdx && min <= max; idx-- {
+	for idx := c.bitsize - 1; idx >= inverseIdx && idx >= 0 && min < max; idx-- {
 		middle := int(math.Floor(float64(max+min) / 2))
+		//fmt.Printf("id %d, idx %d, inverseIdx %d, bitsize %d, min %d, middle %d, max %d\n", c.id, idx, inverseIdx, c.bitsize, min, middle, max)
+
 		if isSet(uint(c.id), uint(idx)) {
 			// we inverse the order at the given CPL to get the candidate set.
-			// Otherwise we would get the same set as c.id is in.
-			if idx == maxIdx {
+			// Otherwise we would get the same set as c.id is in (as in
+			// rangeLevelInverse)
+			if idx == inverseIdx {
 				max = middle
 			} else {
 				min = middle
 			}
 		} else {
 			// same inversion here
-			if idx == maxIdx {
+			if idx == inverseIdx {
 				min = middle
 			} else {
 				max = middle
 			}
 		}
-		if max == min {
-			break
-		}
 
-		if max-1 == 0 || min == c.size {
-			break
-		}
 	}
+
+	//  >= because the minimum index is inclusive
+	if min >= c.size {
+		return 0, 0, errEmptyLevel
+	}
+
+	// > because the maximum index is exclusive
+	if max > c.size {
+		max = c.size
+	}
+
 	return min, max, nil
 }
 
 // rangeLevelInverse is similar to rangeLevel except that it computes the
 // "opposite" group of what rangeLevel returns. It is typically needed to
 // compute in what candidate set an ID belongs, or where does a signature in our
-// candidate set fits. see CombineF function for one usage.
+// candidate set fits. see CombineF function for one usage. It returns an error
+// if the given level is out of bound.
 func (c *binomialPartitioner) rangeLevelInverse(level int) (min int, max int, err error) {
 	if level < 0 || level > c.bitsize+1 {
 		return 0, 0, errors.New("handel: invalid level for computing candidate set")
 	}
 
-	max = c.size
+	max = pow2(log2(c.size))
 	var maxIdx = level - 1
 	// Use a binary-search like algo over the bitstring of the id from highest
 	// bit to lower bits as long as we are above the requested common prefix
 	// length to pinpoint the requested range.
-	for idx := c.bitsize - 1; idx >= maxIdx && min <= max; idx-- {
+	for idx := c.bitsize - 1; idx >= maxIdx && idx >= 0 && min < max; idx-- {
 		middle := int(math.Floor(float64(max+min) / 2))
+		//fmt.Printf("id %d, idx %d, inverseIdx %d, bitsize %d, min %d, middle %d, max %d\n", c.id, idx, maxIdx, c.bitsize, min, middle, max)
+
 		if isSet(uint(c.id), uint(idx)) {
 			min = middle
 		} else {
 			max = middle
 		}
+	}
 
-		if max == min {
-			break
-		}
-
-		if max-1 == 0 || min == c.size {
-			break
-		}
+	if max > c.size {
+		max = c.size
 	}
 	return min, max, nil
 
@@ -208,10 +217,7 @@ func (c *binomialPartitioner) Size(level int) (int, error) {
 	return max - min, nil
 }
 
-// combines all all given different-level signatures into one signature
-// that has a bitset's size equal to the size of the set of participants,i.e. a
-// signature ready to be dispatched to any application.
-func (c *binomialPartitioner) Combine(sigs []*sigPair, level int, nbs func(int) BitSet) *sigPair {
+func (c *binomialPartitioner) Combine(sigs []*sigPair, level int, nbs func(int) BitSet) *MultiSignature {
 	if len(sigs) == 0 {
 		return nil
 	}
@@ -231,7 +237,9 @@ func (c *binomialPartitioner) Combine(sigs []*sigPair, level int, nbs func(int) 
 		logf(err.Error())
 		return nil
 	}
-	bitset := nbs(globalMax - globalMin)
+	size := globalMax - globalMin
+	bitset := nbs(size)
+	//fmt.Printf("\t -- Combine(lvl %d) => min %d max %d -> size %d\n", level, globalMin, globalMax, size)
 	combined := func(s *sigPair, final BitSet) {
 		// compute the offset of this signature compared to the global bitset
 		// index
@@ -243,11 +251,7 @@ func (c *binomialPartitioner) Combine(sigs []*sigPair, level int, nbs func(int) 
 		}
 	}
 
-	ms := c.combineSize(sigs, bitset, combined)
-	return &sigPair{
-		level: byte(level),
-		ms:    ms,
-	}
+	return c.combineSize(sigs, bitset, combined)
 }
 
 func (c *binomialPartitioner) CombineFull(sigs []*sigPair, nbs func(int) BitSet) *MultiSignature {
@@ -421,7 +425,7 @@ func (r *randomBinPartitioner) PickNextAt(level, count int) ([]Identity, bool) {
 
 func computeSeeds(levels int, r *rand.Rand) map[int]int64 {
 	m := make(map[int]int64)
-	for i := 1; i <= levels; i++ {
+	for i := 0; i <= levels; i++ {
 		m[i] = r.Int63()
 	}
 	return m
