@@ -149,9 +149,7 @@ func (h *Handel) startNextLevel() {
 	}
 	//h.findNextLevel()
 	h.sendBestUpTo(int(h.currLevel))
-	/*// take the best we have so far at the max level we are at*/
-	//sp := h.store.Combined(h.currLevel)
-	//// increase the max level we are at
+	// increase the max level we are at
 	h.currLevel++
 	h.logf("Passing to a new level %d -> %d", h.currLevel-1, h.currLevel)
 }
@@ -266,8 +264,8 @@ func (h *Handel) checkCompletedLevel(s *sigPair) {
 // is already at the maximum level so it's not possible to send a `Combined`
 // signature anymore - this handel node can fetch its full signature already.
 func (h *Handel) sendBestUpTo(lvl int) {
-	if lvl+1 > h.part.MaxLevel() {
-		h.logf("skip sending best -> reached maximum level ")
+	if lvl > h.part.MaxLevel() {
+		h.logf("skip sending best -> reached maximum level %d/%d", lvl, h.part.MaxLevel())
 		return
 	}
 
@@ -280,6 +278,9 @@ func (h *Handel) sendBestUpTo(lvl int) {
 	sp := h.store.Combined(byte(levelToSend) - 1)
 	if sp == nil {
 		panic("THIS SHOULD NOT HAPPEN AT ALL")
+	}
+	if levelToSend != lvl+1 {
+		h.logf("\n\n ----+++ skipping levels %d -> %d for %s ---+++\n\n", lvl, levelToSend, sp)
 	}
 	// just checking
 	// XXX Not possible to do this check anymore since two same levels from the

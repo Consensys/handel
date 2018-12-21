@@ -14,8 +14,6 @@ type Test struct {
 	handels []*Handel
 	// notifies when one handel instance have finished
 	finished chan int
-	// mapping of the finished handel instances
-	completed map[int]bool
 	// notifies when the test should be brought down
 	done chan bool
 	// complete success channel gets notified when all handel instances have
@@ -47,7 +45,12 @@ func NewTest(keys []SecretKey, pubs []PublicKey, c Constructor, msg []byte) *Tes
 	}
 	reg := NewArrayRegistry(ids)
 	for i := 0; i < n; i++ {
-		handels[i] = NewHandel(nets[i], reg, ids[i], c, msg, sigs[i])
+		newPartitioner := func(id int32, reg Registry) Partitioner {
+			//return NewRandomBinPartitioner(id, reg, nil)
+			return NewBinPartitioner(id, reg)
+		}
+		conf := &Config{NewPartitioner: newPartitioner}
+		handels[i] = NewHandel(nets[i], reg, ids[i], c, msg, sigs[i], conf)
 	}
 	return &Test{
 		reg:             reg,
@@ -55,7 +58,6 @@ func NewTest(keys []SecretKey, pubs []PublicKey, c Constructor, msg []byte) *Tes
 		handels:         handels,
 		done:            make(chan bool),
 		finished:        make(chan int, n),
-		completed:       make(map[int]bool),
 		completeSuccess: make(chan bool, 1),
 		offline:         make([]int32, 0),
 		threshold:       n,
@@ -121,12 +123,14 @@ func (t *Test) WaitCompleteSuccess() chan bool {
 }
 
 func (t *Test) watchComplete() {
+	expected := len(t.handels) - len(t.offline)
+	var finished []int
 	for {
 		select {
-		case i := <-t.finished:
-			t.completed[i] = true
-			fmt.Printf("\n +++ %s +++\n\n", t.String())
-			if t.allCompleted() {
+		case id := <-t.finished:
+			finished = append(finished, id)
+			t.info(id, finished)
+			if len(finished) >= expected {
 				// signature that to success channel
 				t.completeSuccess <- true
 				return
@@ -135,6 +139,35 @@ func (t *Test) watchComplete() {
 			return
 		}
 	}
+}
+
+func (t *Test) info(newFinished int, finished []int) {
+	expected := len(t.handels) - len(t.offline)
+	s1 := fmt.Sprintf("handel %d\t- finished %d / online %d / total %d\n", newFinished, len(finished), expected, len(t.handels))
+	for i, h := range t.handels {
+		var s2 string
+		if t.isOffline(h.id.ID()) {
+			s2 = fmt.Sprintf("- %d offline\t", i)
+		} else if isIncluded(i, finished) {
+			s2 = fmt.Sprintf("- %d finished\t", i)
+		} else {
+			s2 = fmt.Sprintf("- %d waiting X\t", i)
+		}
+		if (i+1)%3 == 0 {
+			s2 += "\n"
+		}
+		s1 += s2
+	}
+	fmt.Println(s1)
+}
+
+func isIncluded(i int, all []int) bool {
+	for _, v := range all {
+		if v == i {
+			return true
+		}
+	}
+	return false
 }
 
 // waitFinalSig loops over the final signatures output by a specific handel
@@ -158,26 +191,6 @@ func (t *Test) waitFinalSig(i int) {
 			return
 		}
 	}
-}
-
-func (t *Test) allCompleted() bool {
-	for _, f := range t.completed {
-		if !f {
-			return false
-		}
-	}
-	return true
-}
-
-func (t *Test) String() string {
-	count := 0
-	for _, f := range t.completed {
-		if f {
-			count++
-		}
-	}
-	online := len(t.handels) - len(t.offline)
-	return fmt.Sprintf("test network - finished %d / online %d / total %d", count, online, len(t.handels))
 }
 
 // TestNetwork is a simple Network implementation using local dispatch functions
