@@ -21,11 +21,15 @@ func TestHandelTestNetwork(t *testing.T) {
 	off := func(ids ...int32) []int32 {
 		return ids
 	}
+	off()
 
 	var tests = []handelTest{
-		{5, nil, 5, false},
-		{5, off(4), 4, false},
-		{13, off(0, 1, 4, 6), 6, false},
+		{33, nil, 0, false},
+		//{33, nil, 33, false},
+		//{67, off(), 67, false},
+		//{5, off(4), 4, false},
+		//{13, off(0, 1, 4, 6), 6, false},
+		//{128, off(0, 1, 4, 6), 124, false},
 		// TODO: add timeout per level to fix that
 		//{10, off(0, 3, 5, 7, 9), 5, true},
 	}
@@ -41,8 +45,10 @@ func TestHandelTestNetwork(t *testing.T) {
 			pubs[i] = &fakePublic{true}
 		}
 		test := NewTest(secrets, pubs, cons, msg)
-		test.SetOfflineNodes(scenario.offlines...)
-		test.SetThreshold(scenario.thr)
+		if scenario.thr != 0 {
+			test.SetOfflineNodes(scenario.offlines...)
+			test.SetThreshold(scenario.thr)
+		}
 		test.Start()
 		defer test.Stop()
 
@@ -61,7 +67,7 @@ func TestHandelTestNetwork(t *testing.T) {
 
 func TestHandelWholeThing(t *testing.T) {
 	//t.Skip()
-	n := 5
+	n := 32
 	reg, handels := FakeSetup(n)
 	defer CloseHandels(handels)
 	//PrintLog = false
