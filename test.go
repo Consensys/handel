@@ -3,6 +3,7 @@ package handel
 import (
 	"crypto/rand"
 	"fmt"
+	mathRand "math/rand"
 	"time"
 )
 
@@ -49,7 +50,7 @@ func NewTest(keys []SecretKey, pubs []PublicKey, c Constructor, msg []byte) *Tes
 			//return NewRandomBinPartitioner(id, reg, nil)
 			return NewBinPartitioner(id, reg)
 		}
-		conf := &Config{NewPartitioner: newPartitioner}
+		conf := &Config{NewPartitioner: newPartitioner, CandidateCount: 100}
 		handels[i] = NewHandel(nets[i], reg, ids[i], c, msg, sigs[i], conf)
 	}
 	return &Test{
@@ -68,6 +69,15 @@ func NewTest(keys []SecretKey, pubs []PublicKey, c Constructor, msg []byte) *Tes
 // designated nodes won't run during the simulation.
 func (t *Test) SetOfflineNodes(ids ...int32) {
 	t.offline = append(t.offline, ids...)
+}
+
+// SetRandomOfflines sets n random identities as offline  - they wont participate in
+// Handel
+func (t *Test) SetRandomOfflines(n int) {
+	perms := mathRand.Perm(len(t.handels))
+	for i := 0; i < n; i++ {
+		t.offline = append(t.offline, int32(perms[i]))
+	}
 }
 
 // SetThreshold sets the minimum threshold of contributions required to be
