@@ -24,11 +24,12 @@ type awsPlatform struct {
 	allSlaveNodes []*aws.Instance
 	masterCMDS    aws.MasterCommands
 	slaveCMDS     aws.SlaveCommands
+	cons          lib.Constructor
 }
 
 //TODO this options should be placed in separate config
 const masterTimeOut = 4
-const nodePerInstances = 128
+const instances = 8
 
 // cross-compilation option
 const targetSystem = "linux"
@@ -91,6 +92,7 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 	}
 
 	cons := c.NewConstructor()
+	a.cons = cons
 	masterAddr := aws.GenRemoteAddress(*masterInstance.PublicIP, 5000)
 	a.masterAddr = masterAddr
 	masterNode := lib.GenerateNode(cons, -1, masterAddr)
@@ -146,7 +148,6 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 	fmt.Println("")
 	fmt.Println("[+] Configuring Slaves:")
 
-	aws.UpdateInstances(slaveInstances, nodePerInstances, cons)
 	//addresses, syncs := aws.GenRemoteAddresses(slaveInstances)
 	var wg sync.WaitGroup
 
@@ -200,7 +201,9 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 		               , number of avaliable EC2 instances: %d`, r.Nodes, nbOfInstances)
 			return errors.New(msg)
 		}*/
-	slaveNodes := a.allSlaveNodes[0:r.Nodes]
+	nodePerInstances := r.Nodes
+	slaveNodes := a.allSlaveNodes[0:instances]
+	aws.UpdateInstances(slaveNodes, nodePerInstances, a.cons)
 
 	writeRegFile(slaveNodes, a.masterCMDS.RegPath)
 
@@ -218,7 +221,7 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 		}
 	}
 
-	masterStart := a.masterCMDS.Start(a.masterAddr, r.Nodes*nodePerInstances, masterTimeOut)
+	masterStart := a.masterCMDS.Start(a.masterAddr, instances*nodePerInstances, masterTimeOut)
 	fmt.Println("       Exec:", len(shareRegistryFile)+1, masterStart)
 	a.master.Start(masterStart)
 
