@@ -15,16 +15,12 @@ type sshController struct {
 	client  *ssh.Client
 	sshHost string
 	config  *ssh.ClientConfig
-	node    NodeAndSync
 }
 
 // NewSSHNodeController creates ssh based NodeController
-func NewSSHNodeController(node NodeAndSync, pemBytes []byte, user string) (NodeController, error) {
-	sshHost, err := sshHostAddr(node.Address())
+func NewSSHNodeController(sshAddr string, pemBytes []byte, user string) (NodeController, error) {
+	sshHost := net.JoinHostPort(sshAddr, "22") //sshHostAddr(node.Address())
 
-	if err != nil {
-		return nil, err
-	}
 	signer, err := ssh.ParsePrivateKey(pemBytes)
 	if err != nil {
 		return nil, err
@@ -35,12 +31,12 @@ func NewSSHNodeController(node NodeAndSync, pemBytes []byte, user string) (NodeC
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
 
-	return &sshController{node: node, sshHost: sshHost, config: config}, nil
+	return &sshController{sshHost: sshHost, config: config}, nil
 }
 
-func (sshCMD *sshController) Node() NodeAndSync {
-	return sshCMD.node
-}
+//func (sshCMD *sshController) Addr() string {
+//	return sshCMD.node
+//}
 
 func (sshCMD *sshController) Init() error {
 	conn, err := ssh.Dial("tcp", sshCMD.sshHost, sshCMD.config)

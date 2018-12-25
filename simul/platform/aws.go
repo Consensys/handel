@@ -20,13 +20,15 @@ type awsPlatform struct {
 	user          string
 	pemBytes      []byte
 	master        aws.NodeController
-	allSlaveNodes []aws.NodeAndSync
+	masterAddr    string
+	allSlaveNodes []*aws.Instance
 	masterCMDS    aws.MasterCommands
 	slaveCMDS     aws.SlaveCommands
 }
 
 //TODO this options should be placed in separate config
-const masterTimeOut = 2
+const masterTimeOut = 4
+const nodePerInstances = 128
 
 // cross-compilation option
 const targetSystem = "linux"
@@ -90,10 +92,13 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 
 	cons := c.NewConstructor()
 	masterAddr := aws.GenRemoteAddress(*masterInstance.PublicIP, 5000)
+	a.masterAddr = masterAddr
 	masterNode := lib.GenerateNode(cons, -1, masterAddr)
 	nodeAndSync := aws.NodeAndSync{masterNode, ""}
+	masterInstance.Nodes = []aws.NodeAndSync{nodeAndSync}
+
 	//Create master controller
-	master, err := aws.NewSSHNodeController(nodeAndSync, a.pemBytes, a.user)
+	master, err := aws.NewSSHNodeController(*masterInstance.PublicIP, a.pemBytes, a.user)
 	if err != nil {
 		return err
 	}
@@ -119,7 +124,7 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 	}
 
 	fmt.Println("[+] Transfering files to Master:", CMDS.MasterBinPath, CMDS.SlaveBinPath, CMDS.ConfPath)
-	master.CopyFiles(CMDS.MasterBinPath, CMDS.SlaveBinPath, CMDS.ConfPath)
+	//master.CopyFiles(CMDS.MasterBinPath, CMDS.SlaveBinPath, CMDS.ConfPath)
 	configure := a.masterCMDS.Configure()
 
 	//*** Configure Master
@@ -133,30 +138,36 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 	}
 
 	//*** Configure Slaves
+	fmt.Println(*masterInstance.PublicIP)
 	slaveCmds := a.slaveCMDS.Configure(*masterInstance.PublicIP)
+	fmt.Println(*masterInstance.PublicIP)
+
 	fmt.Println("")
 	fmt.Println("")
 	fmt.Println("[+] Configuring Slaves:")
 
-	addresses, syncs := aws.GenRemoteAddresses(slaveInstances)
+	aws.UpdateInstances(slaveInstances, nodePerInstances, cons)
+	//addresses, syncs := aws.GenRemoteAddresses(slaveInstances)
 	var wg sync.WaitGroup
 
-	for i, addr := range addresses {
-		node := lib.GenerateNode(cons, i, addr)
-		nodeAndSync := aws.NodeAndSync{node, syncs[i]}
+	for _, slave := range slaveInstances {
+		//	node := lib.GenerateNode(cons, i, addr)
+		//	nodeAndSync := aws.NodeAndSync{node, syncs[i]}
 		wg.Add(1)
 		// TODO This might become a problem for large number of slaves,
 		// limit numebr of go-routines running concurrently if this is the case
-		go func(slave aws.NodeAndSync) {
-			slaveNodeController, err := aws.NewSSHNodeController(slave, a.pemBytes, a.user)
+
+		go func(slave aws.Instance) {
+
+			slaveNodeController, err := aws.NewSSHNodeController(*slave.PublicIP, a.pemBytes, a.user)
 			if err != nil {
 				panic(err)
 			}
 			configureSlave(slaveNodeController, slaveCmds)
-			fmt.Println("    - Slave", slave.Address())
+			fmt.Println("    - Slave", *slave.PublicIP)
 			wg.Done()
-		}(nodeAndSync)
-		a.allSlaveNodes = append(a.allSlaveNodes, nodeAndSync)
+		}(*slave)
+		a.allSlaveNodes = append(a.allSlaveNodes, slave)
 	}
 	wg.Wait()
 	return nil
@@ -176,18 +187,19 @@ func configureSlave(slaveNodeController aws.NodeController, slaveCmds map[int]st
 }
 
 func (a *awsPlatform) Cleanup() error {
-	a.master.Close()
-	return a.aws.StopInstances()
+	//a.master.Close()
+	return nil //a.aws.StopInstances()
 }
 
 func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 
-	nbOfInstances := len(a.allSlaveNodes)
-	if r.Nodes > nbOfInstances {
-		msg := fmt.Sprintf(`Not enough EC2 instances, number of nodes to sart: %d
-	               , number of avaliable EC2 instances: %d`, r.Nodes, nbOfInstances)
-		return errors.New(msg)
-	}
+	/*
+		nbOfInstances := len(a.allSlaveNodes)
+		if r.Nodes > nbOfInstances {
+			msg := fmt.Sprintf(`Not enough EC2 instances, number of nodes to sart: %d
+		               , number of avaliable EC2 instances: %d`, r.Nodes, nbOfInstances)
+			return errors.New(msg)
+		}*/
 	slaveNodes := a.allSlaveNodes[0:r.Nodes]
 
 	writeRegFile(slaveNodes, a.masterCMDS.RegPath)
@@ -206,7 +218,7 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 		}
 	}
 
-	masterStart := a.masterCMDS.Start(a.master.Node().Address(), r.Nodes, masterTimeOut)
+	masterStart := a.masterCMDS.Start(a.masterAddr, r.Nodes*nodePerInstances, masterTimeOut)
 	fmt.Println("       Exec:", len(shareRegistryFile)+1, masterStart)
 	a.master.Start(masterStart)
 
@@ -214,20 +226,20 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 	var wg sync.WaitGroup
 	for _, n := range slaveNodes {
 		wg.Add(1)
-		go func(slaveNode aws.NodeAndSync) {
+		go func(slaveNode aws.Instance) {
 			// TODO This might become a problem for large number of slaves,
 			// limit numebr of go-routines running concurrently if this is the case
 			a.startSlave(slaveNode, idx)
 			wg.Done()
-		}(n)
+		}(*n)
 	}
 	wg.Wait()
 	return nil
 }
 
-func (a *awsPlatform) startSlave(nodeAndSync aws.NodeAndSync, idx int) {
+func (a *awsPlatform) startSlave(inst aws.Instance, idx int) {
 	cpyFiles := a.slaveCMDS.CopyRegistryFileFromSharedDirToLocalStorage()
-	slaveController, err := aws.NewSSHNodeController(nodeAndSync, a.pemBytes, a.user)
+	slaveController, err := aws.NewSSHNodeController(*inst.PublicIP, a.pemBytes, a.user)
 
 	if err != nil {
 		panic(err)
@@ -243,10 +255,11 @@ func (a *awsPlatform) startSlave(nodeAndSync aws.NodeAndSync, idx int) {
 		}
 	}
 
-	nodeID := int(nodeAndSync.ID())
-	startSlave := a.slaveCMDS.Start(a.master.Node().Address(), nodeAndSync.Sync, nodeID, idx)
-	fmt.Println("Start Slave", startSlave)
-	slaveController.Start(startSlave)
+	for _, n := range inst.Nodes {
+		startSlave := a.slaveCMDS.Start(a.masterAddr, n.Sync, int(n.ID()), idx, n.Identity.Address())
+		fmt.Println("Start Slave", startSlave)
+		slaveController.Run(startSlave)
+	}
 	slaveController.Close()
 }
 
@@ -254,19 +267,22 @@ func cmdToString(cmd []string) string {
 	return strings.Join(cmd[:], " ")
 }
 
-func writeRegFile(slaves []aws.NodeAndSync, regPath string) {
+func writeRegFile(instances []*aws.Instance, regPath string) {
 	parser := lib.NewCSVParser()
 	var nodes []*lib.Node
-	for _, slave := range slaves {
-		nodes = append(nodes, slave.Node)
+	for _, inst := range instances {
+		for _, n := range inst.Nodes {
+			nodes = append(nodes, n.Node)
+		}
 	}
 	lib.WriteAll(nodes, parser, regPath)
 }
 
-func makeMasterAndSlaves(allAwsInstances []aws.Instance) (*aws.Instance, []aws.Instance, error) {
+func makeMasterAndSlaves(allAwsInstances []aws.Instance) (*aws.Instance, []*aws.Instance, error) {
 	var masterInstance aws.Instance
-	var slaveInstances []aws.Instance
+	var slaveInstances []*aws.Instance
 	nbOfMasterIns := 0
+
 	for _, inst := range allAwsInstances {
 		if inst.Tag == aws.RnDMasterTag {
 			if nbOfMasterIns > 1 {
@@ -275,8 +291,10 @@ func makeMasterAndSlaves(allAwsInstances []aws.Instance) (*aws.Instance, []aws.I
 			masterInstance = inst
 			nbOfMasterIns++
 		} else {
-			slaveInstances = append(slaveInstances, inst)
+			si := inst
+			slaveInstances = append(slaveInstances, &si)
 		}
 	}
+
 	return &masterInstance, slaveInstances, nil
 }

@@ -9,7 +9,7 @@ type NodeController interface {
 	// "/tmp/aws.csv" on the remote host
 	CopyFiles(files ...string) error
 	// Node returns underlying NodeAndSync
-	Node() NodeAndSync
+	//	Node() NodeAndSync
 	// Run runs command on a remote node, for example Run("ls -l") and blocks until completion
 	Run(command string) (string, error)
 	// Start runs command on a remote node, doesn't block

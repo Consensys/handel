@@ -2,6 +2,8 @@ package aws
 
 import (
 	"fmt"
+
+	"github.com/ConsenSys/handel/simul/lib"
 )
 
 //Instance represents EC2 Amazon instance
@@ -16,6 +18,10 @@ type Instance struct {
 	region string
 	// EC2 Instance TAG
 	Tag string
+
+	Nodes []NodeAndSync
+
+	Idx int
 }
 
 //Manager manages group of EC2 instances
@@ -51,6 +57,25 @@ func GenRemoteAddresses(instances []Instance) ([]string, []string) {
 func GenRemoteAddress(ip string, port int) string {
 	addr := fmt.Sprintf("%s:%d", ip, port)
 	return addr
+}
+
+func UpdateInstances(instances []*Instance, nbOfNodesPerInstance int, cons lib.Constructor) {
+	for _, inst := range instances {
+		UpdateInstance(inst, nbOfNodesPerInstance, cons)
+	}
+}
+
+func UpdateInstance(instances *Instance, nbOfNodesPerInstance int, cons lib.Constructor) {
+	var ls = []NodeAndSync{}
+	for i := 0; i < nbOfNodesPerInstance; i++ {
+		addr1 := GenRemoteAddress(*instances.PublicIP, base+i)
+		addr2 := GenRemoteAddress(*instances.PublicIP, base+nbOfNodesPerInstance+i)
+		node := lib.GenerateNode(cons, nbOfNodesPerInstance*instances.Idx+i, addr1)
+		nodeAndSync := NodeAndSync{node, addr2}
+
+		ls = append(ls, nodeAndSync)
+	}
+	instances.Nodes = ls
 }
 
 // WaitUntilAllInstancesRunning blocks until all instances are
