@@ -26,7 +26,7 @@ func NewLevel(id int, nodes []Identity) *Level {
 		id,
 		nodes,
 		true,
-		false, // TODO For the first level, we need only our own sig
+		id == 1, // TODO For the first level, we need only our own sig
 		false,
 		0,
 		0,
@@ -67,25 +67,28 @@ func (c *Level) PickNextAt(count int) ([]Identity, bool) {
 	return res, true
 }
 
+// check if the signature is better than what we have.
+// If it's better, reset the counters of the messages sent.
+// If the level is now completed we return true; if not we return false
 func (l *Level) updateBestSig(sig *MultiSignature) (bool) {
-	if sig.BitSet.Cardinality() > len(l.nodes) {
-		msg := fmt.Sprintf ("Too many signatures for this level: lvl=%d, nodes=%d, sigs=%d",
-			l.id, len(l.nodes), sig.BitSet.Cardinality())
-		panic(msg)
-	}
-	if l.currentBestSize >= sig.BitSet.Cardinality() {
+	if l.completed || l.currentBestSize >= sig.BitSet.Cardinality() {
 		return false
 	}
 
-	// We update our best sig. It means has well that
-	//  we will reset our counter of sent messages
 	l.currentBestSize = sig.Cardinality()
 	l.finished = false
 	l.sent = 0
 
-	return l.currentBestSize == len(l.nodes)
+	// We consider that the best signature for a level could be a complete signature
+	//  from a upper level, so we check for '>=' rather than '=='
+	return l.currentBestSize >= len(l.nodes)
 }
 
+// Send our best signature for this level, to 'count' nodes
+// We expect the store to give us as the combined signature:
+// Either a subset of the signature we need for this level
+// Either the complete set of signature for our level
+// Either a complete set of signatures from an upper level
 func (h *Handel) sendUpdate(l Level, count int) {
 	if !l.started || l.finished {
 		return
@@ -312,7 +315,9 @@ func (h *Handel) checkFinalSignature(s *sigPair) {
 	}
 }
 
-// When we have a new signature, multiple levels may be impacted
+// When we have a new signature, multiple levels may be impacted. The store
+//  is in charge of selecting the best signature for a level, so we will
+//  call it for all levels.
 // As well, if a level is completed, all the previous levels
 //  are completed as well. For these reasons, we always check
 //  all the levels, starting by the last one, and we:
@@ -320,7 +325,7 @@ func (h *Handel) checkFinalSignature(s *sigPair) {
 //  2) If the level is now completed, we do a massive update
 // Once we find a level that was already completed we stop.
 func (h *Handel) checkCompletedLevel(s *sigPair) {
-	for i := len(h.levels) - 1; i>= 0; i-- {
+	for i := len(h.levels) - 1; i > 0; i-- {
 		lvl := h.levels[i]
 		if lvl.completed {
 			return
