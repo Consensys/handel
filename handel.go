@@ -11,6 +11,7 @@ type Level struct {
 	id int
 	nodes []Identity
 	started bool
+	completed bool
 	finished bool
 	pos int
 	best *MultiSignature
@@ -21,6 +22,7 @@ func NewLevel(id int, nodes []Identity) *Level {
 		id,
 		nodes,
 		true,
+		false,
 		false,
 		0,
 		nil,
@@ -93,8 +95,6 @@ type Handel struct {
 	proc signatureProcessing
 	// all actors registered that acts on a new signature
 	actors []actor
-	// completed levels, i.e. full signatures at each of these levels
-	completed []byte
 	// highest level attained by this handel node so far
 	currLevel byte
 	// maximum  level attainable ever for this set of nodes
@@ -295,7 +295,8 @@ func (h *Handel) checkFinalSignature(s *sigPair) {
 // checkCompletedLevel looks if the signature completes its respective level. If it
 // does, handel sends it out to new peers for this level if possible.
 func (h *Handel) checkCompletedLevel(s *sigPair) {
-	if h.isCompleted(s.level) {
+	lvl := h.levels[s.level-1]
+	if lvl.completed {
 		return
 	}
 
@@ -311,7 +312,7 @@ func (h *Handel) checkCompletedLevel(s *sigPair) {
 	}
 
 	// completed level !
-	h.markCompleted(s.level)
+	lvl.completed = true
 
 	// go to next level if we already finished this one !
 	// XXX: this should be moved to a handler "checkGoToNextLevel" that checks
@@ -400,21 +401,6 @@ func (h *Handel) parsePacket(p *Packet) (*MultiSignature, error) {
 	ms := new(MultiSignature)
 	err := ms.Unmarshal(p.MultiSig, h.cons.Signature(), h.c.NewBitSet)
 	return ms, err
-}
-
-// isCompleted returns true if the given level has already been completed, i.e.
-// is in the list of completed levels.
-func (h *Handel) isCompleted(level byte) bool {
-	for _, l := range h.completed {
-		if l == level {
-			return true
-		}
-	}
-	return false
-}
-
-func (h *Handel) markCompleted(level byte) {
-	h.completed = append(h.completed, level)
 }
 
 func (h *Handel) logf(str string, args ...interface{}) {
