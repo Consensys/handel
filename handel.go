@@ -26,7 +26,7 @@ func NewLevel(id int, nodes []Identity) *Level {
 		id,
 		nodes,
 		true,
-		false, // For the first level, we need only our own sig
+		false, // TODO For the first level, we need only our own sig
 		false,
 		0,
 		0,
@@ -124,8 +124,6 @@ type Handel struct {
 	proc signatureProcessing
 	// all actors registered that acts on a new signature
 	actors []actor
-	// highest level attained by this handel node so far
-	currLevel byte
 	// best final signature,i.e. at the last level, seen so far
 	best *MultiSignature
 	// channel to exposes multi-signatures to the user
@@ -185,7 +183,9 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 			if false {
 				print(t)
 			}
+			h.Lock()
 			h.periodicUpdate()
+			h.Unlock()
 		}
 	}()
 
@@ -224,7 +224,7 @@ func (h *Handel) Start() {
 	defer h.Unlock()
 	go h.proc.Start()
 	go h.rangeOnVerified()
-	h.startNextLevel()
+	h.periodicUpdate()
 }
 
 // Stop the Handel protocol and all sub routines
@@ -238,8 +238,6 @@ func (h *Handel) Stop() {
 }
 
 func (h *Handel) periodicUpdate() {
-	h.Lock()
-	defer h.Unlock()
 	for _, lvl := range h.levels {
 		h.sendUpdate(lvl, 1)
 	}
@@ -250,22 +248,6 @@ func (h *Handel) periodicUpdate() {
 // contributions, as defined in the config.
 func (h *Handel) FinalSignatures() chan MultiSignature {
 	return h.out
-}
-
-// startNextLevel increase the currLevel counter and sends its best
-// highest-level signature it has to nodes at the new currLevel.
-// method is NOT thread-safe.
-func (h *Handel) startNextLevel() {
-	if int(h.currLevel) >= len(h.levels) {
-		// protocol is finished
-		h.logf("protocol finished at level %d", h.currLevel)
-		return
-	}
-	//h.findNextLevel()
-	h.sendBestUpTo(int(h.currLevel))
-	// increase the max level we are at
-	h.currLevel++
-	h.logf("Passing to a new level %d -> %d", h.currLevel-1, h.currLevel)
 }
 
 // rangeOnVerified continuously listens on the output channel of the signature
@@ -330,75 +312,27 @@ func (h *Handel) checkFinalSignature(s *sigPair) {
 	}
 }
 
-// checkCompletedLevel looks if the signature completes its respective level. If it
-// does, handel sends it out to new peers for this level if possible.
+// When we have a new signature, multiple levels may be impacted
+// As well, if a level is completed, all the previous levels
+//  are completed as well. For these reasons, we always check
+//  all the levels, starting by the last one, and we:
+//  1) Update the signature
+//  2) If the level is now completed, we do a massive update
+// Once we find a level that was already completed we stop.
 func (h *Handel) checkCompletedLevel(s *sigPair) {
-	lvl := h.levels[s.level-1]
-	if lvl.completed {
-		return // fast exit
-	}
-
-	// XXX IIF completed signatures for higher level then send this higher level
-	// instead
-	ms, ok := h.store.Best(s.level)
-	if !ok {
-		panic("something's wrong with the store")
-	}
-	if !lvl.updateBestSig(ms) {
-		return
-	}
-
-	// go to next level if we already finished this one !
-	// XXX: this should be moved to a handler "checkGoToNextLevel" that checks
-	// if the combined signature has enough cardinality to pass to higher levels
-	if s.level == h.currLevel {
-		h.startNextLevel()
-		return
-	}
-
-	// Now we check from 1st level to this level if we have them all completed.
-	// if it is the case, then we create the combined signature of all these
-	// levels, and send that up to the next. This part is redundant only if we
-	// start the new level (that's the same action being done), but we might be
-	// already at a higher level with incomplete signature so this is where it's
-	// important: to improve over existing levels.
-	if  lvl.id < len(h.levels) - 1 {
-		h.sendBestUpTo(lvl.id)
-	}
-}
-
-// sendBestUpTo computes the best signature possible at the given level, and
-// sends it out to new nodes at level at least level + 1. It may send it to
-// nodes at highest level if the intermediate levels are empty (it happens if n
-// is not a power of two).  This call may not send signatures if the level given
-// is already at the maximum level so it's not possible to send a `Combined`
-// signature anymore - this handel node can fetch its full signature already.
-// lvl can be equals to zero!
-func (h *Handel) sendBestUpTo(lvl int) {
-	if lvl < 0 || lvl >= len(h.levels) {
-		msg := fmt.Sprintf ("skip sending best -> reached maximum level %d/%d", lvl, len(h.levels))
-		panic(msg)
-	}
-
-	levelToSend, err := h.findNextLevel(lvl)
-	if err != nil {
-		panic(err)
-	}
-
-	h.sendUpdate(h.levels[levelToSend-1], h.c.CandidateCount)
-}
-
-// findNextLevel loops from lvl+1 to max level to find a level which is not
-// empty and returns that level
-func (h *Handel) findNextLevel(lvl int) (int, error) {
-	for l := lvl + 1; lvl <= len(h.levels); l++ {
-		fullSize := len(h.levels[l-1].nodes)
-		if fullSize == 0 {
+	for i := len(h.levels) - 1; i>= 0; i-- {
+		lvl := h.levels[i]
+		if lvl.completed {
+			return
+		}
+		ms, ok := h.store.Best(byte(lvl.id))
+		if !ok {
 			continue
 		}
-		return l, nil
+		if lvl.updateBestSig(ms) {
+			h.sendUpdate(lvl, h.c.CandidateCount)
+		}
 	}
-	return 0, errors.New("no non-empty level found")
 }
 
 func (h *Handel) sendTo(lvl int, ms *MultiSignature, ids []Identity) {
