@@ -57,6 +57,19 @@ func (c *Level) PickNextAt(count int) ([]Identity, bool) {
 	return res, true
 }
 
+func (l *Level) updateBestSig(sig *MultiSignature) (bool) {
+	if l.completed {
+		return false
+	}
+	if l.best != nil && l.best.BitSet.Cardinality() <= sig.BitSet.Cardinality() {
+		return false
+	}
+
+	l.best = sig
+
+	return l.best.BitSet.Cardinality() == len(l.nodes)
+}
+
 func (h *Handel) sendUpdate(l Level) {
 	if !l.started || l.finished {
 		return
