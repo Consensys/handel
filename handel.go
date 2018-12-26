@@ -241,7 +241,7 @@ func (h *Handel) periodicUpdate() {
 	h.Lock()
 	defer h.Unlock()
 	for _, lvl := range h.levels {
-		h.sendUpdate(lvl, h.c.CandidateCount)
+		h.sendUpdate(lvl, 1)
 	}
 }
 
