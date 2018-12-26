@@ -86,7 +86,7 @@ func (l *Level) updateBestSig(sig *MultiSignature) (bool) {
 	return l.currentBestSize == len(l.nodes)
 }
 
-func (h *Handel) sendUpdate(l Level) {
+func (h *Handel) sendUpdate(l Level, count int) {
 	if !l.started || l.finished {
 		return
 	}
@@ -95,7 +95,7 @@ func (h *Handel) sendUpdate(l Level) {
 	if sp == nil {
 		panic("THIS SHOULD NOT HAPPEN AT ALL")
 	}
-	newNodes, _ := l.PickNextAt(h.c.CandidateCount)
+	newNodes, _ := l.PickNextAt(count)
 	h.logf("sending out signature of lvl %d (size %d) to %v", l.id, sp.BitSet.BitLength(), newNodes)
 	h.sendTo(l.id, sp, newNodes)
 }
@@ -241,7 +241,7 @@ func (h *Handel) periodicUpdate() {
 	h.Lock()
 	defer h.Unlock()
 	for _, lvl := range h.levels {
-		h.sendUpdate(lvl)
+		h.sendUpdate(lvl, h.c.CandidateCount)
 	}
 }
 
@@ -385,7 +385,7 @@ func (h *Handel) sendBestUpTo(lvl int) {
 		panic(err)
 	}
 
-	h.sendUpdate(h.levels[levelToSend-1])
+	h.sendUpdate(h.levels[levelToSend-1], h.c.CandidateCount)
 }
 
 // findNextLevel loops from lvl+1 to max level to find a level which is not
