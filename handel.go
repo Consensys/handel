@@ -319,13 +319,9 @@ func (h *Handel) checkCompletedLevel(s *sigPair) {
 	if !ok {
 		panic("something's wrong with the store")
 	}
-	fullSize := len(h.levels[s.level-1].nodes)
-	if ms.Cardinality() != fullSize {
+	if !lvl.updateBestSig(ms) {
 		return
 	}
-
-	// completed level !
-	lvl.completed = true
 
 	// go to next level if we already finished this one !
 	// XXX: this should be moved to a handler "checkGoToNextLevel" that checks
