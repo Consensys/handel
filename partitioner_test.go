@@ -415,3 +415,26 @@ func TestPartitionerRandomBin(t *testing.T) {
 	require.True(t, ok)
 	require.NotEqual(t, ids1, ids3)
 }
+
+
+func TestPartitionerPickNextAt(t *testing.T) {
+	n := 32
+	reg := FakeRegistry(n)
+	r := NewRandomBinPartitioner(1, reg, []byte("Hello World"))
+	//r := NewBinPartitioner(1, reg)
+	ids1, res1 := r.PickNextAt(1, 10)
+	require.True(t, res1)
+	require.Equal(t, 1, len(ids1))
+
+	_, res2 := r.PickNextAt(1, 1)
+	require.False(t, res2)
+
+	ids3, res3 := r.PickNextAt(2, 1)
+	require.True(t, res3)
+	require.Equal(t, 1, len(ids3))
+
+	ids4, res4 := r.PickNextAt(2, 1)
+	require.True(t, res4)
+	require.Equal(t, 1, len(ids4))
+	require.NotEqual(t, ids3[0], ids4[0])
+}

@@ -284,8 +284,7 @@ func (h *Handel) sendBestUpTo(lvl int) {
 
 	levelToSend, err := h.findNextLevel(lvl)
 	if err != nil {
-		h.logf("can't sendBestUpTo: %s", err)
-		return
+		panic(err)
 	}
 
 	sp := h.store.Combined(byte(levelToSend) - 1)

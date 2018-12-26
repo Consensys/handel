@@ -186,7 +186,40 @@ func (c *binomialPartitioner) rangeLevelInverse(level int) (min int, max int, er
 
 // PickNext returns a set of un-picked identities at the given level, up to
 // *count* elements. If no identities could have been picked, it returns false.
+func (c *binomialPartitioner) PickNextAt2(level, count int) ([]Identity, bool) {
+	lmin, lmax, err := c.rangeLevel(level)
+	if err != nil {
+		panic(err)
+	}
+
+	minPicked, ok := c.picked[level]
+	if !ok {
+		minPicked = lmin
+	}
+	if minPicked >= lmax {
+		return nil, false
+	}
+
+	last := min(minPicked + count, lmax)
+
+	ids, ok := c.reg.Identities(minPicked, last)
+	if !ok {
+		panic("No identifies left")
+	}
+
+	c.picked[level] = last
+	return ids, true
+}
+
+
+// PickNext returns a set of un-picked identities at the given level, up to
+// *count* elements. If no identities could have been picked, it returns false.
 func (c *binomialPartitioner) PickNextAt(level, count int) ([]Identity, bool) {
+	if level <= 0 {
+		panic("Wrong level number")
+	}
+
+
 	min, max, err := c.rangeLevel(level)
 	if err != nil {
 		return nil, false
@@ -210,6 +243,8 @@ func (c *binomialPartitioner) PickNextAt(level, count int) ([]Identity, bool) {
 	c.picked[level] = max
 	return ids, true
 }
+
+
 
 func (c *binomialPartitioner) Size(level int) (int, error) {
 	min, max, err := c.rangeLevel(level)
@@ -381,6 +416,10 @@ func NewRandomBinPartitioner(id int32, reg Registry, seed []byte) Partitioner {
 // PickNextAt implements the partitioner interface but returns randomized slice
 // of identities. It keeps track of the last seen id in the randomized list.
 func (r *randomBinPartitioner) PickNextAt(level, count int) ([]Identity, bool) {
+	if level <= 0 {
+		panic("Wrong level number")
+	}
+
 	min, max, err := r.rangeLevel(level)
 	if err != nil {
 		panic(err)
@@ -395,6 +434,10 @@ func (r *randomBinPartitioner) PickNextAt(level, count int) ([]Identity, bool) {
 	if !ok {
 		minPicked = 0
 	}
+	if minPicked == max {
+		return nil, false
+	}
+
 
 	seed, ok := r.seeds[level]
 	if !ok {
