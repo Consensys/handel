@@ -126,8 +126,6 @@ type Handel struct {
 	actors []actor
 	// highest level attained by this handel node so far
 	currLevel byte
-	// maximum  level attainable ever for this set of nodes
-	maxLevel byte
 	// best final signature,i.e. at the last level, seen so far
 	best *MultiSignature
 	// channel to exposes multi-signatures to the user
@@ -173,7 +171,6 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 		cons:     c,
 		msg:      msg,
 		sig:      s,
-		maxLevel: byte(log2(r.Size())),
 		out:      make(chan MultiSignature, 100),
 		ticker:	  time.NewTicker(config.UpdatePeriod),
 		levels:   createLevels(r, part),
@@ -259,7 +256,7 @@ func (h *Handel) FinalSignatures() chan MultiSignature {
 // highest-level signature it has to nodes at the new currLevel.
 // method is NOT thread-safe.
 func (h *Handel) startNextLevel() {
-	if h.currLevel >= h.maxLevel {
+	if int(h.currLevel) >= len(h.levels) {
 		// protocol is finished
 		h.logf("protocol finished at level %d", h.currLevel)
 		return
@@ -365,8 +362,8 @@ func (h *Handel) checkCompletedLevel(s *sigPair) {
 	// start the new level (that's the same action being done), but we might be
 	// already at a higher level with incomplete signature so this is where it's
 	// important: to improve over existing levels.
-	if  s.level < h.maxLevel {
-		h.sendBestUpTo(int(s.level))
+	if  lvl.id < len(h.levels) - 1 {
+		h.sendBestUpTo(lvl.id)
 	}
 }
 
