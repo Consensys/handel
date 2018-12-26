@@ -105,7 +105,7 @@ func (h *Handel) sendUpdate(l Level, count int) {
 		panic("THIS SHOULD NOT HAPPEN AT ALL")
 	}
 	newNodes, _ := l.PickNextAt(count)
-	h.logf("sending out signature of lvl %d (size %d) to %v", l.id, sp.BitSet.BitLength(), newNodes)
+	//h.logf("sending out signature of lvl %d (size %d) to %v", l.id, sp.BitSet.BitLength(), newNodes)
 	h.sendTo(l.id, sp, newNodes)
 }
 
@@ -187,7 +187,7 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 		cons:     c,
 		msg:      msg,
 		sig:      s,
-		out:      make(chan MultiSignature, 1000),
+		out:      make(chan MultiSignature, 100000),
 		ticker:	  time.NewTicker(config.UpdatePeriod),
 		levels:   createLevels(r, part),
 	}
@@ -228,8 +228,12 @@ func (h *Handel) NewPacket(p *Packet) {
 	}
 
 	// sends it to processing
-	h.logf("received packet from %d for level %d: %s", p.Origin, p.Level, ms.String())
-	h.proc.Incoming() <- sigPair{origin: p.Origin, level: p.Level, ms: ms}
+	if !h.levels[p.Level-1].completed || true { // todo why is it slower with this test activated?
+		//h.logf("received packet from %d for level %d: %s", p.Origin, p.Level, ms.String())
+		h.proc.Incoming() <- sigPair{origin: p.Origin, level: p.Level, ms: ms}
+	} else {
+		h.logf("skip received packet from %d for level %d: %s", p.Origin, p.Level, ms.String())
+	}
 }
 
 // Start the Handel protocol by sending signatures to peers in the first level,
@@ -278,7 +282,7 @@ func (h *Handel) FinalSignatures() chan MultiSignature {
 // manner, global lock is held during the call to actors.
 func (h *Handel) rangeOnVerified() {
 	for v := range h.proc.Verified() {
-		h.logf("new verified signature received -> %s", v.String())
+		//h.logf("new verified signature received -> %s", v.String())
 		h.store.Store(v.level, v.ms)
 		h.Lock()
 		for _, actor := range h.actors {

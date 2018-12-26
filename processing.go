@@ -52,8 +52,8 @@ func newFifoProcessing(store signatureStore, part Partitioner,
 		store: store,
 		cons:  c,
 		msg:   msg,
-		in:    make(chan sigPair, 100),
-		out:   make(chan sigPair, 100),
+		in:    make(chan sigPair, 10000),
+		out:   make(chan sigPair, 10000),
 	}
 }
 

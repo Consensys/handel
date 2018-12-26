@@ -150,6 +150,9 @@ func (r *replaceStore) Combined(level byte) *MultiSignature {
 }
 
 func (r *replaceStore) store(level byte, ms *MultiSignature) {
+	if r.m[level] != nil && r.m[level].BitSet.Cardinality() > ms.Cardinality(){
+		panic("It doesn't look like a good idea...")
+	}
 	r.m[level] = ms
 	if level > r.highest {
 		r.highest = level
