@@ -390,7 +390,7 @@ func TestIsSet(t *testing.T) {
 }
 
 func TestPartitionerRandomBin(t *testing.T) {
-	n := 17
+	n := 125
 	reg := FakeRegistry(n)
 
 	// try two different seeds
@@ -400,18 +400,24 @@ func TestPartitionerRandomBin(t *testing.T) {
 	r2 := NewRandomBinPartitioner(1, reg, s2)
 	r3 := NewBinPartitioner(1, reg)
 
-	ids1, more := r1.PickNextAt(3, 5)
+	ids1, more := r1.PickNextAt(6, 30)
 	require.True(t, more)
-	ids2, more := r2.PickNextAt(3, 5)
+	require.Equal(t, 30, len(ids1))
+	ids2, more := r2.PickNextAt(6, 30)
+	require.Equal(t, 30, len(ids2))
 	require.True(t, more)
 
-	ids11, more := r3.PickNextAt(3, 5)
+	ids11, more := r3.PickNextAt(6, 30)
+	require.Equal(t, 30, len(ids11))
 	require.True(t, more)
 
+	// Given the size of the array, the probability to
+	//  have exactly the same set is quite low, so this test
+	//  should not be flaky
 	require.NotEqual(t, ids1, ids2)
 	require.NotEqual(t, ids1, ids11)
 
-	ids3, ok := r1.PickNextAt(3, 5)
+	ids3, ok := r1.PickNextAt(6, 30)
 	require.True(t, ok)
 	require.NotEqual(t, ids1, ids3)
 }

@@ -55,7 +55,7 @@ func TestHandelTestNetwork(t *testing.T) {
 		select {
 		case <-test.WaitCompleteSuccess():
 			// all good
-		case <-time.After(1 * time.Second):
+		case <-time.After(100 * time.Second):
 			if scenario.fail {
 				continue
 			}
@@ -274,13 +274,13 @@ func TestHandelCheckFinalSignature(t *testing.T) {
 func TestHandelParsePacket(t *testing.T) {
 	n := 16
 	registry := FakeRegistry(n)
-	ids := registry.(*arrayRegistry).ids
+	//ids := registry.(*arrayRegistry).ids // TODO: The test runs ok even if we comment this lines
 	h := &Handel{
 		c:    DefaultConfig(n),
 		reg:  registry,
 		cons: new(fakeCons),
 		msg:  msg,
-		part: NewBinPartitioner(ids[1].ID(), registry),
+		//part: NewBinPartitioner(ids[1].ID(), registry),
 	}
 	type packetTest struct {
 		*Packet

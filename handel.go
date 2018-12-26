@@ -7,6 +7,68 @@ import (
 	"time"
 )
 
+type Level struct {
+	id int
+	nodes []Identity
+	started bool
+	finished bool
+	pos int
+	best *MultiSignature
+}
+
+func NewLevel(id int, nodes []Identity) *Level {
+	l := &Level{
+		id,
+		nodes,
+		true,
+		false,
+		0,
+		nil,
+	}
+	return l
+}
+
+func createLevels(r Registry, partitioner Partitioner) []Level{
+	lvls := make( []Level, log2(r.Size()))
+
+	for i := 0; i< len(lvls); i += 1 {
+		nodes, _ := partitioner.PickNextAt(i+1, r.Size() + 1)
+		lvls[i] = *NewLevel(i+1, nodes)
+	}
+
+	return lvls
+}
+
+
+func (c *Level) PickNextAt(count int) ([]Identity, bool) {
+	size := min(count, len(c.nodes))
+	res := make( []Identity, size)
+
+	for i:=0; i<size; i++{
+		res[i] = c.nodes[c.pos]
+		c.pos++
+		if c.pos >= len(c.nodes){
+			c.pos = 0
+		}
+	}
+
+	return res, true
+}
+
+func (h *Handel) sendUpdate(l Level) {
+	if !l.started || l.finished {
+		return
+	}
+
+	sp := h.store.Combined(byte(l.id) - 1)
+	if sp == nil {
+		panic("THIS SHOULD NOT HAPPEN AT ALL")
+	}
+	newNodes, _ := l.PickNextAt( h.c.CandidateCount)
+	h.logf("sending out complete signature of lvl %d (size %d) to %v", l.id, sp.BitSet.BitLength(), newNodes)
+	h.sendTo(l.id, sp, newNodes)
+}
+
 // Handel is the principal struct that performs the large scale multi-signature
 // aggregation protocol. Handel is thread-safe.
 type Handel struct {
@@ -25,8 +87,6 @@ type Handel struct {
 	msg []byte
 	// signature over the message
 	sig Signature
-	// partitions the set of nodes at different levels
-	part Partitioner
 	// signature store with different merging/caching strategy
 	store signatureStore
 	// processing of signature - verification strategy
@@ -50,7 +110,10 @@ type Handel struct {
 	threshold int
 	// ticker for the periodic update
 	ticker *time.Ticker
+	// all the levels
+	levels []Level
 }
+
 
 // NewHandel returns a Handle interface that uses the given network and
 // registry. The identity is the public identity of this Handel's node. The
@@ -67,11 +130,13 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 	} else {
 		config = DefaultConfig(r.Size())
 	}
+
+	part := config.NewPartitioner(id.ID(), r)
+
 	h := &Handel{
 		c:        config,
 		net:      n,
 		reg:      r,
-		part:     config.NewPartitioner(id.ID(), r),
 		id:       id,
 		cons:     c,
 		msg:      msg,
@@ -79,6 +144,7 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 		maxLevel: byte(log2(r.Size())),
 		out:      make(chan MultiSignature, 100),
 		ticker:	  time.NewTicker(config.UpdatePeriod),
+		levels:   createLevels(r, part),
 	}
 	h.actors = []actor{
 		actorFunc(h.checkCompletedLevel),
@@ -86,11 +152,11 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 	}
 
 	h.threshold = h.c.ContributionsThreshold(h.reg.Size())
-	h.store = newReplaceStore(h.part, h.c.NewBitSet)
+	h.store = newReplaceStore(part, h.c.NewBitSet)
 	firstBs := h.c.NewBitSet(1)
 	firstBs.Set(0, true)
 	h.store.Store(0, &MultiSignature{BitSet: firstBs, Signature: s})
-	h.proc = newFifoProcessing(h.store, h.part, c, msg)
+	h.proc = newFifoProcessing(h.store, part, c, msg)
 	h.net.RegisterListener(h)
 	return h
 }
@@ -239,10 +305,7 @@ func (h *Handel) checkCompletedLevel(s *sigPair) {
 	if !ok {
 		panic("something's wrong with the store")
 	}
-	fullSize, err := h.part.Size(int(s.level))
-	if err != nil {
-		panic("level should be verified before")
-	}
+	fullSize := len(h.levels[s.level-1].nodes)
 	if ms.Cardinality() != fullSize {
 		return
 	}
@@ -277,8 +340,8 @@ func (h *Handel) checkCompletedLevel(s *sigPair) {
 // signature anymore - this handel node can fetch its full signature already.
 // lvl can be equals to zero!
 func (h *Handel) sendBestUpTo(lvl int) {
-	if lvl < 0 || lvl >= h.part.MaxLevel() {
-		msg := fmt.Sprintf ("skip sending best -> reached maximum level %d/%d", lvl, h.part.MaxLevel())
+	if lvl < 0 || lvl >= len(h.levels) {
+		msg := fmt.Sprintf ("skip sending best -> reached maximum level %d/%d", lvl, len(h.levels))
 		panic(msg)
 	}
 
@@ -287,47 +350,16 @@ func (h *Handel) sendBestUpTo(lvl int) {
 		panic(err)
 	}
 
-	sp := h.store.Combined(byte(levelToSend) - 1)
-	if sp == nil {
-		panic("THIS SHOULD NOT HAPPEN AT ALL")
-	}
-	if levelToSend != lvl+1 {
-		h.logf("\n\n ----+++ skipping levels %d -> %d for %s ---+++\n\n", lvl, levelToSend, sp)
-	}
-	// just checking
-	// XXX Not possible to do this check anymore since two same levels from the
-	// perspective of two nodes may not have the cardinality when not using N as
-	// power of two.
-	/*fullSize, err := h.part.Size(levelToSend)*/
-	//if err != nil {
-	//panic(err)
-	//}
-	//if sp.BitLength() != fullSize {
-	//fmt.Printf("lvl %d -> levelToSend %d, sp.BitLength() %d vs fullSize %d\n", lvl, levelToSend, sp.BitLength(), fullSize)
-	//panic("THIS SHOULD NOT HAPPEN AT ALL #2")
-	/*}*/
-	// TODO: if no new nodes are available, maybe send to same nodes again
-	// in case for full signatures ?
-	newNodes, ok := h.part.PickNextAt(levelToSend, h.c.CandidateCount)
-	if ok {
-		//h.logf("sending complete signature for level %d (size %d) to %d new nodes", sp.level, sp.ms.BitSet.BitLength(), len(newNodes))
-		h.logf("sending out complete signature of lvl %d (actual lvl %d & size %d) to %v", lvl, levelToSend, sp.BitSet.BitLength(), newNodes)
-		h.sendTo(levelToSend, sp, newNodes)
-	} else {
-		h.logf("no new nodes for completed level %d", levelToSend)
-	}
+	h.sendUpdate(h.levels[levelToSend-1])
 }
 
 // findNextLevel loops from lvl+1 to max level to find a level which is not
 // empty and returns that level
 func (h *Handel) findNextLevel(lvl int) (int, error) {
-	for l := lvl + 1; lvl <= h.part.MaxLevel(); l++ {
-		_, err := h.part.Size(l)
-		if err != nil {
-			if err == errEmptyLevel {
-				continue
-			}
-			return 0, err
+	for l := lvl + 1; lvl <= len(h.levels); l++ {
+		fullSize := len(h.levels[l-1].nodes)
+		if fullSize == 0 {
+			continue
 		}
 		return l, nil
 	}
