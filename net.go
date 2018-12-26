@@ -40,6 +40,7 @@ type Packet struct {
 	// Origin is the ID of the sender of this packet.
 	Origin int32
 	// Level indicates for which level this packet is for in the Handel tree.
+	// Values start at 1. There is no level 0.
 	Level byte
 	// MultiSig holds a MultiSignature struct.
 	MultiSig []byte

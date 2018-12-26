@@ -92,8 +92,6 @@ func (s *SyncMaster) handleReady(incoming *syncMessage) {
 		return
 	}
 
-	fmt.Println(incoming.Address, incoming.ID)
-
 	fmt.Print(s.String())
 	if len(s.readys) < s.exp {
 		return

@@ -13,7 +13,7 @@ import (
 // NOTE: implementation MUST be thread-safe.
 type signatureStore interface {
 	// MoreStore uses the same logic as Store but do not store the
-	// multisignature. It returns the (potentially new) multisgnature at
+	// multisignature. It returns the (potentially new) multisignature at
 	// the level, with a boolean indicating if there has been an entry update at
 	// this level. It can be true if there was no multisignature previously, or
 	// if the store has merged multiple multisignature together for example.
@@ -30,12 +30,12 @@ type signatureStore interface {
 	// all levels below and up to the given level parameters. The resulting
 	// bitset size is the size associated to the level+1 candidate set.
 	// Can return nil if no signature stored yet.
-	Combined(level byte) *sigPair
-	// HighestCombined returns the best combined multi-signature possible. The
-	// bitset size is the size associated to the level in the sigpair, which is
-	// the maximum level signature + 1. It can return nil if there is no
-	// signature present so far.
-	Highest() *sigPair
+	Combined(level byte) *MultiSignature
+	/*// HighestCombined returns the best combined multi-signature possible. The*/
+	//// bitset size is the size associated to the level in the sigpair, which is
+	//// the maximum level signature + 1. It can return nil if there is no
+	//// signature present so far.
+	//Highest() *sigPair
 
 	// FullSignature returns the best combined multi-signatures with the bitset
 	// bitlength being the size of the registry
@@ -116,24 +116,24 @@ func (r *replaceStore) FullSignature() *MultiSignature {
 	return r.part.CombineFull(sigs, r.nbs)
 }
 
-func (r *replaceStore) Highest() *sigPair {
-	r.Lock()
-	defer r.Unlock()
-	sigs := make([]*sigPair, 0, len(r.m))
-	var maxLevel byte
-	for k, ms := range r.m {
-		sigs = append(sigs, &sigPair{level: k, ms: ms})
-		if k > maxLevel {
-			maxLevel = k
-		}
-	}
-	if maxLevel < byte(r.part.MaxLevel()) {
-		maxLevel++
-	}
-	return r.part.Combine(sigs, int(maxLevel), r.nbs)
-}
+/*func (r *replaceStore) Highest() *sigPair {*/
+//r.Lock()
+//defer r.Unlock()
+//sigs := make([]*sigPair, 0, len(r.m))
+//var maxLevel byte
+//for k, ms := range r.m {
+//sigs = append(sigs, &sigPair{level: k, ms: ms})
+//if k > maxLevel {
+//maxLevel = k
+//}
+//}
+//if maxLevel < byte(r.part.MaxLevel()) {
+//maxLevel++
+//}
+//return r.part.Combine(sigs, int(maxLevel), r.nbs)
+//}
 
-func (r *replaceStore) Combined(level byte) *sigPair {
+func (r *replaceStore) Combined(level byte) *MultiSignature {
 	r.Lock()
 	defer r.Unlock()
 	sigs := make([]*sigPair, 0, len(r.m))

@@ -7,6 +7,108 @@ import (
 	"time"
 )
 
+type Level struct {
+	id int
+	nodes []Identity
+	started bool
+	completed bool
+	finished bool
+	pos int
+	sent int
+	currentBestSize int
+}
+
+func NewLevel(id int, nodes []Identity) *Level {
+	if id <= 0 {
+		panic("bad value for level id")
+	}
+	l := &Level{
+		id,
+		nodes,
+		id == 1,
+		id == 1, // For the first level, we need only our own sig
+		false,
+		0,
+		0,
+		0,
+	}
+	return l
+}
+
+func createLevels(r Registry, partitioner Partitioner) []Level{
+	lvls := make( []Level, log2(r.Size()))
+
+	for i := 0; i< len(lvls); i += 1 {
+		nodes, _ := partitioner.PickNextAt(i+1, r.Size() + 1)
+		lvls[i] = *NewLevel(i+1, nodes)
+	}
+
+	return lvls
+}
+
+
+func (c *Level) PickNextAt(count int) ([]Identity, bool) {
+	size := min(count, len(c.nodes))
+	res := make( []Identity, size)
+
+	for i:=0; i<size; i++{
+		res[i] = c.nodes[c.pos]
+		c.pos++
+		if c.pos >= len(c.nodes){
+			c.pos = 0
+		}
+	}
+
+	c.sent += size
+	if c.sent >= len(c.nodes) {
+		c.finished = true
+	}
+
+	return res, true
+}
+
+// check if the signature is better than what we have.
+// If it's better, reset the counters of the messages sent.
+// If the level is now completed we return true; if not we return false
+func (l *Level) updateBestSig(sig *MultiSignature) (bool) {
+	if l.completed || l.currentBestSize >= sig.BitSet.Cardinality() {
+		return false
+	}
+
+	l.currentBestSize = sig.Cardinality()
+	l.finished = false
+	l.sent = 0
+
+	// We consider that the best signature for a level could be a complete signature
+	//  from a upper level, so we check for '>=' rather than '=='
+	if l.currentBestSize >= len(l.nodes) {
+		// If we completed the level we start it rather than waiting for
+		//  a timeout condition
+		l.started = true
+	}
+
+	return l.currentBestSize >= len(l.nodes)
+}
+
+// Send our best signature for this level, to 'count' nodes
+// We expect the store to give us as the combined signature:
+// Either a subset of the signature we need for this level
+// Either the complete set of signature for our level
+// Either a complete set of signatures from an upper level
+func (h *Handel) sendUpdate(l Level, count int) {
+	if !l.started || l.finished {
+		return
+	}
+
+	sp := h.store.Combined(byte(l.id) - 1)
+	if sp == nil {
+		panic("THIS SHOULD NOT HAPPEN AT ALL")
+	}
+	newNodes, _ := l.PickNextAt(count)
+	h.logf("sending out signature of lvl %d (size %d) to %v", l.id, sp.BitSet.BitLength(), newNodes)
+	h.sendTo(l.id, sp, newNodes)
+}
+
 // Handel is the principal struct that performs the large scale multi-signature
 // aggregation protocol. Handel is thread-safe.
 type Handel struct {
@@ -25,20 +127,12 @@ type Handel struct {
 	msg []byte
 	// signature over the message
 	sig Signature
-	// partitions the set of nodes at different levels
-	part Partitioner
 	// signature store with different merging/caching strategy
 	store signatureStore
 	// processing of signature - verification strategy
 	proc signatureProcessing
 	// all actors registered that acts on a new signature
 	actors []actor
-	// completed levels, i.e. full signatures at each of these levels
-	completed []byte
-	// highest level attained by this handel node so far
-	currLevel byte
-	// maximum  level attainable ever for this set of nodes
-	maxLevel byte
 	// best final signature,i.e. at the last level, seen so far
 	best *MultiSignature
 	// channel to exposes multi-signatures to the user
@@ -48,7 +142,14 @@ type Handel struct {
 	// constant threshold of contributions required in a ms to be considered
 	// valid
 	threshold int
+	// ticker for the periodic update
+	ticker *time.Ticker
+	// all the levels
+	levels []Level
+	// Start time of Handel
+	startTime time.Time
 }
+
 
 // NewHandel returns a Handle interface that uses the given network and
 // registry. The identity is the public identity of this Handel's node. The
@@ -65,29 +166,41 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 	} else {
 		config = DefaultConfig(r.Size())
 	}
+
+	part := config.NewPartitioner(id.ID(), r)
+	firstBs := config.NewBitSet(1)
+	firstBs.Set(0, true)
+	mySig := &MultiSignature{BitSet: firstBs, Signature: s}
+
 	h := &Handel{
 		c:        config,
 		net:      n,
 		reg:      r,
-		part:     config.NewPartitioner(id.ID(), r),
 		id:       id,
 		cons:     c,
 		msg:      msg,
 		sig:      s,
-		maxLevel: byte(log2(r.Size())),
-		out:      make(chan MultiSignature, 100),
+		out:      make(chan MultiSignature, 1000),
+		ticker:	  time.NewTicker(config.UpdatePeriod),
+		levels:   createLevels(r, part),
 	}
 	h.actors = []actor{
 		actorFunc(h.checkCompletedLevel),
 		actorFunc(h.checkFinalSignature),
 	}
 
+	go func() {
+		for t := range h.ticker.C {
+			h.Lock()
+			h.periodicUpdate(t)
+			h.Unlock()
+		}
+	}()
+
 	h.threshold = h.c.ContributionsThreshold(h.reg.Size())
-	h.store = newReplaceStore(h.part, h.c.NewBitSet)
-	firstBs := h.c.NewBitSet(1)
-	firstBs.Set(0, true)
-	h.store.Store(0, &MultiSignature{BitSet: firstBs, Signature: s})
-	h.proc = newFifoProcessing(h.store, h.part, c, msg)
+	h.store = newReplaceStore(part, h.c.NewBitSet)
+	h.store.Store(0, mySig)
+	h.proc = newFifoProcessing(h.store, part, c, msg)
 	h.net.RegisterListener(h)
 	return h
 }
@@ -103,11 +216,12 @@ func (h *Handel) NewPacket(p *Packet) {
 	}
 	ms, err := h.parsePacket(p)
 	if err != nil {
-		h.logf(err.Error())
+		h.logf("invalid packet: %s", err)
+		return
 	}
 
 	// sends it to processing
-	//h.logf("received packet from %d for level %d: %s", p.Origin, p.Level, ms.String())
+	h.logf("received packet from %d for level %d: %s", p.Origin, p.Level, ms.String())
 	h.proc.Incoming() <- sigPair{origin: p.Origin, level: p.Level, ms: ms}
 }
 
@@ -116,18 +230,32 @@ func (h *Handel) NewPacket(p *Packet) {
 func (h *Handel) Start() {
 	h.Lock()
 	defer h.Unlock()
+	h.startTime = time.Now()
 	go h.proc.Start()
 	go h.rangeOnVerified()
-	h.startNextLevel()
+	h.periodicUpdate(h.startTime)
 }
 
 // Stop the Handel protocol and all sub routines
 func (h *Handel) Stop() {
 	h.Lock()
 	defer h.Unlock()
+	h.ticker.Stop()
 	h.proc.Stop()
 	h.done = true
 	close(h.out)
+}
+
+func (h *Handel) periodicUpdate(t time.Time) {
+	msSinceStart := int(t.Sub(h.startTime).Seconds() * 1000)
+
+	for _, lvl := range h.levels {
+		// Check if the level is in timeout, and update it if necessary
+		if !lvl.started && msSinceStart >= lvl.id * int(h.c.LevelTimeout.Seconds() * 1000){
+			lvl.started = true
+		}
+		h.sendUpdate(lvl, 1)
+	}
 }
 
 // FinalSignatures returns the channel over which final multi-signatures
@@ -135,23 +263,6 @@ func (h *Handel) Stop() {
 // contributions, as defined in the config.
 func (h *Handel) FinalSignatures() chan MultiSignature {
 	return h.out
-}
-
-// startNextLevel increase the currLevel counter and sends its best
-// highest-level signature it has to nodes at the new currLevel.
-// method is NOT thread-safe.
-func (h *Handel) startNextLevel() {
-	if h.currLevel >= h.maxLevel {
-		// protocol is finished
-		h.logf("protocol finished at level %d", h.currLevel)
-		return
-	}
-	h.sendBestToLevel(int(h.currLevel))
-	/*// take the best we have so far at the max level we are at*/
-	//sp := h.store.Combined(h.currLevel)
-	//// increase the max level we are at
-	h.currLevel++
-	h.logf("Passing to a new level %d -> %d", h.currLevel-1, h.currLevel)
 }
 
 // rangeOnVerified continuously listens on the output channel of the signature
@@ -209,89 +320,39 @@ func (h *Handel) checkFinalSignature(s *sigPair) {
 		return
 	}
 
-	new := sig.Cardinality()
+	newCard := sig.Cardinality()
 	local := h.best.Cardinality()
-	if new > local {
+	if newCard > local {
 		newBest(sig)
 	}
 }
 
-// checNewLevel looks if the signature completes its respective level. If it
-// does, handel sends it out to new peers for this level if possible.
+// When we have a new signature, multiple levels may be impacted. The store
+//  is in charge of selecting the best signature for a level, so we will
+//  call it for all levels.
+// As well, if a level is completed, all the previous levels
+//  are completed as well. For these reasons, we always check
+//  all the levels, starting by the last one, and we:
+//  1) Update the signature
+//  2) If the level is now completed, we do a massive update
+// Once we find a level that was already completed we stop.
 func (h *Handel) checkCompletedLevel(s *sigPair) {
-	if h.isCompleted(s.level) {
-		return
-	}
-
-	// XXX IIF completed signatures for higher level then send this higher level
-	// instead
-	ms, ok := h.store.Best(s.level)
-	if !ok {
-		panic("something's wrong with the store")
-	}
-	fullSize, err := h.part.Size(int(s.level))
-	if err != nil {
-		panic("level should be verified before")
-	}
-	if ms.Cardinality() != fullSize {
-		return
-	}
-
-	// completed level !
-	h.markCompleted(s.level)
-
-	// go to next level if we already finished this one !
-	// XXX: this should be moved to a handler "checkGoToNextLevel" that checks
-	// if the combined signature has enough cardinality to pass to higher levels
-	if s.level == h.currLevel {
-		h.startNextLevel()
-		return
-	}
-
-	// Now we check from 1st level to this level if we have them all completed.
-	// if it is the case, then we create the combined signature of all these
-	// levels, and send that up to the next. This part is redundant only if we
-	// start the new level (that's the same action being done), but we might be
-	// already at a higher level with incomplete signature so this is where it's
-	// important: to improve over existing levels.
-	h.sendBestToLevel(int(s.level))
-}
-
-// sendBestToLevel computes the best signature possible at the given level, with
-// the bitset's size corresponding to the given level, and sends it out to new
-// nodes at the level.  This call may not send signatures if the level given is
-// already at the maximum level so it's not possible to send a `Combined`
-// signature anymore - this handel node can fetch its full signature already
-func (h *Handel) sendBestToLevel(lvl int) {
-	if lvl+1 > h.part.MaxLevel() {
-		h.logf("skip sending best -> reached maximum level ")
-		return
-	}
-	level := byte(lvl)
-	sp := h.store.Combined(level)
-	if sp == nil {
-		panic("THIS SHOULD NOT HAPPEN AT ALL")
-	}
-	fullSize, err := h.part.Size(int(level + 1))
-	if err != nil {
-		panic(err)
-	}
-	if sp.ms.BitLength() != fullSize {
-		panic("THIS SHOULD NOT HAPPEN AT ALL #2")
-	}
-	// TODO: if no new nodes are available, maybe send to same nodes again
-	// in case for full signatures ?
-	newNodes, ok := h.part.PickNextAt(int(sp.level), h.c.CandidateCount)
-	if ok {
-		//h.logf("sending complete signature for level %d (size %d) to %d new nodes", sp.level, sp.ms.BitSet.BitLength(), len(newNodes))
-		h.logf("sending out complete signature at lvl %d (size %d) to %v", sp.level, sp.ms.BitSet.BitLength(), newNodes)
-		h.sendTo(sp.level, sp.ms, newNodes)
-	} else {
-		h.logf("no new nodes for completed level %d", sp.level)
+	for i := len(h.levels) - 1; i > 0; i-- {
+		lvl := h.levels[i]
+		if lvl.completed {
+			return
+		}
+		ms, ok := h.store.Best(byte(lvl.id))
+		if !ok {
+			continue
+		}
+		if lvl.updateBestSig(ms) {
+			h.sendUpdate(lvl, h.c.CandidateCount)
+		}
 	}
 }
 
-func (h *Handel) sendTo(lvl byte, ms *MultiSignature, ids []Identity) {
+func (h *Handel) sendTo(lvl int, ms *MultiSignature, ids []Identity) {
 	buff, err := ms.MarshalBinary()
 	if err != nil {
 		h.logf("error marshalling multi-signature: %s", err)
@@ -300,7 +361,7 @@ func (h *Handel) sendTo(lvl byte, ms *MultiSignature, ids []Identity) {
 
 	packet := &Packet{
 		Origin:   h.id.ID(),
-		Level:    lvl,
+		Level:    byte(lvl),
 		MultiSig: buff,
 	}
 	h.net.Send(ids, packet)
@@ -312,11 +373,14 @@ func (h *Handel) sendTo(lvl byte, ms *MultiSignature, ids []Identity) {
 // internal use.
 func (h *Handel) parsePacket(p *Packet) (*MultiSignature, error) {
 	if p.Origin >= int32(h.reg.Size()) {
-		return nil, errors.New("handel: packet's origin out of range")
+		return nil, errors.New("packet's origin out of range")
 	}
 
-	if int(p.Level) < 1 || int(p.Level) > log2(h.reg.Size()) {
-		return nil, errors.New("handel: packet's level out of range")
+	lvl := int(p.Level)
+	if lvl  < 1 || lvl > log2(h.reg.Size()) {
+		msg := fmt.Sprintf("packet's level out of range, level received=%d, max=%d, nodes count=%d",
+			lvl, log2(h.reg.Size()), h.reg.Size())
+		return nil, errors.New(msg)
 	}
 
 	ms := new(MultiSignature)
@@ -324,26 +388,11 @@ func (h *Handel) parsePacket(p *Packet) (*MultiSignature, error) {
 	return ms, err
 }
 
-// isCompleted returns true if the given level has already been completed, i.e.
-// is in the list of completed levels.
-func (h *Handel) isCompleted(level byte) bool {
-	for _, l := range h.completed {
-		if l == level {
-			return true
-		}
-	}
-	return false
-}
-
-func (h *Handel) markCompleted(level byte) {
-	h.completed = append(h.completed, level)
-}
-
 func (h *Handel) logf(str string, args ...interface{}) {
 	now := time.Now()
-	time := fmt.Sprintf("%02d:%02d:%02d", now.Hour(),
+	timeSpent := fmt.Sprintf("%02d:%02d:%02d", now.Hour(),
 		now.Minute(),
 		now.Second())
-	idArg := []interface{}{time, h.id.ID()}
+	idArg := []interface{}{timeSpent, h.id.ID()}
 	logf("%s: handel %d: "+str, append(idArg, args...)...)
 }

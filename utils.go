@@ -10,6 +10,14 @@ func log2(size int) int {
 	return int(math.Ceil(r))
 }
 
+func min(x, y int) int {
+	if x < y {
+		return x
+	}
+	return y
+}
+
+
 func pow2(n int) int {
 	return int(math.Pow(2, float64(n)))
 }

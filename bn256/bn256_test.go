@@ -10,7 +10,7 @@ import (
 )
 
 func TestHandel(t *testing.T) {
-	n := 32
+	n := 69
 	msg := []byte("Peaches and Cream")
 	secretKeys := make([]h.SecretKey, n)
 	pubKeys := make([]h.PublicKey, n)
@@ -22,12 +22,14 @@ func TestHandel(t *testing.T) {
 		pubKeys[i] = pub
 	}
 	test := h.NewTest(secretKeys, pubKeys, cons, msg)
+	//test.SetOfflineNodes(15, 25, 8)
+	//test.SetThreshold(n - 4)
 	test.Start()
 	defer test.Stop()
 
 	select {
 	case <-test.WaitCompleteSuccess():
-	case <-time.After(1 * time.Second):
+	case <-time.After(5 * time.Second):
 		t.FailNow()
 	}
 }
