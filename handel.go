@@ -14,10 +14,11 @@ type Level struct {
 	completed bool
 	finished bool
 	pos int
-	best *MultiSignature
+	sent int
+	currentBestSize int
 }
 
-func NewLevel(id int, nodes []Identity, mySig *MultiSignature) *Level {
+func NewLevel(id int, nodes []Identity) *Level {
 	if id <= 0 {
 		panic("bad value for level id")
 	}
@@ -28,17 +29,18 @@ func NewLevel(id int, nodes []Identity, mySig *MultiSignature) *Level {
 		false, // For the first level, we need only our own sig
 		false,
 		0,
-		nil, // When we start we only have our own signature
+		0,
+		0,
 	}
 	return l
 }
 
-func createLevels(mySig *MultiSignature, r Registry, partitioner Partitioner) []Level{
+func createLevels(r Registry, partitioner Partitioner) []Level{
 	lvls := make( []Level, log2(r.Size()))
 
 	for i := 0; i< len(lvls); i += 1 {
 		nodes, _ := partitioner.PickNextAt(i+1, r.Size() + 1)
-		lvls[i] = *NewLevel(i+1, nodes, mySig)
+		lvls[i] = *NewLevel(i+1, nodes)
 	}
 
 	return lvls
@@ -57,20 +59,31 @@ func (c *Level) PickNextAt(count int) ([]Identity, bool) {
 		}
 	}
 
+	c.sent += size
+	if c.sent >= len(c.nodes) {
+		c.finished = true
+	}
+
 	return res, true
 }
 
 func (l *Level) updateBestSig(sig *MultiSignature) (bool) {
-	if l.completed {
-		return false
+	if sig.BitSet.Cardinality() > len(l.nodes) {
+		msg := fmt.Sprintf ("Too many signatures for this level: lvl=%d, nodes=%d, sigs=%d",
+			l.id, len(l.nodes), sig.BitSet.Cardinality())
+		panic(msg)
 	}
-	if l.best != nil && l.best.BitSet.Cardinality() <= sig.BitSet.Cardinality() {
+	if l.currentBestSize >= sig.BitSet.Cardinality() {
 		return false
 	}
 
-	l.best = sig
+	// We update our best sig. It means has well that
+	//  we will reset our counter of sent messages
+	l.currentBestSize = sig.Cardinality()
+	l.finished = false
+	l.sent = 0
 
-	return l.best.BitSet.Cardinality() == len(l.nodes)
+	return l.currentBestSize == len(l.nodes)
 }
 
 func (h *Handel) sendUpdate(l Level) {
@@ -82,8 +95,8 @@ func (h *Handel) sendUpdate(l Level) {
 	if sp == nil {
 		panic("THIS SHOULD NOT HAPPEN AT ALL")
 	}
-	newNodes, _ := l.PickNextAt( h.c.CandidateCount)
-	h.logf("sending out complete signature of lvl %d (size %d) to %v", l.id, sp.BitSet.BitLength(), newNodes)
+	newNodes, _ := l.PickNextAt(h.c.CandidateCount)
+	h.logf("sending out signature of lvl %d (size %d) to %v", l.id, sp.BitSet.BitLength(), newNodes)
 	h.sendTo(l.id, sp, newNodes)
 }
 
@@ -163,12 +176,21 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 		maxLevel: byte(log2(r.Size())),
 		out:      make(chan MultiSignature, 100),
 		ticker:	  time.NewTicker(config.UpdatePeriod),
-		levels:   createLevels(mySig, r, part),
+		levels:   createLevels(r, part),
 	}
 	h.actors = []actor{
 		actorFunc(h.checkCompletedLevel),
 		actorFunc(h.checkFinalSignature),
 	}
+
+	go func() {
+		for t := range h.ticker.C {
+			if false {
+				print(t)
+			}
+			h.periodicUpdate()
+		}
+	}()
 
 	h.threshold = h.c.ContributionsThreshold(h.reg.Size())
 	h.store = newReplaceStore(part, h.c.NewBitSet)
@@ -212,6 +234,7 @@ func (h *Handel) Start() {
 func (h *Handel) Stop() {
 	h.Lock()
 	defer h.Unlock()
+	h.ticker.Stop()
 	h.proc.Stop()
 	h.done = true
 	close(h.out)
@@ -220,7 +243,9 @@ func (h *Handel) Stop() {
 func (h *Handel) periodicUpdate() {
 	h.Lock()
 	defer h.Unlock()
-
+	for _, lvl := range h.levels {
+		h.sendUpdate(lvl)
+	}
 }
 
 // FinalSignatures returns the channel over which final multi-signatures
