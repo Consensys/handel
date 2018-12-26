@@ -172,7 +172,7 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 		cons:     c,
 		msg:      msg,
 		sig:      s,
-		out:      make(chan MultiSignature, 100),
+		out:      make(chan MultiSignature, 1000),
 		ticker:	  time.NewTicker(config.UpdatePeriod),
 		levels:   createLevels(r, part),
 	}
@@ -242,6 +242,7 @@ func (h *Handel) Stop() {
 
 func (h *Handel) periodicUpdate() {
 	for _, lvl := range h.levels {
+
 		h.sendUpdate(lvl, 1)
 	}
 }

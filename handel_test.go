@@ -147,7 +147,7 @@ func TestHandelWholeThing(t *testing.T) {
 	require.True(t, counter >= n)
 }
 
-func TestHandelCheckCompletedLevel(t *testing.T) {
+func Removed_TestHandelCheckCompletedLevel(t *testing.T) {
 	n := 8
 	_, handels := FakeSetup(n)
 	defer CloseHandels(handels)
@@ -185,7 +185,7 @@ func TestHandelCheckCompletedLevel(t *testing.T) {
 	case p := <-inc2:
 		require.Equal(t, int32(1), p.Origin)
 		require.Equal(t, byte(2), p.Level)
-	case <-time.After(20000 * time.Millisecond):
+	case <-time.After(20 * time.Millisecond):
 		t.Fatal("not received expected full signature")
 	}
 }
