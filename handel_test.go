@@ -147,7 +147,7 @@ func TestHandelWholeThing(t *testing.T) {
 	require.True(t, counter >= n)
 }
 
-func TestHandelcheckCompletedLevel(t *testing.T) {
+func TestHandelCheckCompletedLevel(t *testing.T) {
 	n := 8
 	_, handels := FakeSetup(n)
 	defer CloseHandels(handels)
@@ -190,7 +190,7 @@ func TestHandelcheckCompletedLevel(t *testing.T) {
 	}
 }
 
-func TestHandelcheckFinalSignature(t *testing.T) {
+func TestHandelCheckFinalSignature(t *testing.T) {
 	n := 16
 
 	type checkFinalTest struct {

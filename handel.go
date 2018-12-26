@@ -48,6 +48,8 @@ type Handel struct {
 	// constant threshold of contributions required in a ms to be considered
 	// valid
 	threshold int
+	// ticker for the periodic update
+	ticker *time.Ticker
 }
 
 // NewHandel returns a Handle interface that uses the given network and
@@ -76,6 +78,7 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 		sig:      s,
 		maxLevel: byte(log2(r.Size())),
 		out:      make(chan MultiSignature, 100),
+		ticker:	  time.NewTicker(config.UpdatePeriod),
 	}
 	h.actors = []actor{
 		actorFunc(h.checkCompletedLevel),
@@ -129,6 +132,13 @@ func (h *Handel) Stop() {
 	h.proc.Stop()
 	h.done = true
 	close(h.out)
+}
+
+
+func (h *Handel) periodicUpdate() {
+	h.Lock()
+	defer h.Unlock()
+
 }
 
 // FinalSignatures returns the channel over which final multi-signatures
@@ -216,7 +226,7 @@ func (h *Handel) checkFinalSignature(s *sigPair) {
 	}
 }
 
-// checNewLevel looks if the signature completes its respective level. If it
+// checkCompletedLevel looks if the signature completes its respective level. If it
 // does, handel sends it out to new peers for this level if possible.
 func (h *Handel) checkCompletedLevel(s *sigPair) {
 	if h.isCompleted(s.level) {
@@ -254,7 +264,9 @@ func (h *Handel) checkCompletedLevel(s *sigPair) {
 	// start the new level (that's the same action being done), but we might be
 	// already at a higher level with incomplete signature so this is where it's
 	// important: to improve over existing levels.
-	h.sendBestUpTo(int(s.level))
+	if  s.level < h.maxLevel {
+		h.sendBestUpTo(int(s.level))
+	}
 }
 
 // sendBestUpTo computes the best signature possible at the given level, and
@@ -263,10 +275,11 @@ func (h *Handel) checkCompletedLevel(s *sigPair) {
 // is not a power of two).  This call may not send signatures if the level given
 // is already at the maximum level so it's not possible to send a `Combined`
 // signature anymore - this handel node can fetch its full signature already.
+// lvl can be equals to zero!
 func (h *Handel) sendBestUpTo(lvl int) {
-	if lvl > h.part.MaxLevel() {
-		h.logf("skip sending best -> reached maximum level %d/%d", lvl, h.part.MaxLevel())
-		return
+	if lvl < 0 || lvl >= h.part.MaxLevel() {
+		msg := fmt.Sprintf ("skip sending best -> reached maximum level %d/%d", lvl, h.part.MaxLevel())
+		panic(msg)
 	}
 
 	levelToSend, err := h.findNextLevel(lvl)
@@ -343,11 +356,14 @@ func (h *Handel) sendTo(lvl int, ms *MultiSignature, ids []Identity) {
 // internal use.
 func (h *Handel) parsePacket(p *Packet) (*MultiSignature, error) {
 	if p.Origin >= int32(h.reg.Size()) {
-		return nil, errors.New("handel: packet's origin out of range")
+		return nil, errors.New("packet's origin out of range")
 	}
 
-	if int(p.Level) < 1 || int(p.Level) > log2(h.reg.Size()) {
-		return nil, errors.New("handel: packet's level out of range")
+	lvl := int(p.Level)
+	if lvl  < 1 || lvl > log2(h.reg.Size()) {
+		msg := fmt.Sprintf("packet's level out of range, level received=%d, max=%d, nodes count=%d",
+			lvl, log2(h.reg.Size()), h.reg.Size())
+		return nil, errors.New(msg)
 	}
 
 	ms := new(MultiSignature)

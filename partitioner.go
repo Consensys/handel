@@ -26,6 +26,8 @@ type Partitioner interface {
 	// PickNextAt returns up to *count* Identity situated at this level. If all
 	// identities have been picked already, or if no identities are found at
 	// this level, it returns false.
+	// TODO: it should not return false but go back to the beginning of the list
+	// TODO: it should return false only if all these nodes have been sent the same signature
 	PickNextAt(level, count int) ([]Identity, bool)
 	// Combine takes a list of signature paired with their level and returns all
 	// signatures correctly combined according to the partition strategy.
@@ -381,7 +383,7 @@ func NewRandomBinPartitioner(id int32, reg Registry, seed []byte) Partitioner {
 func (r *randomBinPartitioner) PickNextAt(level, count int) ([]Identity, bool) {
 	min, max, err := r.rangeLevel(level)
 	if err != nil {
-		return nil, false
+		panic(err)
 	}
 
 	cardinality := max - min
@@ -396,8 +398,7 @@ func (r *randomBinPartitioner) PickNextAt(level, count int) ([]Identity, bool) {
 
 	seed, ok := r.seeds[level]
 	if !ok {
-		logf("random bin. tree: seed not found - internal error")
-		return nil, false
+		panic("random bin. tree: seed not found - internal error")
 	}
 
 	upTo := minPicked + count
