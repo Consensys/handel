@@ -17,25 +17,28 @@ type Level struct {
 	best *MultiSignature
 }
 
-func NewLevel(id int, nodes []Identity) *Level {
+func NewLevel(id int, nodes []Identity, mySig *MultiSignature) *Level {
+	if id <= 0 {
+		panic("bad value for level id")
+	}
 	l := &Level{
 		id,
 		nodes,
 		true,
-		false,
+		false, // For the first level, we need only our own sig
 		false,
 		0,
-		nil,
+		nil, // When we start we only have our own signature
 	}
 	return l
 }
 
-func createLevels(r Registry, partitioner Partitioner) []Level{
+func createLevels(mySig *MultiSignature, r Registry, partitioner Partitioner) []Level{
 	lvls := make( []Level, log2(r.Size()))
 
 	for i := 0; i< len(lvls); i += 1 {
 		nodes, _ := partitioner.PickNextAt(i+1, r.Size() + 1)
-		lvls[i] = *NewLevel(i+1, nodes)
+		lvls[i] = *NewLevel(i+1, nodes, mySig)
 	}
 
 	return lvls
@@ -145,6 +148,9 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 	}
 
 	part := config.NewPartitioner(id.ID(), r)
+	firstBs := config.NewBitSet(1)
+	firstBs.Set(0, true)
+	mySig := &MultiSignature{BitSet: firstBs, Signature: s}
 
 	h := &Handel{
 		c:        config,
@@ -157,7 +163,7 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 		maxLevel: byte(log2(r.Size())),
 		out:      make(chan MultiSignature, 100),
 		ticker:	  time.NewTicker(config.UpdatePeriod),
-		levels:   createLevels(r, part),
+		levels:   createLevels(mySig, r, part),
 	}
 	h.actors = []actor{
 		actorFunc(h.checkCompletedLevel),
@@ -166,9 +172,7 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 
 	h.threshold = h.c.ContributionsThreshold(h.reg.Size())
 	h.store = newReplaceStore(part, h.c.NewBitSet)
-	firstBs := h.c.NewBitSet(1)
-	firstBs.Set(0, true)
-	h.store.Store(0, &MultiSignature{BitSet: firstBs, Signature: s})
+	h.store.Store(0, mySig)
 	h.proc = newFifoProcessing(h.store, part, c, msg)
 	h.net.RegisterListener(h)
 	return h
@@ -212,7 +216,6 @@ func (h *Handel) Stop() {
 	h.done = true
 	close(h.out)
 }
-
 
 func (h *Handel) periodicUpdate() {
 	h.Lock()
@@ -310,7 +313,7 @@ func (h *Handel) checkFinalSignature(s *sigPair) {
 func (h *Handel) checkCompletedLevel(s *sigPair) {
 	lvl := h.levels[s.level-1]
 	if lvl.completed {
-		return
+		return // fast exit
 	}
 
 	// XXX IIF completed signatures for higher level then send this higher level
