@@ -10,6 +10,8 @@ type Config struct {
 	NbOfInstances int
 	MasterTimeOut int
 	SSHUser       string
+	TargetSystem  string
+	TargetArch    string
 }
 
 func LoadConfig(path string) *Config {

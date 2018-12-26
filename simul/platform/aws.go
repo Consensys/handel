@@ -15,9 +15,6 @@ import (
 
 type awsPlatform struct {
 	aws           aws.Manager
-	targetSystem  string
-	targetArch    string
-	user          string
 	pemBytes      []byte
 	master        aws.NodeController
 	masterAddr    string
@@ -25,36 +22,26 @@ type awsPlatform struct {
 	masterCMDS    aws.MasterCommands
 	slaveCMDS     aws.SlaveCommands
 	cons          lib.Constructor
+	awsConfig     *aws.Config
 }
 
-//TODO this options should be placed in separate config
-const masterTimeOut = 4
-const instances = 8
-
-// cross-compilation option
-const targetSystem = "linux"
-const targetArch = "amd64"
-const user = "ubuntu"
-
 // NewAws creates AWS Platform
-func NewAws(aws aws.Manager, pemFile string) Platform {
-	pemBytes, err := ioutil.ReadFile(pemFile)
+func NewAws(aws aws.Manager, awsConfig *aws.Config) Platform {
+	pemBytes, err := ioutil.ReadFile(awsConfig.PemFile)
 	if err != nil {
 		panic(err)
 	}
 	return &awsPlatform{aws: aws,
-		targetSystem: targetSystem,
-		targetArch:   targetArch,
-		user:         user,
-		pemBytes:     pemBytes,
+		pemBytes:  pemBytes,
+		awsConfig: awsConfig,
 	}
 }
 
 func (a *awsPlatform) pack(path string, c *lib.Config, binPath string) error {
 	// Compile binaries
 	//GOOS=linux GOARCH=amd64 go build
-	os.Setenv("GOOS", a.targetSystem)
-	os.Setenv("GOARCH", a.targetArch)
+	os.Setenv("GOOS", a.awsConfig.TargetSystem)
+	os.Setenv("GOARCH", a.awsConfig.TargetArch)
 	cmd := NewCommand("go", "build", "-o", binPath, path)
 
 	if err := cmd.Run(); err != nil {
@@ -100,7 +87,7 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 	masterInstance.Nodes = []aws.NodeAndSync{nodeAndSync}
 
 	//Create master controller
-	master, err := aws.NewSSHNodeController(*masterInstance.PublicIP, a.pemBytes, a.user)
+	master, err := aws.NewSSHNodeController(*masterInstance.PublicIP, a.pemBytes, a.awsConfig.SSHUser)
 	if err != nil {
 		return err
 	}
@@ -126,7 +113,7 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 	}
 
 	fmt.Println("[+] Transfering files to Master:", CMDS.MasterBinPath, CMDS.SlaveBinPath, CMDS.ConfPath)
-	//master.CopyFiles(CMDS.MasterBinPath, CMDS.SlaveBinPath, CMDS.ConfPath)
+	master.CopyFiles(CMDS.MasterBinPath, CMDS.SlaveBinPath, CMDS.ConfPath)
 	configure := a.masterCMDS.Configure()
 
 	//*** Configure Master
@@ -160,7 +147,7 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 
 		go func(slave aws.Instance) {
 
-			slaveNodeController, err := aws.NewSSHNodeController(*slave.PublicIP, a.pemBytes, a.user)
+			slaveNodeController, err := aws.NewSSHNodeController(*slave.PublicIP, a.pemBytes, a.awsConfig.SSHUser)
 			if err != nil {
 				panic(err)
 			}
@@ -188,21 +175,13 @@ func configureSlave(slaveNodeController aws.NodeController, slaveCmds map[int]st
 }
 
 func (a *awsPlatform) Cleanup() error {
-	//a.master.Close()
-	return nil //a.aws.StopInstances()
+	a.master.Close()
+	return a.aws.StopInstances()
 }
 
 func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
-
-	/*
-		nbOfInstances := len(a.allSlaveNodes)
-		if r.Nodes > nbOfInstances {
-			msg := fmt.Sprintf(`Not enough EC2 instances, number of nodes to sart: %d
-		               , number of avaliable EC2 instances: %d`, r.Nodes, nbOfInstances)
-			return errors.New(msg)
-		}*/
 	nodePerInstances := r.Nodes
-	slaveNodes := a.allSlaveNodes[0:instances]
+	slaveNodes := a.allSlaveNodes[0:a.awsConfig.NbOfInstances]
 	aws.UpdateInstances(slaveNodes, nodePerInstances, a.cons)
 
 	writeRegFile(slaveNodes, a.masterCMDS.RegPath)
@@ -221,7 +200,7 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 		}
 	}
 
-	masterStart := a.masterCMDS.Start(a.masterAddr, instances*nodePerInstances, masterTimeOut)
+	masterStart := a.masterCMDS.Start(a.masterAddr, a.awsConfig.NbOfInstances*nodePerInstances, a.awsConfig.MasterTimeOut)
 	fmt.Println("       Exec:", len(shareRegistryFile)+1, masterStart)
 	a.master.Start(masterStart)
 
@@ -242,7 +221,7 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 
 func (a *awsPlatform) startSlave(inst aws.Instance, idx int) {
 	cpyFiles := a.slaveCMDS.CopyRegistryFileFromSharedDirToLocalStorage()
-	slaveController, err := aws.NewSSHNodeController(*inst.PublicIP, a.pemBytes, a.user)
+	slaveController, err := aws.NewSSHNodeController(*inst.PublicIP, a.pemBytes, a.awsConfig.SSHUser)
 
 	if err != nil {
 		panic(err)
