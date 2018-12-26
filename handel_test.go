@@ -1,6 +1,7 @@
 package handel
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -55,6 +56,7 @@ func TestHandelTestNetwork(t *testing.T) {
 		select {
 		case <-test.WaitCompleteSuccess():
 			// all good
+			fmt.Printf("*** sent=%d, rcv=%d\n", test.handels[0].stats.msgSentCt, test.handels[0].stats.msgRcvCt)
 		case <-time.After(100 * time.Second):
 			if scenario.fail {
 				continue

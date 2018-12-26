@@ -109,9 +109,16 @@ func (h *Handel) sendUpdate(l Level, count int) {
 	h.sendTo(l.id, sp, newNodes)
 }
 
+
+type HStats struct {
+	msgSentCt int
+	msgRcvCt  int
+}
+
 // Handel is the principal struct that performs the large scale multi-signature
 // aggregation protocol. Handel is thread-safe.
 type Handel struct {
+	stats HStats
 	sync.Mutex
 	// Config holding parameters to Handel
 	c *Config
@@ -199,7 +206,7 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 
 	h.threshold = h.c.ContributionsThreshold(h.reg.Size())
 	h.store = newReplaceStore(part, h.c.NewBitSet)
-	h.store.Store(0, mySig)
+	h.store.Store(0, mySig) // TODO: 0, not 1?
 	h.proc = newFifoProcessing(h.store, part, c, msg)
 	h.net.RegisterListener(h)
 	return h
@@ -353,6 +360,8 @@ func (h *Handel) checkCompletedLevel(s *sigPair) {
 }
 
 func (h *Handel) sendTo(lvl int, ms *MultiSignature, ids []Identity) {
+	h.stats.msgSentCt++
+
 	buff, err := ms.MarshalBinary()
 	if err != nil {
 		h.logf("error marshalling multi-signature: %s", err)
@@ -372,6 +381,8 @@ func (h *Handel) sendTo(lvl int, ms *MultiSignature, ids []Identity) {
 // out of range level.  This method is NOT thread-safe and only meant for
 // internal use.
 func (h *Handel) parsePacket(p *Packet) (*MultiSignature, error) {
+	h.stats.msgRcvCt++
+
 	if p.Origin >= int32(h.reg.Size()) {
 		return nil, errors.New("packet's origin out of range")
 	}
