@@ -6,7 +6,6 @@ package platform
 import (
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 
 	"github.com/ConsenSys/handel/simul/lib"
@@ -53,25 +52,18 @@ type Platform interface {
 var localhost = "localhost"
 var amazonAWS = "aws"
 
-//var regions = []string{"us-west-2"}
-
 // NewPlatform returns the appropriate platform [deterlab,localhost]
 // and setups the Cleanup call in case of a signal interruption
-func NewPlatform(t string, parameters map[string]string) Platform {
+func NewPlatform(t string, configPath string) Platform {
 	var p Platform
 	switch t {
 	case localhost:
 		p = NewLocalhost()
 	case amazonAWS:
-		pemFile, ok := parameters["pemFile"]
-		if !ok {
-			panic("pemFile file is missing")
-		}
-		regions := parameters["regions"]
-		regArray := strings.Split(regions, " ")
-		awsManager := aws.NewMultiRegionAWSManager(regArray)
+		config := aws.LoadConfig(configPath)
+		awsManager := aws.NewMultiRegionAWSManager(config.Regions)
 
-		p = NewAws(awsManager, pemFile)
+		p = NewAws(awsManager, config)
 
 	default:
 		panic("no platform of this name " + t)

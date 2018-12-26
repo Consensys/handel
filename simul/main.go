@@ -23,8 +23,8 @@ import (
 var configFlag = flag.String("config", "", "TOML encoded config file")
 var platformFlag = flag.String("platform", "", "name of the platform to run on")
 var runTimeout = flag.Duration("run-timeout", 2*time.Minute, "timeout of a given run")
-var pemFile = flag.String("pemFile", "", "location of the .pem file for EC2 ssh")
-var regions = flag.String("regions", "us-west-2", "list of AWS regions, for example -regions \"reg1 reg2 reg3\" ")
+
+var awsConfigPath = flag.String("awsConfig", "", "TOML encoded config file AWS specyfic config")
 
 var resultsDir string
 
@@ -38,12 +38,8 @@ func init() {
 func main() {
 	flag.Parse()
 
-	parameters := make(map[string]string)
-	parameters["pemFile"] = *pemFile
-	parameters["regions"] = *regions
-	// load configs
 	c := lib.LoadConfig(*configFlag)
-	plat := platform.NewPlatform(*platformFlag, parameters)
+	plat := platform.NewPlatform(*platformFlag, *awsConfigPath)
 	if err := plat.Configure(c); err != nil {
 		panic(err)
 	}

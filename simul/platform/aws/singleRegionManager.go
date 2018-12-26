@@ -73,14 +73,20 @@ func (a *singleRegionAWSManager) RefreshInstances() ([]Instance, error) {
 	}
 
 	var instances []Instance
+	idx := 0
 	for _, reservation := range result.Reservations {
 		for _, i := range reservation.Instances {
 			id := i.InstanceId
 			state := i.State.Name
 			pubIP := i.PublicIpAddress
 			for _, tag := range i.Tags {
-				if *tag.Value == RnDTag || *tag.Value == RnDMasterTag {
-					inst := Instance{id, pubIP, state, a.region, *tag.Value}
+				if *tag.Value == RnDMasterTag {
+					inst := Instance{id, pubIP, state, a.region, *tag.Value, nil, -1}
+					instances = append(instances, inst)
+				}
+				if *tag.Value == RnDTag {
+					inst := Instance{id, pubIP, state, a.region, *tag.Value, nil, idx}
+					idx++
 					instances = append(instances, inst)
 				}
 			}
