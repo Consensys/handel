@@ -18,7 +18,7 @@ type Config struct {
 
 	// LevelTimeout is used to decide when a Handel nodes passes to the next
 	// level even if it did not receive enough signatures. If not specified, a
-	// timeout of 500ms is used by default.
+	// timeout of 100ms is used by default.
 	LevelTimeout time.Duration
 
 	// CandidateCount indicates how many peers should we contact each time we
@@ -57,7 +57,7 @@ func DefaultConfig(size int) *Config {
 const DefaultContributionsPerc = 51
 
 // DefaultLevelTimeout is the default level timeout used by Handel.
-const DefaultLevelTimeout = 300 * time.Millisecond
+const DefaultLevelTimeout = 100 * time.Millisecond
 
 // DefaultCandidateCount is the default candidate count used by Handel.
 const DefaultCandidateCount = 10

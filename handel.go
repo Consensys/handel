@@ -25,8 +25,8 @@ func NewLevel(id int, nodes []Identity) *Level {
 	l := &Level{
 		id,
 		nodes,
-		true,
-		id == 1, // TODO For the first level, we need only our own sig
+		id == 1,
+		id == 1, // For the first level, we need only our own sig
 		false,
 		0,
 		0,
@@ -81,6 +81,12 @@ func (l *Level) updateBestSig(sig *MultiSignature) (bool) {
 
 	// We consider that the best signature for a level could be a complete signature
 	//  from a upper level, so we check for '>=' rather than '=='
+	if l.currentBestSize >= len(l.nodes) {
+		// If we completed the level we start it rather than waiting for
+		//  a timeout condition
+		l.started = true
+	}
+
 	return l.currentBestSize >= len(l.nodes)
 }
 
@@ -140,6 +146,8 @@ type Handel struct {
 	ticker *time.Ticker
 	// all the levels
 	levels []Level
+	// Start time of Handel
+	startTime time.Time
 }
 
 
@@ -183,11 +191,8 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 
 	go func() {
 		for t := range h.ticker.C {
-			if false {
-				print(t)
-			}
 			h.Lock()
-			h.periodicUpdate()
+			h.periodicUpdate(t)
 			h.Unlock()
 		}
 	}()
@@ -225,9 +230,10 @@ func (h *Handel) NewPacket(p *Packet) {
 func (h *Handel) Start() {
 	h.Lock()
 	defer h.Unlock()
+	h.startTime = time.Now()
 	go h.proc.Start()
 	go h.rangeOnVerified()
-	h.periodicUpdate()
+	h.periodicUpdate(h.startTime)
 }
 
 // Stop the Handel protocol and all sub routines
@@ -240,9 +246,14 @@ func (h *Handel) Stop() {
 	close(h.out)
 }
 
-func (h *Handel) periodicUpdate() {
-	for _, lvl := range h.levels {
+func (h *Handel) periodicUpdate(t time.Time) {
+	msSinceStart := int(t.Sub(h.startTime).Seconds() * 1000)
 
+	for _, lvl := range h.levels {
+		// Check if the level is in timeout, and update it if necessary
+		if !lvl.started && msSinceStart >= lvl.id * int(h.c.LevelTimeout.Seconds() * 1000){
+			lvl.started = true
+		}
 		h.sendUpdate(lvl, 1)
 	}
 }
