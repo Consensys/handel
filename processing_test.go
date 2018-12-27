@@ -35,19 +35,17 @@ func TestProcessingFifo(t *testing.T) {
 		{s(sig2Inv), s(nil)},
 	}
 
-	store := newReplaceStore(partitioner, NewWilffBitset)
-	fifo := newFifoProcessing(store, partitioner, cons, msg).(*fifoProcessing)
+	fifo := newFifoProcessing(partitioner, cons, msg).(*fifoProcessing)
 	go fifo.Start()
 	time.Sleep(20 * time.Millisecond)
 	fifo.Stop()
-	require.True(t, fifo.done)
 
 	fifos := make([]signatureProcessing, 0, len(tests))
 	for i, test := range tests {
 		t.Logf(" -- test %d -- ", i)
 
 		store := newReplaceStore(partitioner, NewWilffBitset)
-		fifo := newFifoProcessing(store, partitioner, cons, msg)
+		fifo := newFifoProcessing(partitioner, cons, msg)
 		fifos = append(fifos, fifo)
 		go fifo.Start()
 

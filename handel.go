@@ -118,8 +118,8 @@ type HStats struct {
 // Handel is the principal struct that performs the large scale multi-signature
 // aggregation protocol. Handel is thread-safe.
 type Handel struct {
-	stats HStats
 	sync.Mutex
+	stats HStats
 	// Config holding parameters to Handel
 	c *Config
 	// Network enabling external communication with other Handel nodes
@@ -207,7 +207,7 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 	h.threshold = h.c.ContributionsThreshold(h.reg.Size())
 	h.store = newReplaceStore(part, h.c.NewBitSet)
 	h.store.Store(0, mySig) // TODO: 0, not 1?
-	h.proc = newFifoProcessing(h.store, part, c, msg)
+	h.proc = newFifoProcessing(part, c, msg)
 	h.net.RegisterListener(h)
 	return h
 }

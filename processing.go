@@ -7,8 +7,11 @@ package handel
 import (
 	"errors"
 	"fmt"
+	. "math"
 	"sync"
 )
+
+var deathPillPair = sigPair{-1, 121, nil}
 
 // signatureProcessing is an interface responsible for verifying incoming
 // multi-signature. It can decides to drop some incoming signatures if deemed
@@ -29,64 +32,159 @@ type signatureProcessing interface {
 	Verified() chan sigPair
 }
 
+type sigProcessWithStrategy struct {
+	c *sync.Cond
+
+	part Partitioner
+	cons Constructor
+	msg  []byte
+
+	out           chan sigPair
+	lastCompleted int
+	todos         []sigPair
+	dones         map[int]int
+	bests         map[int]*sigPair
+}
+
+func newSigProcessWithStrategy(part Partitioner, c Constructor, msg []byte) *sigProcessWithStrategy {
+	m := sync.Mutex{}
+	return &sigProcessWithStrategy{
+		c:    sync.NewCond(&m),
+		part: part,
+		cons: c,
+		msg:  msg,
+
+		out:           make(chan sigPair, 1000),
+		lastCompleted: 0,
+		todos:         make([]sigPair, 0),
+		dones:         make(map[int]int),
+		bests:         make(map[int]*sigPair),
+	}
+}
+
 // fifoProcessing implements the signatureProcessing interface using a simple
 // fifo queue, verifying all incoming signatures, not matter relevant or not.
 type fifoProcessing struct {
-	sync.Mutex
-	store signatureStore
-	part  Partitioner
-	cons  Constructor
-	msg   []byte
-	in    chan sigPair
-	out   chan sigPair
-	done  bool
+	in   chan sigPair
+	proc *sigProcessWithStrategy
 }
+
+func (f *sigProcessWithStrategy) add(sp sigPair) {
+	f.c.L.Lock()
+	defer f.c.L.Unlock()
+
+	if int(sp.level) > f.lastCompleted {
+		f.todos = append(f.todos, sp)
+		f.c.Broadcast()
+	}
+}
+
+// Look at the signatures received so far and select the ones
+//  that should be processed first.
+func (f *sigProcessWithStrategy) readTodos() bool {
+	f.c.L.Lock()
+	defer f.c.L.Unlock()
+	for ; len(f.todos) == 0; {
+		f.c.Wait()
+	}
+
+	for _, pair := range f.todos {
+		if pair == deathPillPair {
+			return true
+		}
+		if pair.ms == nil {
+			continue
+		}
+		lvl := int(pair.level)
+		if lvl > f.lastCompleted {
+			card := pair.ms.Cardinality()
+			if f.dones[lvl] < card && (f.bests[lvl] == nil || f.bests[lvl].ms.Cardinality() < card) {
+				f.bests[lvl] = &pair
+				break //todo -- we don't want to break here
+			}
+		}
+	}
+	f.todos = make([]sigPair, 0)
+	return false
+}
+
+func (f *sigProcessWithStrategy) hasTodos() bool {
+	f.c.L.Lock()
+	defer f.c.L.Unlock()
+	return len(f.todos) > 0
+}
+
+func (f *sigProcessWithStrategy) process() {
+	sigCount := 0
+	for stop := false; !stop; stop = f.readTodos() {
+		if  !f.hasTodos() && len(f.bests) > 0 {
+			minLevel := MaxInt32
+			for lvl := range f.bests {
+				if minLevel > lvl {
+					minLevel = lvl
+					break
+				}
+			}
+			choice := f.bests[minLevel]
+			delete(f.bests, minLevel)
+
+			err := f.verifySignature(choice)
+			if err != nil {
+				// todo: we have a bug here as we may have eliminated possibly valid signatures
+				logf("handel: fifo: verifying err: %s", err)
+			} else {
+				f.dones[minLevel] = choice.ms.Cardinality()
+				f.out <- *choice
+				sigCount++
+				if sigCount % 100 == 0 {
+					logf("Processed %d signatures", sigCount)
+				}
+			}
+		}
+	}
+
+	close(f.out)
+}
+
+//****************************
+// We should:
+//   - skip the signatures we receive for completed levels (require an info from handel)
+//   - check if we can complete a signature we have already verified (this is important for censorship resistance)
+//
+// Possible strategy:
+//   - look at all signatures in the pipeline
+//   - sort them by level (be careful
+//****************
 
 // newFifoProcessing returns a signatureProcessing implementation using a fifo
 // queue. It needs the store to store the valid signatures, the partitioner +
 // constructor + msg to verify the signatures.
-func newFifoProcessing(store signatureStore, part Partitioner,
-	c Constructor, msg []byte) signatureProcessing {
+func newFifoProcessing(part Partitioner, c Constructor, msg []byte) signatureProcessing {
+	proc := newSigProcessWithStrategy(part, c, msg)
+	go proc.process()
+
 	return &fifoProcessing{
-		part:  part,
-		store: store,
-		cons:  c,
-		msg:   msg,
-		in:    make(chan sigPair, 10000),
-		out:   make(chan sigPair, 10000),
+		in:   make(chan sigPair, 1000),
+		proc: proc,
 	}
 }
 
 // processIncoming simply verifies the signature, stores it, and outputs it
 func (f *fifoProcessing) processIncoming() {
 	for pair := range f.in {
-		_, isNew := f.store.MockStore(pair.level, pair.ms)
-		if !isNew {
-			//logf("handel: fifo: skipping verification of signature %s", pair.String())
-			continue
-		}
-
-		err := f.verifySignature(&pair)
-		if err != nil {
-			logf("handel: fifo: verifying err: %s", err)
-			continue
-		}
-
-		f.Lock()
-		done := f.done
-		if !done {
-			//logf("handel: handling back verified signature to actors")
-			f.out <- pair
-		}
-		f.Unlock()
-		if done {
-			break
+		f.proc.add(pair)
+		if pair == deathPillPair {
+			f.close()
+			return
 		}
 	}
 }
 
-func (f *fifoProcessing) verifySignature(pair *sigPair) error {
+func (f *sigProcessWithStrategy) verifySignature(pair *sigPair) error {
 	level := pair.level
+	if level <= 0 {
+		panic("level <= 0")
+	}
 	ms := pair.ms
 	ids, err := f.part.IdentitiesAt(int(level))
 	if err != nil {
@@ -118,7 +216,7 @@ func (f *fifoProcessing) Incoming() chan sigPair {
 }
 
 func (f *fifoProcessing) Verified() chan sigPair {
-	return f.out
+	return f.proc.out
 }
 
 func (f *fifoProcessing) Start() {
@@ -126,19 +224,9 @@ func (f *fifoProcessing) Start() {
 }
 
 func (f *fifoProcessing) Stop() {
-	f.Lock()
-	defer f.Unlock()
-	if f.done {
-		return
-	}
-	f.done = true
-	close(f.in)
-	close(f.out)
+	f.in <- deathPillPair
 }
 
-func (f *fifoProcessing) isStopped() bool {
-	f.Lock()
-	defer f.Unlock()
-	// OK since once we call stop, we'll no go back to done = false
-	return f.done
+func (f *fifoProcessing) close() {
+	close(f.in)
 }
