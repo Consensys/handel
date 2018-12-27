@@ -26,13 +26,8 @@ func TestPartitionerBinTreeSize(t *testing.T) {
 		// 1 because 17 is alone in his group (only node > 16 )
 		{1, 5, false, 1},
 		{1, 6, false, 17},
-		{1, 7, true, 0},
 		// -- 17's point of view
 		{16, 0, false, 1},
-		{16, 1, true, 1},
-		{16, 2, true, 1},
-		{16, 3, true, 1},
-		{16, 4, true, 1},
 		{16, 5, false, n - 1},
 	}
 
