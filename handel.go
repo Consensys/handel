@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-type Level struct {
+type level struct {
 	// The id of the level. Start at 1
 	id int
 
@@ -30,15 +30,15 @@ type Level struct {
 	sendSigSize int
 }
 
-func NewLevel(id int, nodes []Identity) *Level {
+func NewLevel(id int, nodes []Identity) *level {
 	if id <= 0 {
 		panic("bad value for level id")
 	}
-	l := &Level{
+	l := &level{
 		id:           id,
 		nodes:        nodes,
-		sendStarted:  id == 1,
-		rcvCompleted: id == 1, // For the first level, we need only our own sig
+		sendStarted:  id == 1, // We can start the level 1 immediately: it's only our sig.
+		rcvCompleted: false,
 		sendPos:      0,
 		sendPeersCt:  0,
 		sendSigSize:  0,
@@ -46,38 +46,37 @@ func NewLevel(id int, nodes []Identity) *Level {
 	return l
 }
 
-func createLevels(r Registry, partitioner Partitioner) []Level {
-	lvls := make([]Level, log2(r.Size()))
+func createLevels(r Registry, partitioner Partitioner) map[int]*level {
+	lvls := make(map[int]*level)
 
-	for i := 0; i < len(lvls); i += 1 {
-		nodes, _ := partitioner.PickNextAt(i+1, r.Size()+1)
-		lvls[i] = *NewLevel(i+1, nodes)
+	for i := 1; i <= partitioner.MaxLevel(); i += 1 {
+		nodes, _ := partitioner.PickNextAt(i, r.Size()+1)
+		lvls[i] = NewLevel(i, nodes)
 	}
 
 	return lvls
 }
 
-func (c *Level) PickNextAt(count int) ([]Identity, bool) {
-	size := min(count, len(c.nodes))
+func (l *level) PickNextAt(count int) ([]Identity, bool) {
+	size := min(count, len(l.nodes))
 	res := make([]Identity, size)
 
 	for i := 0; i < size; i++ {
-		res[i] = c.nodes[c.sendPos]
-		c.sendPos++
-		if c.sendPos >= len(c.nodes) {
-			c.sendPos = 0
+		res[i] = l.nodes[l.sendPos]
+		l.sendPos++
+		if l.sendPos >= len(l.nodes) {
+			l.sendPos = 0
 		}
 	}
 
-	c.sendPeersCt += size
-
+	l.sendPeersCt += size
 	return res, true
 }
 
 // check if the signature is better than what we have.
 // If it's better, reset the counters of the messages sent.
 // If the level is now rcvCompleted we return true; if not we return false
-func (l *Level) updateSigToSend(sig *MultiSignature) (bool) {
+func (l *level) updateSigToSend(sig *MultiSignature) (bool) {
 	if l.sendSigSize >= sig.Cardinality() {
 		return false
 	}
@@ -95,12 +94,8 @@ func (l *Level) updateSigToSend(sig *MultiSignature) (bool) {
 	}
 }
 
-// Send our best signature for this level, to 'count' nodes
-// We expect the store to give us as the combined signature:
-// Either a subset of the signature we need for this level
-// Either the complete set of signature for our level
-// Either a complete set of signatures from an upper level
-func (h *Handel) sendUpdate(l Level, count int) {
+// Send our best signature set for this level, to 'count' nodes
+func (h *Handel) sendUpdate(l *level, count int) {
 	if !l.sendStarted || l.sendPeersCt >= len(l.nodes) {
 		return
 	}
@@ -153,7 +148,7 @@ type Handel struct {
 	// ticker for the periodic update
 	ticker *time.Ticker
 	// all the levels
-	levels []Level
+	levels map[int]*level
 	// Start time of Handel
 	startTime time.Time
 }
@@ -206,7 +201,7 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 
 	h.threshold = h.c.ContributionsThreshold(h.reg.Size())
 	h.store = newReplaceStore(part, h.c.NewBitSet)
-	h.store.Store(0, mySig) // Our sig is at level 0.
+	h.store.Store(0, mySig) // Our own sig is at level 0.
 	h.proc = newFifoProcessing(part, c, msg)
 	h.net.RegisterListener(h)
 	return h
@@ -228,11 +223,10 @@ func (h *Handel) NewPacket(p *Packet) {
 	}
 
 	// sends it to processing
-	if !h.levels[p.Level-1].rcvCompleted || true { // todo why is it slower with this test activated?
-		//h.logf("received packet from %d for level %d: %s", p.Origin, p.Level, ms.String())
+	if !h.getLevel(p.Level).rcvCompleted  {
 		h.proc.Incoming() <- sigPair{origin: p.Origin, level: p.Level, ms: ms}
 	} else {
-		//h.logf("skip received packet from %d for level %d: %s", p.Origin, p.Level, ms.String())
+		h.logf("skip received packet from %d for level %d: %s", p.Origin, p.Level, ms.String())
 	}
 }
 
@@ -257,11 +251,15 @@ func (h *Handel) Stop() {
 	close(h.out)
 }
 
-// Does the periodic update.
+// Does the periodic update:
+//  - check if we reached a timeout for each level
+//  - send a new packet
+// You must have locked handel before calling this function
 func (h *Handel) periodicUpdate(t time.Time) {
 	msSinceStart := int(t.Sub(h.startTime).Seconds() * 1000)
 
-	for _, lvl := range h.levels {
+	for i := byte(1); i <= byte(len(h.levels)); i++ {
+		lvl := h.getLevel(i)
 		// Check if the level is in timeout, and update it if necessary
 		if !lvl.sendStarted && msSinceStart >= (lvl.id-1)*int(h.c.LevelTimeout.Seconds()*1000) {
 			lvl.sendStarted = true
@@ -338,22 +336,31 @@ func (h *Handel) checkFinalSignature(s *sigPair) {
 	}
 }
 
+func (h *Handel) getLevel(levelId byte) (*level) {
+	l := int(levelId)
+	if l <= 0 || l > len(h.levels) {
+		msg := fmt.Sprintf("Bad level (%d) max is %d", l, len(h.levels))
+		panic(msg)
+	}
+	return h.levels[l]
+}
+
 // When we have a new signature, multiple levels may be impacted. The store
 //  is in charge of selecting the best signature for a level, so we will
 //  call it for all possibly impacted levels.
 func (h *Handel) checkCompletedLevel(s *sigPair) {
 	// The receiving phase: have we completed this level?
-	lvl := h.levels[s.level-1]
+	lvl := h.getLevel(s.level)
 	if s.ms.Cardinality() == len(lvl.nodes) {
 		lvl.rcvCompleted = true
 	}
 
 	// The sending phase: for all upper levels we may have completed
 	//  the level. We check & send an update if it's the case
-	for i := int(s.level) + 1; i <= len(h.levels); i++ {
-		lvl := h.levels[i-1]
+	for i := s.level + 1; i <= byte(len(h.levels)); i++ {
+		lvl := h.getLevel(i)
 		ms := h.store.Combined(byte(lvl.id) - 1)
-		if lvl.updateSigToSend(ms) {
+		if ms != nil &&  lvl.updateSigToSend(ms) {
 			h.sendUpdate(lvl, h.c.CandidateCount)
 		}
 	}

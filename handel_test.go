@@ -11,7 +11,7 @@ import (
 
 var msg = []byte("Sun is Shining...")
 
-func RTestHandelTestNetwork(t *testing.T) {
+func TestHandelTestNetwork(t *testing.T) {
 	type handelTest struct {
 		n        int
 		offlines []int32
@@ -25,7 +25,7 @@ func RTestHandelTestNetwork(t *testing.T) {
 	off()
 
 	var tests = []handelTest{
-		{4, nil, 0, false},/*
+		{2, nil, 0, false},/*
 		{33, nil, 33, false},
 		{67, off(), 67, false},
 		{5, off(4), 4, false},

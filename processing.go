@@ -40,7 +40,7 @@ type sigProcessWithStrategy struct {
 
 	out           chan sigPair
 	lastCompleted int
-	todos         []sigPair
+	todos         []*sigPair
 	evaluator     simpleToVerifyEvaluator
 }
 
@@ -55,7 +55,7 @@ func newSigProcessWithStrategy(part Partitioner, c Constructor, msg []byte) *sig
 
 		out:           make(chan sigPair, 1000),
 		lastCompleted: 0,
-		todos:         make([]sigPair, 0),
+		todos:         make([]*sigPair, 0),
 	}
 }
 
@@ -71,7 +71,7 @@ func (f *sigProcessWithStrategy) add(sp sigPair) {
 	defer f.c.L.Unlock()
 
 	if int(sp.level) > f.lastCompleted {
-		f.todos = append(f.todos, sp)
+		f.todos = append(f.todos, &sp)
 		f.c.Broadcast()
 	}
 }
@@ -86,7 +86,7 @@ type simpleToVerifyEvaluator struct {
 // return
 //   bool: true if we should keep this signature, false if we can definitively discard the signature
 //   int: the evaluation mark of this sig. Greater is better.
-func (f *simpleToVerifyEvaluator) evaluate(sp sigPair) (bool, int) {
+func (f *simpleToVerifyEvaluator) evaluate(sp *sigPair) (bool, int) {
 	return true, 1
 }
 
@@ -102,11 +102,11 @@ func (f *sigProcessWithStrategy) readTodos() (bool, *sigPair) {
 	// We need to iterate on our list. We put in
 	//   'newTodos' the signatures not selected in this round
 	//   but possibly interesting next time
-	newTodos := make([]sigPair, 0)
+	newTodos := make([]*sigPair, 0)
 	var best *sigPair
 	bestMark := 0
 	for _, pair := range f.todos {
-		if pair == deathPillPair {
+		if *pair == deathPillPair {
 			return true, nil
 		}
 		if pair.ms == nil {
@@ -122,9 +122,9 @@ func (f *sigProcessWithStrategy) readTodos() (bool, *sigPair) {
 				newTodos = append(newTodos, pair)
 			} else {
 				if best != nil {
-					newTodos = append(newTodos, *best)
+					newTodos = append(newTodos, best)
 				}
-				best = &pair
+				best = pair
 				bestMark = mark
 			}
 		}
