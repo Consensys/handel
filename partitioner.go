@@ -17,9 +17,8 @@ type Partitioner interface {
 	// returns the maximum number of levels this partitioning strategy will use
 	// given the list of participants
 	MaxLevel() int
-	// Returns the size of the set of Identity at this level or an error if
-	// level invalid.
-	Size(level int) (int, error)
+	// Returns the size of the set of Identity at this level
+	Size(level int) int
 	// IdentitiesAt returns the list of Identity that composes the whole level in
 	// this partition scheme.
 	IdentitiesAt(level int) ([]Identity, error)
@@ -246,12 +245,12 @@ func (c *binomialPartitioner) PickNextAt(level, count int) ([]Identity, bool) {
 
 
 
-func (c *binomialPartitioner) Size(level int) (int, error) {
+func (c *binomialPartitioner) Size(level int) int {
 	min, max, err := c.rangeLevel(level)
 	if err != nil {
-		return 0, err
+		panic(err)
 	}
-	return max - min, nil
+	return max - min
 }
 
 func (c *binomialPartitioner) Combine(sigs []*sigPair, level int, nbs func(int) BitSet) *MultiSignature {

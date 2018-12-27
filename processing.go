@@ -48,6 +48,7 @@ type sigProcessWithStrategy struct {
 
 func newSigProcessWithStrategy(part Partitioner, c Constructor, msg []byte) *sigProcessWithStrategy {
 	m := sync.Mutex{}
+
 	return &sigProcessWithStrategy{
 		c:    sync.NewCond(&m),
 		part: part,
@@ -135,6 +136,11 @@ func (f *sigProcessWithStrategy) process() {
 			} else {
 				f.dones[minLevel] = choice.ms.Cardinality()
 				f.out <- *choice
+				if choice.ms.Cardinality() > f.part.Size(minLevel) {
+					if minLevel > f.lastCompleted {
+						f.lastCompleted = minLevel
+					}
+				}
 				sigCount++
 				if sigCount % 100 == 0 {
 					logf("Processed %d signatures", sigCount)

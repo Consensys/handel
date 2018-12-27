@@ -39,13 +39,7 @@ func TestPartitionerBinTreeSize(t *testing.T) {
 	for i, test := range tests {
 		t.Logf(" -- test %d -- ", i)
 		ct := NewBinPartitioner(test.id, reg)
-		size, err := ct.Size(test.level)
-		if err != nil {
-			if test.isErr {
-				continue
-			}
-			require.NoError(t, err)
-		}
+		size := ct.Size(test.level)
 		require.Equal(t, test.exp, size)
 	}
 }
