@@ -8,13 +8,28 @@ import (
 )
 
 type Level struct {
+	// The id if the level. Start at 1
 	id int
+
+	// The nodes in this level.
 	nodes []Identity
+
+	// True if the level has started
 	started bool
+
+	// True is this level is completed, i.e. we have all the sigs
 	completed bool
+
+	// True if we sent our last sig to all our peers.
 	finished bool
+
+	// Our position in the list of peers
 	pos int
+
+	// Peers contacted for the current sig
 	sent int
+
+	// Size if the current sig
 	currentBestSize int
 }
 
@@ -110,6 +125,7 @@ func (h *Handel) sendUpdate(l Level, count int) {
 }
 
 
+// Minimal stats
 type HStats struct {
 	msgSentCt int
 	msgRcvCt  int
