@@ -223,10 +223,8 @@ func (h *Handel) NewPacket(p *Packet) {
 	}
 
 	// sends it to processing
-	if !h.getLevel(p.Level).rcvCompleted  {
+	if !h.getLevel(p.Level).rcvCompleted {
 		h.proc.Incoming() <- sigPair{origin: p.Origin, level: p.Level, ms: ms}
-	} else {
-		h.logf("skip received packet from %d for level %d: %s", p.Origin, p.Level, ms.String())
 	}
 }
 
@@ -261,7 +259,7 @@ func (h *Handel) periodicUpdate(t time.Time) {
 	for i := byte(1); i <= byte(len(h.levels)); i++ {
 		lvl := h.getLevel(i)
 		// Check if the level is in timeout, and update it if necessary
-		if !lvl.sendStarted && msSinceStart >= (lvl.id-1)*int(h.c.LevelTimeout.Seconds()*1000) {
+		if !lvl.sendStarted && msSinceStart >= lvl.id*int(h.c.LevelTimeout.Seconds()*1000) {
 			lvl.sendStarted = true
 		}
 		h.sendUpdate(lvl, 1)

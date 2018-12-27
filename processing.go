@@ -38,10 +38,10 @@ type sigProcessWithStrategy struct {
 	cons Constructor
 	msg  []byte
 
-	out           chan sigPair
-	lastCompleted int
-	todos         []*sigPair
-	evaluator     simpleToVerifyEvaluator
+	out              chan sigPair
+	highestCompleted int
+	todos            []*sigPair
+	evaluator        simpleToVerifyEvaluator
 }
 
 func newSigProcessWithStrategy(part Partitioner, c Constructor, msg []byte) *sigProcessWithStrategy {
@@ -53,9 +53,9 @@ func newSigProcessWithStrategy(part Partitioner, c Constructor, msg []byte) *sig
 		cons: c,
 		msg:  msg,
 
-		out:           make(chan sigPair, 1000),
-		lastCompleted: 0,
-		todos:         make([]*sigPair, 0),
+		out:              make(chan sigPair, 1000),
+		highestCompleted: 0,
+		todos:            make([]*sigPair, 0),
 	}
 }
 
@@ -70,7 +70,7 @@ func (f *sigProcessWithStrategy) add(sp sigPair) {
 	f.c.L.Lock()
 	defer f.c.L.Unlock()
 
-	if int(sp.level) > f.lastCompleted {
+	if int(sp.level) > f.highestCompleted {
 		f.todos = append(f.todos, &sp)
 		f.c.Broadcast()
 	}
@@ -112,7 +112,7 @@ func (f *sigProcessWithStrategy) readTodos() (bool, *sigPair) {
 		if pair.ms == nil {
 			continue
 		}
-		if int(pair.level) <= f.lastCompleted {
+		if int(pair.level) <= f.highestCompleted {
 			continue
 		}
 
@@ -151,23 +151,28 @@ func (f *sigProcessWithStrategy) process() {
 		if choice == nil {
 			continue
 		}
+		f.check(choice)
+		sigCount++
+		if sigCount%100 == 0 {
+			logf("Processed %d signatures", sigCount)
+		}
 
-		lvl := int(choice.level)
-		err := f.verifySignature(choice)
-		if err != nil {
-			logf("handel: fifo: verifying err: %s", err)
-		} else {
-			f.out <- *choice
-			if lvl > f.lastCompleted && choice.ms.Cardinality() == f.part.Size(lvl) {
-				f.lastCompleted = lvl
-			}
-			sigCount++
-			if sigCount%100 == 0 {
-				logf("Processed %d signatures", sigCount)
-			}
+	}
+}
+
+func (f *sigProcessWithStrategy) check(sp *sigPair) {
+	lvl := int(sp.level)
+	err := f.verifySignature(sp)
+	if err != nil {
+		logf("fifo: verifying err: %s", err)
+	} else {
+		f.out <- *sp
+		if lvl > f.highestCompleted && sp.ms.Cardinality() == f.part.Size(lvl) {
+			f.highestCompleted = lvl
 		}
 	}
 }
+
 
 // newFifoProcessing returns a signatureProcessing implementation using a fifo
 // queue. It needs the store to store the valid signatures, the partitioner +
@@ -185,10 +190,12 @@ func newFifoProcessing(part Partitioner, c Constructor, msg []byte) signaturePro
 // processIncoming simply verifies the signature, stores it, and outputs it
 func (f *fifoProcessing) processIncoming() {
 	for pair := range f.in {
-		f.proc.add(pair)
+		// f.proc.add(pair)
 		if pair == deathPillPair {
 			f.close()
 			return
+		} else {
+			f.proc.check(&pair)
 		}
 	}
 }
