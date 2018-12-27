@@ -8,29 +8,26 @@ import (
 )
 
 type Level struct {
-	// The id if the level. Start at 1
+	// The id of the level. Start at 1
 	id int
 
-	// The nodes in this level.
+	// Our peers in this level: they send us their sigs, we're sending ours.
 	nodes []Identity
 
-	// True if the level has started
-	started bool
+	// True if we can start to send messages for this level.
+	sendStarted bool
 
-	// True is this level is completed, i.e. we have all the sigs
-	completed bool
-
-	// True if we sent our last sig to all our peers.
-	finished bool
+	// True is this level is completed for the reception, i.e. we have all the sigs
+	rcvCompleted bool
 
 	// Our position in the list of peers
-	pos int
+	sendPos int
 
 	// Peers contacted for the current sig
-	sent int
+	sendPeersCt int
 
-	// Size if the current sig
-	currentBestSize int
+	// Size of the current sig we're sending
+	sendSigSize int
 }
 
 func NewLevel(id int, nodes []Identity) *Level {
@@ -38,14 +35,13 @@ func NewLevel(id int, nodes []Identity) *Level {
 		panic("bad value for level id")
 	}
 	l := &Level{
-		id,
-		nodes,
-		id == 1,
-		id == 1, // For the first level, we need only our own sig
-		false,
-		0,
-		0,
-		0,
+		id:           id,
+		nodes:        nodes,
+		sendStarted:  id == 1,
+		rcvCompleted: id == 1, // For the first level, we need only our own sig
+		sendPos:      0,
+		sendPeersCt:  0,
+		sendSigSize:  0,
 	}
 	return l
 }
@@ -66,42 +62,37 @@ func (c *Level) PickNextAt(count int) ([]Identity, bool) {
 	res := make([]Identity, size)
 
 	for i := 0; i < size; i++ {
-		res[i] = c.nodes[c.pos]
-		c.pos++
-		if c.pos >= len(c.nodes) {
-			c.pos = 0
+		res[i] = c.nodes[c.sendPos]
+		c.sendPos++
+		if c.sendPos >= len(c.nodes) {
+			c.sendPos = 0
 		}
 	}
 
-	c.sent += size
-	if c.sent >= len(c.nodes) {
-		c.finished = true
-	}
+	c.sendPeersCt += size
 
 	return res, true
 }
 
 // check if the signature is better than what we have.
 // If it's better, reset the counters of the messages sent.
-// If the level is now completed we return true; if not we return false
-func (l *Level) updateBestSig(sig *MultiSignature) (bool) {
-	if l.completed || l.currentBestSize >= sig.BitSet.Cardinality() {
+// If the level is now rcvCompleted we return true; if not we return false
+func (l *Level) updateSigToSend(sig *MultiSignature) (bool) {
+	if l.sendSigSize >= sig.Cardinality() {
 		return false
 	}
 
-	l.currentBestSize = sig.Cardinality()
-	l.finished = false
-	l.sent = 0
+	l.sendSigSize = sig.Cardinality()
+	l.sendPeersCt = 0
 
-	// We consider that the best signature for a level could be a complete signature
-	//  from a upper level, so we check for '>=' rather than '=='
-	if l.currentBestSize >= len(l.nodes) {
-		// If we completed the level we start it rather than waiting for
-		//  a timeout condition
-		l.started = true
+	if l.sendSigSize == len(l.nodes) {
+		// If we have all the signatures to send
+		//  we can start the level without waiting for the timeout
+		l.sendStarted = true
+		return true
+	} else {
+		return false
 	}
-
-	return l.currentBestSize >= len(l.nodes)
 }
 
 // Send our best signature for this level, to 'count' nodes
@@ -110,16 +101,12 @@ func (l *Level) updateBestSig(sig *MultiSignature) (bool) {
 // Either the complete set of signature for our level
 // Either a complete set of signatures from an upper level
 func (h *Handel) sendUpdate(l Level, count int) {
-	if !l.started || l.finished {
+	if !l.sendStarted || l.sendPeersCt >= len(l.nodes) {
 		return
 	}
 
 	sp := h.store.Combined(byte(l.id) - 1)
-	if sp == nil {
-		panic("THIS SHOULD NOT HAPPEN AT ALL")
-	}
 	newNodes, _ := l.PickNextAt(count)
-	//h.logf("sending out signature of lvl %d (size %d) to %v", l.id, sp.BitSet.BitLength(), newNodes)
 	h.sendTo(l.id, sp, newNodes)
 }
 
@@ -200,7 +187,7 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 		cons:   c,
 		msg:    msg,
 		sig:    s,
-		out:    make(chan MultiSignature, 100000),
+		out:    make(chan MultiSignature, 10000),
 		ticker: time.NewTicker(config.UpdatePeriod),
 		levels: createLevels(r, part),
 	}
@@ -219,7 +206,7 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 
 	h.threshold = h.c.ContributionsThreshold(h.reg.Size())
 	h.store = newReplaceStore(part, h.c.NewBitSet)
-	h.store.Store(0, mySig) // TODO: 0, not 1?
+	h.store.Store(0, mySig) // Our sig is at level 0.
 	h.proc = newFifoProcessing(part, c, msg)
 	h.net.RegisterListener(h)
 	return h
@@ -241,11 +228,11 @@ func (h *Handel) NewPacket(p *Packet) {
 	}
 
 	// sends it to processing
-	if !h.levels[p.Level-1].completed || true { // todo why is it slower with this test activated?
+	if !h.levels[p.Level-1].rcvCompleted || true { // todo why is it slower with this test activated?
 		//h.logf("received packet from %d for level %d: %s", p.Origin, p.Level, ms.String())
 		h.proc.Incoming() <- sigPair{origin: p.Origin, level: p.Level, ms: ms}
 	} else {
-		h.logf("skip received packet from %d for level %d: %s", p.Origin, p.Level, ms.String())
+		//h.logf("skip received packet from %d for level %d: %s", p.Origin, p.Level, ms.String())
 	}
 }
 
@@ -270,13 +257,14 @@ func (h *Handel) Stop() {
 	close(h.out)
 }
 
+// Does the periodic update.
 func (h *Handel) periodicUpdate(t time.Time) {
 	msSinceStart := int(t.Sub(h.startTime).Seconds() * 1000)
 
 	for _, lvl := range h.levels {
 		// Check if the level is in timeout, and update it if necessary
-		if !lvl.started && msSinceStart >= lvl.id*int(h.c.LevelTimeout.Seconds()*1000) {
-			lvl.started = true
+		if !lvl.sendStarted && msSinceStart >= (lvl.id-1)*int(h.c.LevelTimeout.Seconds()*1000) {
+			lvl.sendStarted = true
 		}
 		h.sendUpdate(lvl, 1)
 	}
@@ -291,11 +279,11 @@ func (h *Handel) FinalSignatures() chan MultiSignature {
 
 // rangeOnVerified continuously listens on the output channel of the signature
 // processing routine for verified signatures. Each verified signatures is
-// passed down to all registered actors. Each handler is called in a thread safe
+//  1) Added to the store of verified signature
+//  2) passed down to all registered actors. Each handler is called in a thread safe
 // manner, global lock is held during the call to actors.
 func (h *Handel) rangeOnVerified() {
 	for v := range h.proc.Verified() {
-		//h.logf("new verified signature received -> %s", v.String())
 		h.store.Store(v.level, v.ms)
 		h.Lock()
 		for _, actor := range h.actors {
@@ -322,8 +310,7 @@ func (a actorFunc) OnVerifiedSignature(s *sigPair) {
 	a(s)
 }
 
-// checkFinalSignature STORES the newly verified signature and then checks if a
-// new better final signature, i.e. a signature at the last level, has been
+// checkFinalSignature checks if anew better final signature (ig. a signature at the last level) has been
 // generated. If so, it sends it to the output channel.
 func (h *Handel) checkFinalSignature(s *sigPair) {
 	sig := h.store.FullSignature()
@@ -355,10 +342,18 @@ func (h *Handel) checkFinalSignature(s *sigPair) {
 //  is in charge of selecting the best signature for a level, so we will
 //  call it for all possibly impacted levels.
 func (h *Handel) checkCompletedLevel(s *sigPair) {
-	for i := int(s.level); i <= len(h.levels); i++ {
+	// The receiving phase: have we completed this level?
+	lvl := h.levels[s.level-1]
+	if s.ms.Cardinality() == len(lvl.nodes) {
+		lvl.rcvCompleted = true
+	}
+
+	// The sending phase: for all upper levels we may have completed
+	//  the level. We check & send an update if it's the case
+	for i := int(s.level) + 1; i <= len(h.levels); i++ {
 		lvl := h.levels[i-1]
-		ms, ok := h.store.Best(byte(lvl.id))
-		if ok && lvl.updateBestSig(ms) {
+		ms := h.store.Combined(byte(lvl.id) - 1)
+		if lvl.updateSigToSend(ms) {
 			h.sendUpdate(lvl, h.c.CandidateCount)
 		}
 	}

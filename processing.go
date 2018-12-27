@@ -7,7 +7,6 @@ package handel
 import (
 	"errors"
 	"fmt"
-	. "math"
 	"sync"
 )
 
@@ -16,7 +15,7 @@ var deathPillPair = sigPair{-1, 121, nil}
 // signatureProcessing is an interface responsible for verifying incoming
 // multi-signature. It can decides to drop some incoming signatures if deemed
 // useless. It outputs verified signatures to the main handel processing logic
-// It is an asynchronous processing interface that needs to be started and
+// It is an asynchronous processing interface that needs to be sendStarted and
 // stopped when needed.
 type signatureProcessing interface {
 	// Start is a blocking call that starts the processing routine
@@ -42,8 +41,7 @@ type sigProcessWithStrategy struct {
 	out           chan sigPair
 	lastCompleted int
 	todos         []sigPair
-	dones         map[int]int
-	bests         map[int]*sigPair
+	evaluator     simpleToVerifyEvaluator
 }
 
 func newSigProcessWithStrategy(part Partitioner, c Constructor, msg []byte) *sigProcessWithStrategy {
@@ -58,8 +56,6 @@ func newSigProcessWithStrategy(part Partitioner, c Constructor, msg []byte) *sig
 		out:           make(chan sigPair, 1000),
 		lastCompleted: 0,
 		todos:         make([]sigPair, 0),
-		dones:         make(map[int]int),
-		bests:         make(map[int]*sigPair),
 	}
 }
 
@@ -80,33 +76,62 @@ func (f *sigProcessWithStrategy) add(sp sigPair) {
 	}
 }
 
-// Look at the signatures received so far and select the ones
+type SigToVerifyEvaluator interface {
+	evaluate(pair *sigPair) (bool, int)
+}
+
+type simpleToVerifyEvaluator struct {
+}
+
+// return
+//   bool: true if we should keep this signature, false if we can definitively discard the signature
+//   int: the evaluation mark of this sig. Greater is better.
+func (f *simpleToVerifyEvaluator) evaluate(sp sigPair) (bool, int) {
+	return true, 1
+}
+
+// Look at the signatures received so far and select the one
 //  that should be processed first.
-func (f *sigProcessWithStrategy) readTodos() bool {
+func (f *sigProcessWithStrategy) readTodos() (bool, *sigPair) {
 	f.c.L.Lock()
 	defer f.c.L.Unlock()
 	for ; len(f.todos) == 0; {
 		f.c.Wait()
 	}
 
+	// We need to iterate on our list. We put in
+	//   'newTodos' the signatures not selected in this round
+	//   but possibly interesting next time
+	newTodos := make([]sigPair, 0)
+	var best *sigPair
+	bestMark := 0
 	for _, pair := range f.todos {
 		if pair == deathPillPair {
-			return true
+			return true, nil
 		}
 		if pair.ms == nil {
 			continue
 		}
-		lvl := int(pair.level)
-		if lvl > f.lastCompleted {
-			card := pair.ms.Cardinality()
-			if f.dones[lvl] < card && (f.bests[lvl] == nil || f.bests[lvl].ms.Cardinality() < card) {
-				f.bests[lvl] = &pair
-				break //todo -- we don't want to break here
+		if int(pair.level) <= f.lastCompleted {
+			continue
+		}
+
+		keep, mark := f.evaluator.evaluate(pair)
+		if keep {
+			if mark <= bestMark {
+				newTodos = append(newTodos, pair)
+			} else {
+				if best != nil {
+					newTodos = append(newTodos, *best)
+				}
+				best = &pair
+				bestMark = mark
 			}
 		}
 	}
-	f.todos = make([]sigPair, 0)
-	return false
+
+	f.todos = newTodos
+	return false, best
 }
 
 func (f *sigProcessWithStrategy) hasTodos() bool {
@@ -117,50 +142,32 @@ func (f *sigProcessWithStrategy) hasTodos() bool {
 
 func (f *sigProcessWithStrategy) process() {
 	sigCount := 0
-	for stop := false; !stop; stop = f.readTodos() {
-		if  !f.hasTodos() && len(f.bests) > 0 {
-			minLevel := MaxInt32
-			for lvl := range f.bests {
-				if minLevel > lvl {
-					minLevel = lvl
-					break
-				}
-			}
-			choice := f.bests[minLevel]
-			delete(f.bests, minLevel)
+	for ; ; {
+		done, choice := f.readTodos()
+		if done {
+			close(f.out)
+			return
+		}
+		if choice == nil {
+			continue
+		}
 
-			err := f.verifySignature(choice)
-			if err != nil {
-				// todo: we have a bug here as we may have eliminated possibly valid signatures
-				logf("handel: fifo: verifying err: %s", err)
-			} else {
-				f.dones[minLevel] = choice.ms.Cardinality()
-				f.out <- *choice
-				if choice.ms.Cardinality() > f.part.Size(minLevel) {
-					if minLevel > f.lastCompleted {
-						f.lastCompleted = minLevel
-					}
-				}
-				sigCount++
-				if sigCount % 100 == 0 {
-					logf("Processed %d signatures", sigCount)
-				}
+		lvl := int(choice.level)
+		err := f.verifySignature(choice)
+		if err != nil {
+			logf("handel: fifo: verifying err: %s", err)
+		} else {
+			f.out <- *choice
+			if lvl > f.lastCompleted && choice.ms.Cardinality() == f.part.Size(lvl) {
+				f.lastCompleted = lvl
+			}
+			sigCount++
+			if sigCount%100 == 0 {
+				logf("Processed %d signatures", sigCount)
 			}
 		}
 	}
-
-	close(f.out)
 }
-
-//****************************
-// We should:
-//   - skip the signatures we receive for completed levels (require an info from handel)
-//   - check if we can complete a signature we have already verified (this is important for censorship resistance)
-//
-// Possible strategy:
-//   - look at all signatures in the pipeline
-//   - sort them by level (be careful
-//****************
 
 // newFifoProcessing returns a signatureProcessing implementation using a fifo
 // queue. It needs the store to store the valid signatures, the partitioner +

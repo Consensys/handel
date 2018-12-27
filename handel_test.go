@@ -11,7 +11,7 @@ import (
 
 var msg = []byte("Sun is Shining...")
 
-func TestHandelTestNetwork(t *testing.T) {
+func RTestHandelTestNetwork(t *testing.T) {
 	type handelTest struct {
 		n        int
 		offlines []int32
@@ -25,7 +25,7 @@ func TestHandelTestNetwork(t *testing.T) {
 	off()
 
 	var tests = []handelTest{
-		{33, nil, 0, false},/*
+		{4, nil, 0, false},/*
 		{33, nil, 33, false},
 		{67, off(), 67, false},
 		{5, off(4), 4, false},
@@ -67,7 +67,7 @@ func TestHandelTestNetwork(t *testing.T) {
 	}
 }
 
-func TestHandelWholeThing(t *testing.T) {
+func RTestHandelWholeThing(t *testing.T) {
 	//t.Skip()
 	n := 32
 	reg, handels := FakeSetup(n)
@@ -149,7 +149,7 @@ func TestHandelWholeThing(t *testing.T) {
 	require.True(t, counter >= n)
 }
 
-func Removed_TestHandelCheckCompletedLevel(t *testing.T) {
+func TestHandelCheckCompletedLevel(t *testing.T) {
 	n := 8
 	_, handels := FakeSetup(n)
 	defer CloseHandels(handels)
