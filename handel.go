@@ -50,26 +50,25 @@ func NewLevel(id int, nodes []Identity) *Level {
 	return l
 }
 
-func createLevels(r Registry, partitioner Partitioner) []Level{
-	lvls := make( []Level, log2(r.Size()))
+func createLevels(r Registry, partitioner Partitioner) []Level {
+	lvls := make([]Level, log2(r.Size()))
 
-	for i := 0; i< len(lvls); i += 1 {
-		nodes, _ := partitioner.PickNextAt(i+1, r.Size() + 1)
+	for i := 0; i < len(lvls); i += 1 {
+		nodes, _ := partitioner.PickNextAt(i+1, r.Size()+1)
 		lvls[i] = *NewLevel(i+1, nodes)
 	}
 
 	return lvls
 }
 
-
 func (c *Level) PickNextAt(count int) ([]Identity, bool) {
 	size := min(count, len(c.nodes))
-	res := make( []Identity, size)
+	res := make([]Identity, size)
 
-	for i:=0; i<size; i++{
+	for i := 0; i < size; i++ {
 		res[i] = c.nodes[c.pos]
 		c.pos++
-		if c.pos >= len(c.nodes){
+		if c.pos >= len(c.nodes) {
 			c.pos = 0
 		}
 	}
@@ -124,7 +123,6 @@ func (h *Handel) sendUpdate(l Level, count int) {
 	h.sendTo(l.id, sp, newNodes)
 }
 
-
 // Minimal stats
 type HStats struct {
 	msgSentCt int
@@ -173,7 +171,6 @@ type Handel struct {
 	startTime time.Time
 }
 
-
 // NewHandel returns a Handle interface that uses the given network and
 // registry. The identity is the public identity of this Handel's node. The
 // constructor defines over which curves / signature scheme Handel runs. The
@@ -196,16 +193,16 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 	mySig := &MultiSignature{BitSet: firstBs, Signature: s}
 
 	h := &Handel{
-		c:        config,
-		net:      n,
-		reg:      r,
-		id:       id,
-		cons:     c,
-		msg:      msg,
-		sig:      s,
-		out:      make(chan MultiSignature, 100000),
-		ticker:	  time.NewTicker(config.UpdatePeriod),
-		levels:   createLevels(r, part),
+		c:      config,
+		net:    n,
+		reg:    r,
+		id:     id,
+		cons:   c,
+		msg:    msg,
+		sig:    s,
+		out:    make(chan MultiSignature, 100000),
+		ticker: time.NewTicker(config.UpdatePeriod),
+		levels: createLevels(r, part),
 	}
 	h.actors = []actor{
 		actorFunc(h.checkCompletedLevel),
@@ -278,7 +275,7 @@ func (h *Handel) periodicUpdate(t time.Time) {
 
 	for _, lvl := range h.levels {
 		// Check if the level is in timeout, and update it if necessary
-		if !lvl.started && msSinceStart >= lvl.id * int(h.c.LevelTimeout.Seconds() * 1000){
+		if !lvl.started && msSinceStart >= lvl.id*int(h.c.LevelTimeout.Seconds()*1000) {
 			lvl.started = true
 		}
 		h.sendUpdate(lvl, 1)
@@ -356,24 +353,12 @@ func (h *Handel) checkFinalSignature(s *sigPair) {
 
 // When we have a new signature, multiple levels may be impacted. The store
 //  is in charge of selecting the best signature for a level, so we will
-//  call it for all levels.
-// As well, if a level is completed, all the previous levels
-//  are completed as well. For these reasons, we always check
-//  all the levels, starting by the last one, and we:
-//  1) Update the signature
-//  2) If the level is now completed, we do a massive update
-// Once we find a level that was already completed we stop.
+//  call it for all possibly impacted levels.
 func (h *Handel) checkCompletedLevel(s *sigPair) {
-	for i := len(h.levels) - 1; i > 0; i-- {
-		lvl := h.levels[i]
-		if lvl.completed {
-			return
-		}
+	for i := int(s.level); i <= len(h.levels); i++ {
+		lvl := h.levels[i-1]
 		ms, ok := h.store.Best(byte(lvl.id))
-		if !ok {
-			continue
-		}
-		if lvl.updateBestSig(ms) {
+		if ok && lvl.updateBestSig(ms) {
 			h.sendUpdate(lvl, h.c.CandidateCount)
 		}
 	}
@@ -408,7 +393,7 @@ func (h *Handel) parsePacket(p *Packet) (*MultiSignature, error) {
 	}
 
 	lvl := int(p.Level)
-	if lvl  < 1 || lvl > log2(h.reg.Size()) {
+	if lvl < 1 || lvl > log2(h.reg.Size()) {
 		msg := fmt.Sprintf("packet's level out of range, level received=%d, max=%d, nodes count=%d",
 			lvl, log2(h.reg.Size()), h.reg.Size())
 		return nil, errors.New(msg)
