@@ -7,8 +7,13 @@ import (
 	"time"
 )
 
+// This struct keeps our state for all the levels we have. Most of the
+//  time we will have multiple levels activated at the same time:
+//    1) We will receive signatures for other peers
+//    2) We will send signatures to other peers even if we have not finished the
+//      previous levels
 type level struct {
-	// The id of the level. Start at 1
+	// The id of this level. Start at 1
 	id int
 
 	// Our peers in this level: they send us their sigs, we're sending ours.
@@ -20,13 +25,17 @@ type level struct {
 	// True is this level is completed for the reception, i.e. we have all the sigs
 	rcvCompleted bool
 
-	// Our position in the list of peers
+	// We send updates to the peers, and we contact the peers one after the other
+	// This field reference our current position in our list of peers.
 	sendPos int
 
-	// Peers contacted for the current sig
+	// Count of peers contacted for the current sig
+	// If we sent our current signature to all our peers we stop until we have
+	//  a better signature for this level
 	sendPeersCt int
 
-	// Size of the current sig we're sending
+	// Size of the current sig we're sending. This allows to check if we have a
+	//  better signature.
 	sendSigSize int
 }
 
@@ -46,6 +55,7 @@ func NewLevel(id int, nodes []Identity) *level {
 	return l
 }
 
+// Create a map of all the levels for this registry.
 func createLevels(r Registry, partitioner Partitioner) map[int]*level {
 	lvls := make(map[int]*level)
 
@@ -57,7 +67,8 @@ func createLevels(r Registry, partitioner Partitioner) map[int]*level {
 	return lvls
 }
 
-func (l *level) PickNextAt(count int) ([]Identity, bool) {
+// Select the peers we should contact next.
+func (l *level) selectNextPeers(count int) ([]Identity, bool) {
 	size := min(count, len(l.nodes))
 	res := make([]Identity, size)
 
@@ -101,7 +112,7 @@ func (h *Handel) sendUpdate(l *level, count int) {
 	}
 
 	sp := h.store.Combined(byte(l.id) - 1)
-	newNodes, _ := l.PickNextAt(count)
+	newNodes, _ := l.selectNextPeers(count)
 	h.sendTo(l.id, sp, newNodes)
 }
 
