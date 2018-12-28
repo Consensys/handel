@@ -1,10 +1,19 @@
 package handel
 
+import "fmt"
+
+// IDSIZE of the ID used in Handel. This is fixed at the moment.
+const IDSIZE = 32
+
 // Identity holds the public informations of a Handel node
 type Identity interface {
+	// Address must be understandable by the Network implementation
 	Address() string
 	// PublicKey returns the public key associated with that given node
 	PublicKey() PublicKey
+	// ID returns the ID used by handel to denote and classify nodes. It is best
+	// if the IDs are continuous over a given finite range.
+	ID() int32
 }
 
 // Registry abstracts the bookeeping of the list of Handel nodes
@@ -17,6 +26,38 @@ type Registry interface {
 	// Identities is similar to Identity but returns an array instead that
 	// includes nodes whose IDs are between from inclusive and to exclusive.
 	Identities(from, to int) ([]Identity, bool)
+}
+
+// fixedIdentity is an Identity that takes fixed argument
+type fixedIdentity struct {
+	id   int32
+	addr string
+	p    PublicKey
+}
+
+// NewStaticIdentity returns an Identity fixed by these parameters
+func NewStaticIdentity(id int32, addr string, p PublicKey) Identity {
+	return &fixedIdentity{
+		id:   id,
+		addr: addr,
+		p:    p,
+	}
+}
+
+func (s *fixedIdentity) Address() string {
+	return s.addr
+}
+
+func (s *fixedIdentity) ID() int32 {
+	return s.id
+}
+
+func (s *fixedIdentity) PublicKey() PublicKey {
+	return s.p
+}
+
+func (s *fixedIdentity) String() string {
+	return fmt.Sprintf("{id: %d,addr: %s}", s.id, s.addr)
 }
 
 // arrayRegistry is a Registry that uses a fixed size array as backend

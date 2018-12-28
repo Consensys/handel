@@ -22,11 +22,8 @@ type registryTest struct {
 
 func TestRegistryArray(t *testing.T) {
 	n := 10
-	ids := make([]Identity, n, n)
-	for i := 0; i < n; i++ {
-		ids[i] = new(fakeIdentity)
-	}
-	registry := NewArrayRegistry(ids)
+	registry := FakeRegistry(n).(*arrayRegistry)
+	ids := registry.ids
 	nf := func() Registry { return registry }
 	var tests = []registryTest{
 		{

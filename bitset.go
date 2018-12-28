@@ -19,9 +19,6 @@ type BitSet interface {
 	// Get returns the status of the i-th bit in this bitset. Implementations
 	// must return false if the index is out of bounds.
 	Get(int) bool
-	// Combine concatenate the two bitsets together and returns a new bitset
-	// whose bitlength is the sum of both's bitlengths.
-	Combine(BitSet) BitSet
 	// Slice returns a BitSet that only contains the bits between the given
 	// range, to excluded. If the range given is invalid, it returns the same
 	// bitset.
@@ -30,9 +27,11 @@ type BitSet interface {
 	MarshalBinary() ([]byte, error)
 	// UnmarshalBinary fills the bitset from the given buffer.
 	UnmarshalBinary([]byte) error
+	// returns the binary representation of this bitset in string
+	String() string
 }
 
-// implementation of a BitSet using the wilff library.
+// WilffBitSet implementats a BitSet using the wilff library.
 type WilffBitSet struct {
 	b *bitset.BitSet
 	l int
@@ -46,14 +45,17 @@ func NewWilffBitset(length int) BitSet {
 	}
 }
 
+// BitLength implements the BitSet interface
 func (w *WilffBitSet) BitLength() int {
 	return w.l
 }
 
+// Cardinality implements the BitSet interface
 func (w *WilffBitSet) Cardinality() int {
 	return int(w.b.Count())
 }
 
+// Set implements the BitSet interface
 func (w *WilffBitSet) Set(idx int, status bool) {
 	if !w.inBound(idx) {
 		// do nothing if out of bounds
@@ -62,6 +64,7 @@ func (w *WilffBitSet) Set(idx int, status bool) {
 	w.b = w.b.SetTo(uint(idx), status)
 }
 
+// Get implements the BitSet interface
 func (w *WilffBitSet) Get(idx int) bool {
 	if !w.inBound(idx) {
 		return false
@@ -69,6 +72,7 @@ func (w *WilffBitSet) Get(idx int) bool {
 	return w.b.Test(uint(idx))
 }
 
+// Combine implements the BitSet interface
 func (w *WilffBitSet) Combine(b2 BitSet) BitSet {
 	// XXX Panics if used wrongly at the moment. Could be possible to use other
 	// implementations by using the interface's method and implementing or
@@ -85,6 +89,7 @@ func (w *WilffBitSet) Combine(b2 BitSet) BitSet {
 	return w
 }
 
+// Slice implements the BitSet interface
 func (w *WilffBitSet) Slice(from, to int) BitSet {
 	if !w.inBound(from) || to < from || to > w.l {
 		return w
@@ -101,7 +106,8 @@ func (w *WilffBitSet) inBound(idx int) bool {
 	return !(idx < 0 || idx >= w.l)
 }
 
-// marshal the size first and then the bitset
+// MarshalBinary implements the go Marshaler interface. It encodes the size
+// first and then the bitset.
 func (w *WilffBitSet) MarshalBinary() ([]byte, error) {
 	var b bytes.Buffer
 	err := binary.Write(&b, binary.BigEndian, uint16(w.l))
@@ -116,6 +122,8 @@ func (w *WilffBitSet) MarshalBinary() ([]byte, error) {
 	return b.Bytes(), nil
 }
 
+// UnmarshalBinary implements the go Marshaler interface. It decodes the length
+// first and then the bitset.
 func (w *WilffBitSet) UnmarshalBinary(buff []byte) error {
 	var b = bytes.NewBuffer(buff)
 	var length uint16
@@ -125,5 +133,10 @@ func (w *WilffBitSet) UnmarshalBinary(buff []byte) error {
 	}
 
 	w.b = new(bitset.BitSet)
+	w.l = int(length)
 	return w.b.UnmarshalBinary(b.Bytes())
+}
+
+func (w *WilffBitSet) String() string {
+	return w.b.String()
 }

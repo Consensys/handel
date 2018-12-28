@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 )
 
@@ -18,21 +19,19 @@ type PublicKey interface {
 	Combine(PublicKey) PublicKey
 }
 
-// SecretKey holds methods to produce a valid signature that can be verified
-// under the corresponding public key.
+// SecretKey is an interface holding the required functionality of a secret key
+// needed to run the generic tests.
 type SecretKey interface {
-	PublicKey() PublicKey
-	// Sign returns a signature over the given message and using the reader for
-	// any randomness necessary, if any. The rand argument can be left nil.
-	Sign(msg []byte, rand io.Reader) (Signature, error)
+	Sign(msg []byte, r io.Reader) (Signature, error)
 }
 
-// SignatureScheme holds a private key interface and a method to create empty
-// signatures suitable for unmarshalling
-type SignatureScheme interface {
-	SecretKey
+// Constructor is used to create empty signatures suitable for unmarshalling and
+// empty public key suitable for aggregation.
+type Constructor interface {
 	// Signature returns a fresh empty signature suitable for unmarshaling
 	Signature() Signature
+	// PublicKey returns a fresh empty public key suitable for aggregation
+	PublicKey() PublicKey
 }
 
 // Signature holds methods to pass from/to a binary representation and to
@@ -49,6 +48,7 @@ type Signature interface {
 
 // MultiSignature represents an aggregated signature alongside with its bitset.
 // Handel outputs potentially multiple MultiSignatures during the protocol.
+// The BitSet is always expected to have the maximum size.
 type MultiSignature struct {
 	BitSet
 	Signature
@@ -76,7 +76,7 @@ func (m *MultiSignature) MarshalBinary() ([]byte, error) {
 
 // Unmarshal reads a multisignature from the given slice, using the signature
 // and bitset interface given.
-func (m *MultiSignature) Unmarshal(b []byte, s Signature, bs BitSet) error {
+func (m *MultiSignature) Unmarshal(b []byte, s Signature, nbs func(b int) BitSet) error {
 	var buff = bytes.NewBuffer(b)
 	var length uint16
 	if err := binary.Read(buff, binary.BigEndian, &length); err != nil {
@@ -87,6 +87,8 @@ func (m *MultiSignature) Unmarshal(b []byte, s Signature, bs BitSet) error {
 	if len(bitset) < int(length) {
 		return errors.New("bitset received smaller than expected")
 	}
+
+	bs := nbs(int(length))
 	if err := bs.UnmarshalBinary(bitset); err != nil {
 		return err
 	}
@@ -98,4 +100,9 @@ func (m *MultiSignature) Unmarshal(b []byte, s Signature, bs BitSet) error {
 	m.BitSet = bs
 	m.Signature = s
 	return nil
+}
+
+func (m *MultiSignature) String() string {
+	return fmt.Sprintf("{bitset %d/%d}",
+		m.BitSet.Cardinality(), m.BitSet.BitLength())
 }

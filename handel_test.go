@@ -1,9 +1,331 @@
 package handel
 
-/*func TestHandelParsePacket(t *testing.T) {*/
-//n := 17
-//mlog := math.Log2(float64(h.reg.Size()))
-//log := int(math.Ceil(r))
+import (
+	"fmt"
+	"sync"
+	"testing"
+	"time"
 
-//sig := new(fakeSig)
-/*}*/
+	"github.com/stretchr/testify/require"
+)
+
+var msg = []byte("Sun is Shining...")
+
+func TestHandelTestNetwork(t *testing.T) {
+	type handelTest struct {
+		n        int
+		offlines []int32
+		thr      int
+		fail     bool
+	}
+
+	off := func(ids ...int32) []int32 {
+		return ids
+	}
+	off()
+
+	var tests = []handelTest{
+		{33, nil, 0, false},/*
+		{33, nil, 33, false},
+		{67, off(), 67, false},
+		{5, off(4), 4, false},
+		//{13, off(0, 1, 4, 6), 6, false},
+		//{128, off(0, 1, 4, 6), 124, false},
+		// TODO: add timeout per level to fix that
+		{10, off(0, 3, 5, 7, 9), 5, true},*/
+	}
+
+	for i, scenario := range tests {
+		t.Logf(" -- test %d --", i)
+		n := scenario.n
+		secrets := make([]SecretKey, n)
+		pubs := make([]PublicKey, n)
+		cons := new(fakeCons)
+		for i := 0; i < n; i++ {
+			secrets[i] = new(fakeSecret)
+			pubs[i] = &fakePublic{true}
+		}
+		test := NewTest(secrets, pubs, cons, msg)
+		if scenario.thr != 0 {
+			test.SetOfflineNodes(scenario.offlines...)
+			test.SetThreshold(scenario.thr)
+		}
+		test.Start()
+		defer test.Stop()
+
+		select {
+		case <-test.WaitCompleteSuccess():
+			// all good
+			fmt.Printf("*** sent=%d, rcv=%d\n", test.handels[0].stats.msgSentCt, test.handels[0].stats.msgRcvCt)
+		case <-time.After(100 * time.Second):
+			if scenario.fail {
+				continue
+			}
+			t.FailNow()
+		}
+
+	}
+}
+
+func TestHandelWholeThing(t *testing.T) {
+	//t.Skip()
+	n := 32
+	reg, handels := FakeSetup(n)
+	defer CloseHandels(handels)
+	//PrintLog = false
+	t.Logf("%d", reg.Size())
+	for _, h := range handels {
+		go h.Start()
+	}
+
+	type sigTest struct {
+		sender *Handel
+		ms     *MultiSignature
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(n)
+	verif := make(chan sigTest, n)
+	doneCh := make([]chan bool, n)
+	for i := 0; i < n; i++ {
+		doneCh[i] = make(chan bool, 10)
+	}
+
+	//var cc int32
+	for _, h := range handels {
+		go func(hh *Handel) {
+			var wgDone bool
+			id := hh.id.ID()
+			for {
+				select {
+				case ms := <-hh.FinalSignatures():
+					if !wgDone {
+						//c := atomic.AddInt32(&cc, 1)
+						//fmt.Printf(" +++ TEST - HANDEL %d FINISHED %d/%d+++ sig %d\n", id, c, n, ms.Cardinality())
+						wg.Done()
+						wgDone = true
+					} else {
+						//fmt.Printf(" +++ TEST - HANDEL %d FINISHED -> sig %d +++ \n", id, ms.Cardinality())
+					}
+					verif <- sigTest{ms: &ms, sender: hh}
+				case <-doneCh[id]:
+					return
+				}
+			}
+		}(h)
+	}
+
+	wg.Wait()
+
+	var counter int
+	var handelsDone = make([]bool, n)
+
+	checkAllDone := func() bool {
+		for _, d := range handelsDone {
+			if !d {
+				return false
+			}
+		}
+		return true
+	}
+
+	for st := range verif {
+		counter++
+		id := st.sender.id.ID()
+		if handelsDone[id] {
+			continue
+		}
+
+		if st.ms.Cardinality() == n {
+			handelsDone[st.sender.id.ID()] = true
+			doneCh[id] <- true
+		}
+
+		if checkAllDone() {
+			break
+		}
+	}
+
+	require.True(t, counter >= n)
+}
+
+func Removed_TestHandelCheckCompletedLevel(t *testing.T) {
+	n := 8
+	_, handels := FakeSetup(n)
+	defer CloseHandels(handels)
+
+	// simulate not-complete signature of level 1 on node 1
+	// checkCompletedLevel should not react in any way
+	sender := handels[1]
+	receiver2 := handels[2]
+	inc2 := make(chan *Packet)
+	receiver2.net.(*TestNetwork).lis = []Listener{ChanListener(inc2)}
+
+	sig0 := fullSigPair(1)
+	// not-complete signature
+	sig02 := fullSigPair(1)
+	sig02.ms.BitSet.Set(0, false)
+
+	// node 0 corresponds to level 1 in node's 1 view.
+	// => store incomplete signature as if it was an empty signature from node 0
+	// node 1 should NOT send anything to node 2 (or 3 but we're only verifying
+	// node 2 since it will send to both anyway)
+	sender.store.Store(1, sig02.ms)
+	sender.checkCompletedLevel(sig02)
+	select {
+	case <-inc2:
+		t.Fatal("should not have received anything")
+	case <-time.After(20 * time.Millisecond):
+		// good
+	}
+
+	// send full signature
+	// node 2 should react
+	sender.store.Store(1, sig0.ms)
+	sender.checkCompletedLevel(sig0)
+	select {
+	case p := <-inc2:
+		require.Equal(t, int32(1), p.Origin)
+		require.Equal(t, byte(2), p.Level)
+	case <-time.After(20 * time.Millisecond):
+		t.Fatal("not received expected full signature")
+	}
+}
+
+func TestHandelCheckFinalSignature(t *testing.T) {
+	n := 16
+
+	type checkFinalTest struct {
+		// one slice represents sigs to store before calling the checkVerified
+		// you can put multiple slices to call checkverified multiple times
+		sigs [][]*sigPair
+		// input to the handler
+		input *sigPair
+		// expected output on the output channel
+		out []*MultiSignature
+	}
+
+	// test(3) set a non-complete signature followed by a complete signature
+	pairs1 := sigPairs(0, 1, 2, 3, 4)
+	pairs2 := sigPairs(3, 4)
+	// index 8 (2^4-1) + 6 = 14 set to false
+	pairs1[4].ms.BitSet.Set(6, false)
+	final4 := finalSigPair(4, n)
+	// missing one contribution
+	final4b := finalSigPair(4, n)
+	final4b.ms.BitSet.Set(14, false)
+
+	// test(4) set a under-threshold signature followed by a good one
+	pairs3 := sigPairs(0, 1, 2, 3, 4)
+	// 4-1 -> because that's how you compute the size of a level
+	// -1 -> to just spread out holes to other levels and leave this one still
+	// having one contribution
+	for i := 0; i < pow2(4-1)-1; i++ {
+		pairs3[4].ms.BitSet.Set(i, false)
+	}
+	pairs3[3].ms.BitSet.Set(1, false)
+	pairs3[3].ms.BitSet.Set(2, false)
+
+	//fmt.Println("pairs3[4] bitset = ", pairs3[4].ms.BitSet.String())
+	//fmt.Println("pairs3[3] bitset = ", pairs3[3].ms.BitSet.String())
+
+	toMatrix := func(pairs ...[]*sigPair) [][]*sigPair {
+		return append(make([][]*sigPair, 0), pairs...)
+	}
+	var tests = []checkFinalTest{
+		// too lower level signatures
+		{toMatrix(sigPairs(0, 1, 2)), nil, []*MultiSignature{nil}},
+		// everything's perfect
+		{toMatrix(sigPairs(0, 1, 2, 3, 4)), nil, []*MultiSignature{finalSigPair(4, n).ms}},
+		// gives two consecutives better
+		{toMatrix(pairs1, pairs2), nil, []*MultiSignature{final4b.ms, final4.ms}},
+		// one underthreshold and fully signed
+		{toMatrix(pairs3, pairs2), nil, []*MultiSignature{nil, final4.ms}},
+	}
+
+	waitOut := func(h *Handel) *MultiSignature {
+		select {
+		case ms := <-h.FinalSignatures():
+			return &ms
+		case <-time.After(20 * time.Millisecond):
+			return nil
+		}
+	}
+
+	for i, test := range tests {
+		t.Logf(" -- test %d --", i)
+		_, handels := FakeSetup(n)
+		h := handels[1]
+		store := h.store
+
+		for i, toInsert := range test.sigs {
+			// insert slice
+			for _, sig := range toInsert {
+				store.Store(sig.level, sig.ms)
+			}
+			h.checkFinalSignature(test.input)
+
+			// lookup expected result at that point
+			expected := test.out[i]
+			output := waitOut(h)
+			require.Equal(t, expected, output)
+		}
+	}
+}
+
+func TestHandelParsePacket(t *testing.T) {
+	n := 16
+	registry := FakeRegistry(n)
+	//ids := registry.(*arrayRegistry).ids // TODO: The test runs ok even if we comment this lines
+	h := &Handel{
+		c:    DefaultConfig(n),
+		reg:  registry,
+		cons: new(fakeCons),
+		msg:  msg,
+		//part: NewBinPartitioner(ids[1].ID(), registry),
+	}
+	type packetTest struct {
+		*Packet
+		Error bool
+	}
+	correctSig := newSig(fullBitset(2))
+	buffMs, _ := correctSig.MarshalBinary()
+	packets := []*packetTest{
+		{
+			&Packet{
+				Origin:   65000,
+				Level:    0,
+				MultiSig: fakeConstSig,
+			}, true,
+		},
+		{
+			&Packet{
+				Origin:   3,
+				Level:    254,
+				MultiSig: fakeConstSig,
+			}, true,
+		},
+		{
+			&Packet{
+				Origin:   3,
+				Level:    1,
+				MultiSig: []byte{0x01},
+			}, true,
+		},
+		{
+			&Packet{
+				Origin:   3,
+				Level:    2,
+				MultiSig: buffMs,
+			}, false,
+		},
+	}
+	for _, test := range packets {
+		_, err := h.parsePacket(test.Packet)
+		if test.Error {
+			require.Error(t, err)
+		} else {
+			require.NoError(t, err)
+		}
+	}
+}
