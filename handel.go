@@ -67,6 +67,10 @@ func createLevels(r Registry, partitioner Partitioner) map[int]*level {
 	return lvls
 }
 
+func (l *level) active() bool {
+	return l.sendPeersCt < len(l.nodes) && l.sendStarted
+}
+
 // Select the peers we should contact next.
 func (l *level) selectNextPeers(count int) ([]Identity, bool) {
 	size := min(count, len(l.nodes))
@@ -107,8 +111,8 @@ func (l *level) updateSigToSend(sig *MultiSignature) bool {
 
 // Send our best signature set for this level, to 'count' nodes
 func (h *Handel) sendUpdate(l *level, count int) {
-	if !l.sendStarted || l.sendPeersCt >= len(l.nodes) {
-		return
+	if !l.active() {
+		panic("level not started!")
 	}
 
 	sp := h.store.Combined(byte(l.id) - 1)
@@ -245,13 +249,13 @@ func (h *Handel) Start() {
 	go h.proc.Start()
 	go h.rangeOnVerified()
 	go h.periodicLoop()
-	h.periodicUpdate(h.startTime)
+	h.periodicUpdate()
 }
 
 func (h *Handel) periodicLoop() {
-	for t := range h.ticker.C {
+	for range h.ticker.C {
 		h.Lock()
-		h.periodicUpdate(t)
+		h.periodicUpdate()
 		h.Unlock()
 	}
 }
@@ -270,16 +274,22 @@ func (h *Handel) Stop() {
 //  - check if we reached a timeout for each level
 //  - send a new packet
 // You must have locked handel before calling this function
-func (h *Handel) periodicUpdate(t time.Time) {
-	msSinceStart := int(t.Sub(h.startTime).Seconds() * 1000)
-
+func (h *Handel) periodicUpdate() {
 	for i := byte(1); i <= byte(len(h.levels)); i++ {
 		lvl := h.getLevel(i)
-		// Check if the level is in timeout, and update it if necessary
-		if !lvl.sendStarted && msSinceStart >= lvl.id*int(h.c.LevelTimeout.Seconds()*1000) {
-			lvl.sendStarted = true
+		if !lvl.sendStarted {
+			h.decideToStartLevel(lvl)
 		}
-		h.sendUpdate(lvl, 1)
+		if lvl.active() {
+			h.sendUpdate(lvl, 1)
+		}
+	}
+}
+
+func (h *Handel) decideToStartLevel(l *level) {
+	msSinceStart := int(time.Now().Sub(h.startTime).Seconds() * 1000)
+	if msSinceStart >= l.id * int(h.c.LevelTimeout.Seconds())*1000 {
+		l.sendStarted = true
 	}
 }
 
