@@ -160,6 +160,9 @@ func (r *replaceStore) store(level byte, ms *MultiSignature) {
 }
 
 func (r *replaceStore) String() string {
+	r.Lock()
+	defer r.Unlock()
+
 	var b bytes.Buffer
 	b.WriteString("replaceStore table:\n")
 	for lvl, ms := range r.m {
@@ -169,5 +172,9 @@ func (r *replaceStore) String() string {
 }
 
 func (s *sigPair) String() string {
-	return fmt.Sprintf("sig(lvl %d): %s", s.level, s.ms.String())
+	if s.ms == nil {
+		return fmt.Sprintf("sig(lvl %d): nil", s.level)
+	} else {
+		return fmt.Sprintf("sig(lvl %d): %s", s.level, s.ms.String())
+	}
 }
