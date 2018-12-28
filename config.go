@@ -63,7 +63,7 @@ const DefaultLevelTimeout = 100 * time.Millisecond
 const DefaultCandidateCount = 10
 
 // DefaultUpdatePeriod is the default update period used by Handel.
-const DefaultUpdatePeriod = 200 * time.Millisecond
+const DefaultUpdatePeriod = 20 * time.Millisecond
 
 // DefaultBitSet returns the default implementation used by Handel, i.e. the
 // WilffBitSet

@@ -11,29 +11,54 @@ import (
 
 var msg = []byte("Sun is Shining...")
 
-func TestHandelTestNetwork(t *testing.T) {
-	type handelTest struct {
-		n        int
-		offlines []int32
-		thr      int
-		fail     bool
-	}
+type handelTest struct {
+	n        int
+	offlines []int32
+	thr      int
+	fail     bool
+}
 
+func TestHandelTestNetworkSimple(t *testing.T) {
+	var tests = []handelTest{
+		{4, nil, 0, false},
+	}
+	testHandelTestNetwork(t, tests)
+}
+
+func TestHandelTestNetworkFull(t *testing.T) {
 	off := func(ids ...int32) []int32 {
 		return ids
 	}
 	off()
 
 	var tests = []handelTest{
-		{33, nil, 0, false},/*
 		{33, nil, 33, false},
 		{67, off(), 67, false},
 		{5, off(4), 4, false},
-		//{13, off(0, 1, 4, 6), 6, false},
-		//{128, off(0, 1, 4, 6), 124, false},
-		// TODO: add timeout per level to fix that
-		{10, off(0, 3, 5, 7, 9), 5, true},*/
+		{13, off(1, 2, 4, 6), 6, false},
+		{128, off(1, 2, 4, 6), 124, false},
+		//{10, off(2, 3, 5, 7, 9), 5, false},
 	}
+	testHandelTestNetwork(t, tests)
+}
+
+func TestHandelTestNetworkLarge(t *testing.T) {
+	off := func(ids ...int32) []int32 {
+		return ids
+	}
+	off()
+
+	var tests = []handelTest{
+		{333, off(0, 1, 4, 6, 7, 19, 56, 89, 99), 310, false},
+	}
+	testHandelTestNetwork(t, tests)
+}
+
+func testHandelTestNetwork(t *testing.T, tests []handelTest) {
+	off := func(ids ...int32) []int32 {
+		return ids
+	}
+	off()
 
 	for i, scenario := range tests {
 		t.Logf(" -- test %d --", i)
@@ -63,7 +88,6 @@ func TestHandelTestNetwork(t *testing.T) {
 			}
 			t.FailNow()
 		}
-
 	}
 }
 
@@ -149,7 +173,7 @@ func TestHandelWholeThing(t *testing.T) {
 	require.True(t, counter >= n)
 }
 
-func Removed_TestHandelCheckCompletedLevel(t *testing.T) {
+func TestHandelCheckCompletedLevel(t *testing.T) {
 	n := 8
 	_, handels := FakeSetup(n)
 	defer CloseHandels(handels)
