@@ -7,6 +7,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type EvaluatorLevel struct {
+}
+
+func (f *EvaluatorLevel) Evaluate(sp *sigPair) int {
+	return int(sp.level)
+}
+
 func TestSigProcessingStrategy(t *testing.T) {
 	n := 16
 	registry := FakeRegistry(n)

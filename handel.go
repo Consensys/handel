@@ -408,7 +408,7 @@ func (h *Handel) sendTo(lvl int, ms *MultiSignature, ids []Identity) {
 func (h *Handel) parsePacket(p *Packet) (*MultiSignature, error) {
 	h.stats.msgRcvCt++
 
-	if p.Origin >= int32(h.reg.Size()) {
+	if p.Origin < 0 || p.Origin >= int32(h.reg.Size()) {
 		return nil, errors.New("packet's origin out of range")
 	}
 

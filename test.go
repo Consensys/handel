@@ -47,8 +47,8 @@ func NewTest(keys []SecretKey, pubs []PublicKey, c Constructor, msg []byte) *Tes
 	reg := NewArrayRegistry(ids)
 	for i := 0; i < n; i++ {
 		newPartitioner := func(id int32, reg Registry) Partitioner {
-			//return NewRandomBinPartitioner(id, reg, nil)
-			return NewBinPartitioner(id, reg)
+			return NewRandomBinPartitioner(id, reg, nil)
+			//return NewBinPartitioner(id, reg)
 		}
 		conf := &Config{NewPartitioner: newPartitioner, CandidateCount: 100}
 		handels[i] = NewHandel(nets[i], reg, ids[i], c, msg, sigs[i], conf)

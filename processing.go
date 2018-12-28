@@ -49,13 +49,21 @@ func newEvaluator1() SigEvaluator {
 	return &Evaluator1{}
 }
 
-type EvaluatorLevel struct {
+type EvaluatorStore struct {
+	store signatureStore
 }
 
-func (f *EvaluatorLevel) Evaluate(sp *sigPair) int {
-	return int(sp.level)
+func (f *EvaluatorStore) Evaluate(sp *sigPair) int {
+	ms, ok := f.store.Best(sp.level)
+	if ok && ms.Cardinality() >= sp.ms.Cardinality() {
+		//return 0
+	}
+	return 1
 }
 
+func newEvaluatorStore(store signatureStore) SigEvaluator {
+	return &EvaluatorStore{store:store}
+}
 
 type sigProcessWithStrategy struct {
 	cond *sync.Cond
