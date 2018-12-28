@@ -396,7 +396,7 @@ func (h *Handel) sendTo(lvl int, ms *MultiSignature, ids []Identity) {
 		MultiSig: buff,
 	}
 
-	msg := fmt.Sprintf("packet sent of level %d to %v", p.Level, ids)
+	msg := fmt.Sprintf("packet sent of level %d to %v -- %s", p.Level, ids, h.store)
 	h.logf(msg)
 	h.net.Send(ids, p)
 }

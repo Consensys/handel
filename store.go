@@ -13,7 +13,7 @@ import (
 // NOTE: implementation MUST be thread-safe.
 type signatureStore interface {
 	// MoreStore uses the same logic as Store but do not store the
-	// multisignature. It returns the (potentially new) multisgnature at
+	// multisignature. It returns the (potentially new) multisignature at
 	// the level, with a boolean indicating if there has been an entry update at
 	// this level. It can be true if there was no multisignature previously, or
 	// if the store has merged multiple multisignature together for example.
@@ -160,6 +160,7 @@ func (r *replaceStore) store(level byte, ms *MultiSignature) {
 }
 
 func (r *replaceStore) String() string {
+	full := r.FullSignature()
 	r.Lock()
 	defer r.Unlock()
 	var b bytes.Buffer
@@ -167,11 +168,13 @@ func (r *replaceStore) String() string {
 	for lvl, ms := range r.m {
 		b.WriteString(fmt.Sprintf("\tlevel %d : %s\n", lvl, ms))
 	}
-	full := r.FullSignature()
 	b.WriteString(fmt.Sprintf("\t --> full sig: %d/%d", full.Cardinality(), full.BitLength()))
 	return b.String()
 }
 
 func (s *sigPair) String() string {
+	if s.ms == nil {
+		return fmt.Sprintf("sig(lvl %d): <nil>", s.level)
+	}
 	return fmt.Sprintf("sig(lvl %d): %s", s.level, s.ms.String())
 }
