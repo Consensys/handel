@@ -25,17 +25,14 @@ type signatureStore interface {
 	Store(level byte, ms *MultiSignature) (*MultiSignature, bool)
 	// GetBest returns the "best" multisignature at the requested level. Best
 	// should be interpreted as "containing the most individual contributions".
+	// it returns false if there is no signature associated to that level, true
+	// otherwise.
 	Best(level byte) (*MultiSignature, bool)
 	// Combined returns the best combined multi-signature possible containing
 	// all levels below and up to the given level parameters. The resulting
 	// bitset size is the size associated to the level+1 candidate set.
 	// Can return nil if no signature stored yet.
 	Combined(level byte) *MultiSignature
-	/*// HighestCombined returns the best combined multi-signature possible. The*/
-	//// bitset size is the size associated to the level in the sigpair, which is
-	//// the maximum level signature + 1. It can return nil if there is no
-	//// signature present so far.
-	//Highest() *sigPair
 
 	// FullSignature returns the best combined multi-signatures with the bitset
 	// bitlength being the size of the registry
@@ -58,13 +55,15 @@ type replaceStore struct {
 	nbs func(int) BitSet
 	// used to compute bitset length for missing multi-signatures
 	part Partitioner
+	c    Constructor
 }
 
-func newReplaceStore(part Partitioner, nbs func(int) BitSet) *replaceStore {
+func newReplaceStore(part Partitioner, nbs func(int) BitSet, c Constructor) *replaceStore {
 	return &replaceStore{
 		nbs:  nbs,
 		part: part,
 		m:    make(map[byte]*MultiSignature),
+		c:    c,
 	}
 }
 
@@ -93,6 +92,27 @@ func (r *replaceStore) unsafeCheck(level byte, ms *MultiSignature) (*MultiSignat
 
 	c1 := ms.Cardinality()
 	c2 := ms2.Cardinality()
+	final := r.nbs(ms.BitLength())
+	// find if both bs are disjoint
+	var disjoint = true
+	for i := 0; i < ms.BitSet.BitLength(); i++ {
+		v1 := ms.Get(i)
+		v2 := ms2.Get(i)
+		if v1 && v2 {
+			disjoint = false
+			break
+		}
+		final.Set(i, v1 || v2)
+	}
+
+	if disjoint {
+		sig := r.c.Signature()
+		sig = sig.Combine(ms.Signature)
+		sig = sig.Combine(ms2.Signature)
+		return &MultiSignature{Signature: sig, BitSet: final}, true
+	}
+
+	// find if new ms has more contributions
 	if c1 > c2 {
 		return ms, true
 	}
@@ -116,23 +136,6 @@ func (r *replaceStore) FullSignature() *MultiSignature {
 	return r.part.CombineFull(sigs, r.nbs)
 }
 
-/*func (r *replaceStore) Highest() *sigPair {*/
-//r.Lock()
-//defer r.Unlock()
-//sigs := make([]*sigPair, 0, len(r.m))
-//var maxLevel byte
-//for k, ms := range r.m {
-//sigs = append(sigs, &sigPair{level: k, ms: ms})
-//if k > maxLevel {
-//maxLevel = k
-//}
-//}
-//if maxLevel < byte(r.part.MaxLevel()) {
-//maxLevel++
-//}
-//return r.part.Combine(sigs, int(maxLevel), r.nbs)
-//}
-
 func (r *replaceStore) Combined(level byte) *MultiSignature {
 	r.Lock()
 	defer r.Unlock()
@@ -150,9 +153,6 @@ func (r *replaceStore) Combined(level byte) *MultiSignature {
 }
 
 func (r *replaceStore) store(level byte, ms *MultiSignature) {
-	if r.m[level] != nil && r.m[level].BitSet.Cardinality() > ms.Cardinality(){
-		panic("It doesn't look like a good idea...")
-	}
 	r.m[level] = ms
 	if level > r.highest {
 		r.highest = level
@@ -160,21 +160,21 @@ func (r *replaceStore) store(level byte, ms *MultiSignature) {
 }
 
 func (r *replaceStore) String() string {
+	full := r.FullSignature()
 	r.Lock()
 	defer r.Unlock()
-
 	var b bytes.Buffer
 	b.WriteString("replaceStore table:\n")
 	for lvl, ms := range r.m {
 		b.WriteString(fmt.Sprintf("\tlevel %d : %s\n", lvl, ms))
 	}
+	b.WriteString(fmt.Sprintf("\t --> full sig: %d/%d", full.Cardinality(), full.BitLength()))
 	return b.String()
 }
 
 func (s *sigPair) String() string {
 	if s.ms == nil {
-		return fmt.Sprintf("sig(lvl %d): nil", s.level)
-	} else {
-		return fmt.Sprintf("sig(lvl %d): %s", s.level, s.ms.String())
+		return fmt.Sprintf("sig(lvl %d): <nil>", s.level)
 	}
+	return fmt.Sprintf("sig(lvl %d): %s", s.level, s.ms.String())
 }

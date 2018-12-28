@@ -10,7 +10,7 @@ import (
 )
 
 func TestHandel(t *testing.T) {
-	n := 100
+	n := 101
 	msg := []byte("Peaches and Cream")
 	secretKeys := make([]h.SecretKey, n)
 	pubKeys := make([]h.PublicKey, n)
@@ -29,7 +29,7 @@ func TestHandel(t *testing.T) {
 
 	select {
 	case <-test.WaitCompleteSuccess():
-	case <-time.After(10 * time.Second):
+	case <-time.After(100 * time.Second):
 		t.FailNow()
 	}
 }

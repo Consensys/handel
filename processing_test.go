@@ -87,7 +87,7 @@ func TestProcessingFifo(t *testing.T) {
 	for i, test := range tests {
 		t.Logf(" -- test %d -- ", i)
 
-		store := newReplaceStore(partitioner, NewWilffBitset)
+		store := newReplaceStore(partitioner, NewWilffBitset, cons)
 		fifo := newFifoProcessing(partitioner, cons, msg, nil)
 		fifos = append(fifos, fifo)
 		go fifo.Start()

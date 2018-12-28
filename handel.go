@@ -67,6 +67,10 @@ func createLevels(r Registry, partitioner Partitioner) map[int]*level {
 	return lvls
 }
 
+func (l *level) active() bool {
+	return l.sendPeersCt < len(l.nodes) && l.sendStarted
+}
+
 // Select the peers we should contact next.
 func (l *level) selectNextPeers(count int) ([]Identity, bool) {
 	size := min(count, len(l.nodes))
@@ -87,7 +91,7 @@ func (l *level) selectNextPeers(count int) ([]Identity, bool) {
 // check if the signature is better than what we have.
 // If it's better, reset the counters of the messages sent.
 // If the level is now rcvCompleted we return true; if not we return false
-func (l *level) updateSigToSend(sig *MultiSignature) (bool) {
+func (l *level) updateSigToSend(sig *MultiSignature) bool {
 	if l.sendSigSize >= sig.Cardinality() {
 		return false
 	}
@@ -107,8 +111,8 @@ func (l *level) updateSigToSend(sig *MultiSignature) (bool) {
 
 // Send our best signature set for this level, to 'count' nodes
 func (h *Handel) sendUpdate(l *level, count int) {
-	if !l.sendStarted || l.sendPeersCt >= len(l.nodes) {
-		return
+	if !l.active() {
+		panic("level not started!")
 	}
 
 	sp := h.store.Combined(byte(l.id) - 1)
@@ -203,7 +207,7 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 	}
 
 	h.threshold = h.c.ContributionsThreshold(h.reg.Size())
-	h.store = newReplaceStore(part, h.c.NewBitSet)
+	h.store = newReplaceStore(part, h.c.NewBitSet, c)
 	h.store.Store(0, mySig) // Our own sig is at level 0.
 	h.proc = newFifoProcessing(part, c, msg, h)
 	h.net.RegisterListener(h)
@@ -216,6 +220,7 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 func (h *Handel) NewPacket(p *Packet) {
 	h.Lock()
 	defer h.Unlock()
+
 	if h.done {
 		return
 	}
@@ -225,11 +230,11 @@ func (h *Handel) NewPacket(p *Packet) {
 		return
 	}
 
-	//msg := fmt.Sprintf("packet received %d-%d", p.Origin, p.Level)
-	//h.logf(msg)
-
 	// sends it to processing
 	if !h.getLevel(p.Level).rcvCompleted {
+		msg := fmt.Sprintf("packet received from %d for level %d", p.Origin, p.Level)
+		h.logf(msg)
+
 		//h.logf("%s - done ", msg)
 		h.proc.Incoming() <- sigPair{origin: p.Origin, level: p.Level, ms: ms}
 	}
@@ -244,13 +249,13 @@ func (h *Handel) Start() {
 	go h.proc.Start()
 	go h.rangeOnVerified()
 	go h.periodicLoop()
-	h.periodicUpdate(h.startTime)
+	h.periodicUpdate()
 }
 
 func (h *Handel) periodicLoop() {
-	for t := range h.ticker.C {
+	for range h.ticker.C {
 		h.Lock()
-		h.periodicUpdate(t)
+		h.periodicUpdate()
 		h.Unlock()
 	}
 }
@@ -269,16 +274,22 @@ func (h *Handel) Stop() {
 //  - check if we reached a timeout for each level
 //  - send a new packet
 // You must have locked handel before calling this function
-func (h *Handel) periodicUpdate(t time.Time) {
-	msSinceStart := int(t.Sub(h.startTime).Seconds() * 1000)
-
+func (h *Handel) periodicUpdate() {
 	for i := byte(1); i <= byte(len(h.levels)); i++ {
 		lvl := h.getLevel(i)
-		// Check if the level is in timeout, and update it if necessary
-		if !lvl.sendStarted && msSinceStart >= lvl.id*int(h.c.LevelTimeout.Seconds()*1000) {
-			lvl.sendStarted = true
+		if !lvl.sendStarted {
+			h.decideToStartLevel(lvl)
 		}
-		h.sendUpdate(lvl, 1)
+		if lvl.active() {
+			h.sendUpdate(lvl, 1)
+		}
+	}
+}
+
+func (h *Handel) decideToStartLevel(l *level) {
+	msSinceStart := int(time.Now().Sub(h.startTime).Seconds() * 1000)
+	if msSinceStart >= l.id * int(h.c.LevelTimeout.Seconds())*1000 {
+		l.sendStarted = true
 	}
 }
 
@@ -350,7 +361,7 @@ func (h *Handel) checkFinalSignature(s *sigPair) {
 	}
 }
 
-func (h *Handel) getLevel(levelId byte) (*level) {
+func (h *Handel) getLevel(levelId byte) *level {
 	l := int(levelId)
 	if l <= 0 || l > len(h.levels) {
 		msg := fmt.Sprintf("Bad level (%d) max is %d", l, len(h.levels))
@@ -374,7 +385,7 @@ func (h *Handel) checkCompletedLevel(s *sigPair) {
 	for i := s.level + 1; i <= byte(len(h.levels)); i++ {
 		lvl := h.getLevel(i)
 		ms := h.store.Combined(byte(lvl.id) - 1)
-		if ms != nil &&  lvl.updateSigToSend(ms) {
+		if ms != nil && lvl.updateSigToSend(ms) {
 			h.sendUpdate(lvl, h.c.CandidateCount)
 		}
 	}
@@ -395,8 +406,8 @@ func (h *Handel) sendTo(lvl int, ms *MultiSignature, ids []Identity) {
 		MultiSig: buff,
 	}
 
-	//msg := fmt.Sprintf("packet sent %v-%d", ids, p.Level)
-	//h.logf(msg)
+	msg := fmt.Sprintf("packet sent of level %d to %v -- %s", p.Level, ids, h.store)
+	h.logf(msg)
 	h.net.Send(ids, p)
 }
 
