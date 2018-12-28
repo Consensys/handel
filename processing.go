@@ -49,14 +49,6 @@ func newEvaluator1() SigEvaluator {
 	return &Evaluator1{}
 }
 
-type EvaluatorLevel struct {
-}
-
-func (f *EvaluatorLevel) Evaluate(sp *sigPair) int {
-	return int(sp.level)
-}
-
-
 type sigProcessWithStrategy struct {
 	cond *sync.Cond
 

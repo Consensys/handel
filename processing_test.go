@@ -7,7 +7,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSigProcessingStrategy(t *testing.T)  {
+type EvaluatorLevel struct {
+}
+
+func (f *EvaluatorLevel) Evaluate(sp *sigPair) int {
+	return int(sp.level)
+}
+
+func TestSigProcessingStrategy(t *testing.T) {
 	n := 16
 	registry := FakeRegistry(n)
 	partitioner := NewBinPartitioner(1, registry)
@@ -22,12 +29,12 @@ func TestSigProcessingStrategy(t *testing.T)  {
 	ss.add(sig2)
 	require.Equal(t, 1, len(ss.todos))
 
-    stop := ss.processStep()
+	stop := ss.processStep()
 	require.Equal(t, false, stop)
 	require.Equal(t, 0, len(ss.todos))
 
-    // With the evaluator used, signatures at level 0 are discarded & signatures with
-    //  an higher level are verified first.
+	// With the evaluator used, signatures at level 0 are discarded & signatures with
+	//  an higher level are verified first.
 	ss.add(sig0)
 	ss.add(sig1)
 	ss.add(sig2)
