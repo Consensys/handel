@@ -32,7 +32,7 @@ type signatureProcessing interface {
 }
 
 type sigProcessWithStrategy struct {
-	c *sync.Cond
+	cond *sync.Cond
 
 	part Partitioner
 	cons Constructor
@@ -48,7 +48,7 @@ func newSigProcessWithStrategy(part Partitioner, c Constructor, msg []byte) *sig
 	m := sync.Mutex{}
 
 	return &sigProcessWithStrategy{
-		c:    sync.NewCond(&m),
+		cond: sync.NewCond(&m),
 		part: part,
 		cons: c,
 		msg:  msg,
@@ -66,13 +66,13 @@ type fifoProcessing struct {
 	proc *sigProcessWithStrategy
 }
 
-func (f *sigProcessWithStrategy) add(sp sigPair) {
-	f.c.L.Lock()
-	defer f.c.L.Unlock()
+func (f *sigProcessWithStrategy) add(sp *sigPair) {
+	f.cond.L.Lock()
+	defer f.cond.L.Unlock()
 
 	if int(sp.level) > f.highestCompleted {
-		f.todos = append(f.todos, &sp)
-		f.c.Broadcast()
+		f.todos = append(f.todos, sp)
+		f.cond.Signal()
 	}
 }
 
@@ -93,10 +93,10 @@ func (f *simpleToVerifyEvaluator) evaluate(sp *sigPair) (bool, int) {
 // Look at the signatures received so far and select the one
 //  that should be processed first.
 func (f *sigProcessWithStrategy) readTodos() (bool, *sigPair) {
-	f.c.L.Lock()
-	defer f.c.L.Unlock()
-	for ; len(f.todos) == 0; {
-		f.c.Wait()
+	f.cond.L.Lock()
+	defer f.cond.L.Unlock()
+	for len(f.todos) == 0 {
+		f.cond.Wait()
 	}
 
 	// We need to iterate on our list. We put in
@@ -135,44 +135,44 @@ func (f *sigProcessWithStrategy) readTodos() (bool, *sigPair) {
 }
 
 func (f *sigProcessWithStrategy) hasTodos() bool {
-	f.c.L.Lock()
-	defer f.c.L.Unlock()
+	f.cond.L.Lock()
+	defer f.cond.L.Unlock()
 	return len(f.todos) > 0
 }
 
 func (f *sigProcessWithStrategy) process() {
 	sigCount := 0
-	for ; ; {
-		done, choice := f.readTodos()
+	for {
+		done, best := f.readTodos()
 		if done {
 			close(f.out)
 			return
 		}
-		if choice == nil {
+		if best == nil {
 			continue
 		}
-		f.check(choice)
+		f.check(best)
 		sigCount++
 		if sigCount%100 == 0 {
 			logf("Processed %d signatures", sigCount)
 		}
-
 	}
 }
 
 func (f *sigProcessWithStrategy) check(sp *sigPair) {
-	lvl := int(sp.level)
 	err := f.verifySignature(sp)
 	if err != nil {
 		logf("fifo: verifying err: %s", err)
 	} else {
 		f.out <- *sp
+		/* Needs a lock
+		lvl := int(sp.level)
 		if lvl > f.highestCompleted && sp.ms.Cardinality() == f.part.Size(lvl) {
 			f.highestCompleted = lvl
 		}
+		*/
 	}
 }
-
 
 // newFifoProcessing returns a signatureProcessing implementation using a fifo
 // queue. It needs the store to store the valid signatures, the partitioner +
@@ -189,13 +189,18 @@ func newFifoProcessing(part Partitioner, c Constructor, msg []byte) signaturePro
 
 // processIncoming simply verifies the signature, stores it, and outputs it
 func (f *fifoProcessing) processIncoming() {
+	async := false
 	for pair := range f.in {
-		// f.proc.add(pair)
+		if async {
+			f.proc.add(&pair)
+		}
 		if pair == deathPillPair {
 			f.close()
 			return
 		} else {
-			f.proc.check(&pair)
+			if !async {
+				f.proc.check(&pair)
+			}
 		}
 	}
 }

@@ -25,7 +25,7 @@ func TestHandelTestNetwork(t *testing.T) {
 	off()
 
 	var tests = []handelTest{
-		{33, nil, 0, false},
+		{4, nil, 0, false},
 		{33, nil, 33, false},
 		{67, off(), 67, false},
 		{5, off(4), 4, false},

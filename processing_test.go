@@ -8,7 +8,6 @@ import (
 )
 
 func TestProcessingFifo(t *testing.T) {
-	t.Skip()
 	n := 16
 	registry := FakeRegistry(n)
 	partitioner := NewBinPartitioner(1, registry)
@@ -28,12 +27,12 @@ func TestProcessingFifo(t *testing.T) {
 	var tests = []testProcess{
 		// all good, one one
 		{s(sig2), s(sig2)},
-		// twice the same
-		{s(sig2, sig2), s(sig2, nil)},
-		// diff level
-		{s(sig2, sig3, sig2), s(sig2, sig3, nil)},
 		// wrong signature
-		{s(sig2Inv), s(nil)},
+		{s(sig2Inv, sig3), s(nil, sig3)},
+		// twice the same: we expect only one sig on the out chan
+		//{s(sig2, sig2), s(sig2, nil)},
+		// diff level:
+		//{s(sig2, sig3, sig2), s(sig2, sig3, nil)},
 	}
 
 	fifo := newFifoProcessing(partitioner, cons, msg).(*fifoProcessing)
@@ -64,7 +63,7 @@ func TestProcessingFifo(t *testing.T) {
 			select {
 			case p := <-verified:
 				s = &p
-			case <-time.After(20000 * time.Millisecond):
+			case <-time.After(20 * time.Millisecond):
 				s = nil
 			}
 			require.Equal(t, out, s)
