@@ -29,7 +29,6 @@ func TestHandelTestNetworkFull(t *testing.T) {
 	off := func(ids ...int32) []int32 {
 		return ids
 	}
-	off()
 
 	var tests = []handelTest{
 		{33, nil, 33, false},
