@@ -160,6 +160,8 @@ func (r *replaceStore) store(level byte, ms *MultiSignature) {
 }
 
 func (r *replaceStore) String() string {
+	r.Lock()
+	defer r.Unlock()
 	var b bytes.Buffer
 	b.WriteString("replaceStore table:\n")
 	for lvl, ms := range r.m {
