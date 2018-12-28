@@ -419,6 +419,9 @@ func (r *randomBinPartitioner) PickNextAt(level, count int) ([]Identity, bool) {
 
 	min, max, err := r.rangeLevel(level)
 	if err != nil {
+		if err == errEmptyLevel {
+			return nil, false
+		}
 		panic(err)
 	}
 
@@ -434,7 +437,6 @@ func (r *randomBinPartitioner) PickNextAt(level, count int) ([]Identity, bool) {
 	if minPicked == max {
 		return nil, false
 	}
-
 
 	seed, ok := r.seeds[level]
 	if !ok {
