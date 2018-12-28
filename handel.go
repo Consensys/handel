@@ -202,14 +202,6 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 		actorFunc(h.checkFinalSignature),
 	}
 
-	go func() {
-		for t := range h.ticker.C {
-			h.Lock()
-			h.periodicUpdate(t)
-			h.Unlock()
-		}
-	}()
-
 	h.threshold = h.c.ContributionsThreshold(h.reg.Size())
 	h.store = newReplaceStore(part, h.c.NewBitSet)
 	h.store.Store(0, mySig) // Our own sig is at level 0.
@@ -251,7 +243,16 @@ func (h *Handel) Start() {
 	h.startTime = time.Now()
 	go h.proc.Start()
 	go h.rangeOnVerified()
+	go h.periodicLoop()
 	h.periodicUpdate(h.startTime)
+}
+
+func (h *Handel) periodicLoop() {
+	for t := range h.ticker.C {
+		h.Lock()
+		h.periodicUpdate(t)
+		h.Unlock()
+	}
 }
 
 // Stop the Handel protocol and all sub routines

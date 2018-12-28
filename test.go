@@ -157,13 +157,13 @@ func (t *Test) info(newFinished int, finished []int) {
 	for i, h := range t.handels {
 		var s2 string
 		if t.isOffline(h.id.ID()) {
-			s2 = fmt.Sprintf("- %d offline %s\t", i, h.store)
+			s2 = fmt.Sprintf("- %d offline\t", i)
 		} else if isIncluded(i, finished) {
 			s2 = fmt.Sprintf("- %d finished\t", i)
 		} else {
 			s2 = fmt.Sprintf("- %d waiting X %s\t", i, h.store)
 		}
-		if (i+1)%3 == 0 {
+		if (i+1)%1 == 0 {
 			s2 += "\n"
 		}
 		s1 += s2
