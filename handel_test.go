@@ -36,7 +36,7 @@ func TestHandelTestNetworkFull(t *testing.T) {
 		{5, off(4), 4, false},
 		{13, off(0, 1, 4, 6), 6, false},
 		{128, off(0, 1, 4, 6), 124, false},
-		{10, off(0, 3, 5, 7, 9), 5, true},
+		{10, off(0, 3, 5, 7, 9), 5, false},
 	}
 	testHandelTestNetwork(t, tests)
 }
@@ -74,8 +74,9 @@ func testHandelTestNetwork(t *testing.T, tests []handelTest) {
 			test.SetOfflineNodes(scenario.offlines...)
 			test.SetThreshold(scenario.thr)
 		}
+		localTest := test
 		test.Start()
-		defer test.Stop()
+		defer localTest.Stop()
 
 		select {
 		case <-test.WaitCompleteSuccess():
