@@ -60,6 +60,8 @@ func (f *EvaluatorLevel) Evaluate(sp *sigPair) int {
 type sigProcessWithStrategy struct {
 	cond *sync.Cond
 
+	h *Handel
+
 	part Partitioner
 	cons Constructor
 	msg  []byte
@@ -69,7 +71,7 @@ type sigProcessWithStrategy struct {
 	evaluator SigEvaluator
 }
 
-func newSigProcessWithStrategy(part Partitioner, c Constructor, msg []byte, e SigEvaluator) *sigProcessWithStrategy {
+func newSigProcessWithStrategy(part Partitioner, c Constructor, msg []byte, e SigEvaluator, h *Handel) *sigProcessWithStrategy {
 	m := sync.Mutex{}
 
 	return &sigProcessWithStrategy{
@@ -81,6 +83,7 @@ func newSigProcessWithStrategy(part Partitioner, c Constructor, msg []byte, e Si
 		out:       make(chan sigPair, 1000),
 		todos:     make([]*sigPair, 0),
 		evaluator: e,
+		h : h,
 	}
 }
 
@@ -96,6 +99,9 @@ func (f *sigProcessWithStrategy) add(sp *sigPair) {
 	defer f.cond.L.Unlock()
 
 	f.todos = append(f.todos, sp)
+	if f.h != nil && false {
+		f.h.logf("added %s", sp)
+	}
 	f.cond.Signal()
 }
 
@@ -105,7 +111,13 @@ func (f *sigProcessWithStrategy) readTodos() (bool, *sigPair) {
 	f.cond.L.Lock()
 	defer f.cond.L.Unlock()
 	for len(f.todos) == 0 {
+		if f.h != nil  && false{
+			f.h.logf("waiting, todos is empty")
+		}
 		f.cond.Wait()
+	}
+	if f.h != nil && false {
+		f.h.logf("readTodos %v", f.todos)
 	}
 
 	// We need to iterate on our list. We put in
@@ -184,8 +196,8 @@ func (f *sigProcessWithStrategy) verifyAndPublish(sp *sigPair) {
 // newFifoProcessing returns a signatureProcessing implementation using a fifo
 // queue. It needs the store to store the valid signatures, the partitioner +
 // constructor + msg to verify the signatures.
-func newFifoProcessing(part Partitioner, c Constructor, msg []byte) signatureProcessing {
-	proc := newSigProcessWithStrategy(part, c, msg, newEvaluator1())
+func newFifoProcessing(part Partitioner, c Constructor, msg []byte, h *Handel) signatureProcessing {
+	proc := newSigProcessWithStrategy(part, c, msg, newEvaluator1(), h)
 	go proc.processLoop()
 
 	return &fifoProcessing{
@@ -196,10 +208,11 @@ func newFifoProcessing(part Partitioner, c Constructor, msg []byte) signaturePro
 
 // processIncoming simply verifies the signature, stores it, and outputs it
 func (f *fifoProcessing) processIncoming() {
-	async := false
+	async := true
 	for pair := range f.in {
 		if async {
-			f.proc.add(&pair)
+			p := pair
+			f.proc.add(&p)
 		}
 		if pair == deathPillPair {
 			f.close()
@@ -262,3 +275,4 @@ func (f *fifoProcessing) Stop() {
 func (f *fifoProcessing) close() {
 	close(f.in)
 }
+

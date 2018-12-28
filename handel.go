@@ -160,7 +160,7 @@ type Handel struct {
 	ticker *time.Ticker
 	// all the levels
 	levels map[int]*level
-	// Start time of Handel
+	// Start time of Handel. Used to calculate the timeouts
 	startTime time.Time
 }
 
@@ -213,7 +213,7 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 	h.threshold = h.c.ContributionsThreshold(h.reg.Size())
 	h.store = newReplaceStore(part, h.c.NewBitSet)
 	h.store.Store(0, mySig) // Our own sig is at level 0.
-	h.proc = newFifoProcessing(part, c, msg)
+	h.proc = newFifoProcessing(part, c, msg, h)
 	h.net.RegisterListener(h)
 	return h
 }
@@ -233,8 +233,12 @@ func (h *Handel) NewPacket(p *Packet) {
 		return
 	}
 
+	//msg := fmt.Sprintf("packet received %d-%d", p.Origin, p.Level)
+	//h.logf(msg)
+
 	// sends it to processing
 	if !h.getLevel(p.Level).rcvCompleted {
+		//h.logf("%s - done ", msg)
 		h.proc.Incoming() <- sigPair{origin: p.Origin, level: p.Level, ms: ms}
 	}
 }
@@ -384,12 +388,15 @@ func (h *Handel) sendTo(lvl int, ms *MultiSignature, ids []Identity) {
 		return
 	}
 
-	packet := &Packet{
+	p := &Packet{
 		Origin:   h.id.ID(),
 		Level:    byte(lvl),
 		MultiSig: buff,
 	}
-	h.net.Send(ids, packet)
+
+	//msg := fmt.Sprintf("packet sent %v-%d", ids, p.Level)
+	//h.logf(msg)
+	h.net.Send(ids, p)
 }
 
 // parsePacket returns the multisignature parsed from the given packet, or an

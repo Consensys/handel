@@ -16,7 +16,7 @@ func TestSigProcessingStrategy(t *testing.T)  {
 	sig1 := fullSigPair(1)
 	sig2 := fullSigPair(2)
 
-	ss := newSigProcessWithStrategy(partitioner, cons, nil, &EvaluatorLevel{})
+	ss := newSigProcessWithStrategy(partitioner, cons, nil, &EvaluatorLevel{}, nil)
 
 	require.Equal(t, 0, len(ss.todos))
 	ss.add(sig2)
@@ -71,7 +71,7 @@ func TestProcessingFifo(t *testing.T) {
 		//{s(sig2, sig3, sig2), s(sig2, sig3, nil)},
 	}
 
-	fifo := newFifoProcessing(partitioner, cons, msg).(*fifoProcessing)
+	fifo := newFifoProcessing(partitioner, cons, msg, nil).(*fifoProcessing)
 	go fifo.Start()
 	time.Sleep(20 * time.Millisecond)
 	fifo.Stop()
@@ -81,7 +81,7 @@ func TestProcessingFifo(t *testing.T) {
 		t.Logf(" -- test %d -- ", i)
 
 		store := newReplaceStore(partitioner, NewWilffBitset)
-		fifo := newFifoProcessing(partitioner, cons, msg)
+		fifo := newFifoProcessing(partitioner, cons, msg, nil)
 		fifos = append(fifos, fifo)
 		go fifo.Start()
 

@@ -42,6 +42,18 @@ func TestHandelTestNetworkFull(t *testing.T) {
 	testHandelTestNetwork(t, tests)
 }
 
+func TestHandelTestNetworkLarge(t *testing.T) {
+	off := func(ids ...int32) []int32 {
+		return ids
+	}
+	off()
+
+	var tests = []handelTest{
+		{333, off(0, 1, 4, 6, 7, 19, 56, 89, 99), 310, false},
+	}
+	testHandelTestNetwork(t, tests)
+}
+
 func testHandelTestNetwork(t *testing.T, tests []handelTest) {
 	off := func(ids ...int32) []int32 {
 		return ids
