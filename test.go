@@ -85,6 +85,9 @@ func (t *Test) SetRandomOfflines(n int) {
 // equal to the size of the participant's set.
 func (t *Test) SetThreshold(threshold int) {
 	t.threshold = threshold
+	for _, h := range t.handels {
+		h.threshold = threshold
+	}
 }
 
 // Start manually every handel instances and starts go routine to listen to the
@@ -115,6 +118,9 @@ func (t *Test) Stop() {
 	close(t.done)
 	time.Sleep(30 * time.Millisecond)
 	for _, handel := range t.handels {
+		if t.isOffline(handel.id.ID()) {
+			continue
+		}
 		handel.Stop()
 	}
 }

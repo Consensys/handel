@@ -37,7 +37,7 @@ func TestStoreCombined(t *testing.T) {
 	for i, test := range tests {
 		t.Logf(" -- test %d --", i)
 		part := NewBinPartitioner(test.id, reg)
-		store := newReplaceStore(part, NewWilffBitset)
+		store := newReplaceStore(part, NewWilffBitset, new(fakeCons))
 		for _, sigs := range test.sigs {
 			store.Store(sigs.level, sigs.ms)
 		}
@@ -50,7 +50,7 @@ func TestStoreFullSignature(t *testing.T) {
 	n := 8
 	reg := FakeRegistry(n)
 	part := NewBinPartitioner(1, reg)
-	store := newReplaceStore(part, NewWilffBitset)
+	store := newReplaceStore(part, NewWilffBitset, new(fakeCons))
 	bs1 := NewWilffBitset(1)
 	bs1.Set(0, true)
 
@@ -121,7 +121,7 @@ func TestStoreReplace(t *testing.T) {
 
 	for i, test := range tests {
 		t.Logf("-- test %d --", i)
-		store := newReplaceStore(part, NewWilffBitset)
+		store := newReplaceStore(part, NewWilffBitset, new(fakeCons))
 		for i, s := range test.toStore {
 			// first mimick the storing and test if returns fits
 			newSig, isNew := store.MockStore(s.level, s.ms)
