@@ -31,6 +31,32 @@ type signatureProcessing interface {
 	Verified() chan sigPair
 }
 
+type SigEvaluator interface {
+	// Evaluate the interest to verify a signature
+	//   0: no interest, the signature can be discarded definitively
+	//  >0: the greater the more interesting
+	Evaluate(sp *sigPair) int
+}
+
+type Evaluator1 struct {
+}
+
+func (f *Evaluator1) Evaluate(sp *sigPair) int {
+	return 1
+}
+
+func newEvaluator1() SigEvaluator {
+	return &Evaluator1{}
+}
+
+type EvaluatorLevel struct {
+}
+
+func (f *EvaluatorLevel) Evaluate(sp *sigPair) int {
+	return int(sp.level)
+}
+
+
 type sigProcessWithStrategy struct {
 	cond *sync.Cond
 
@@ -38,13 +64,12 @@ type sigProcessWithStrategy struct {
 	cons Constructor
 	msg  []byte
 
-	out              chan sigPair
-	highestCompleted int
-	todos            []*sigPair
-	evaluator        simpleToVerifyEvaluator
+	out       chan sigPair
+	todos     []*sigPair
+	evaluator SigEvaluator
 }
 
-func newSigProcessWithStrategy(part Partitioner, c Constructor, msg []byte) *sigProcessWithStrategy {
+func newSigProcessWithStrategy(part Partitioner, c Constructor, msg []byte, e SigEvaluator) *sigProcessWithStrategy {
 	m := sync.Mutex{}
 
 	return &sigProcessWithStrategy{
@@ -53,9 +78,9 @@ func newSigProcessWithStrategy(part Partitioner, c Constructor, msg []byte) *sig
 		cons: c,
 		msg:  msg,
 
-		out:              make(chan sigPair, 1000),
-		highestCompleted: 0,
-		todos:            make([]*sigPair, 0),
+		out:       make(chan sigPair, 1000),
+		todos:     make([]*sigPair, 0),
+		evaluator: e,
 	}
 }
 
@@ -70,24 +95,8 @@ func (f *sigProcessWithStrategy) add(sp *sigPair) {
 	f.cond.L.Lock()
 	defer f.cond.L.Unlock()
 
-	if int(sp.level) > f.highestCompleted {
-		f.todos = append(f.todos, sp)
-		f.cond.Signal()
-	}
-}
-
-type SigToVerifyEvaluator interface {
-	evaluate(pair *sigPair) (bool, int)
-}
-
-type simpleToVerifyEvaluator struct {
-}
-
-// return
-//   bool: true if we should keep this signature, false if we can definitively discard the signature
-//   int: the evaluation mark of this sig. Greater is better.
-func (f *simpleToVerifyEvaluator) evaluate(sp *sigPair) (bool, int) {
-	return true, 1
+	f.todos = append(f.todos, sp)
+	f.cond.Signal()
 }
 
 // Look at the signatures received so far and select the one
@@ -112,12 +121,9 @@ func (f *sigProcessWithStrategy) readTodos() (bool, *sigPair) {
 		if pair.ms == nil {
 			continue
 		}
-		if int(pair.level) <= f.highestCompleted {
-			continue
-		}
 
-		keep, mark := f.evaluator.evaluate(pair)
-		if keep {
+		mark := f.evaluator.Evaluate(pair)
+		if mark > 0 {
 			if mark <= bestMark {
 				newTodos = append(newTodos, pair)
 			} else {
@@ -140,18 +146,13 @@ func (f *sigProcessWithStrategy) hasTodos() bool {
 	return len(f.todos) > 0
 }
 
-func (f *sigProcessWithStrategy) process() {
+func (f *sigProcessWithStrategy) processLoop() {
 	sigCount := 0
 	for {
-		done, best := f.readTodos()
-		if done {
-			close(f.out)
+		stop := f.processStep()
+		if stop {
 			return
 		}
-		if best == nil {
-			continue
-		}
-		f.check(best)
 		sigCount++
 		if sigCount%100 == 0 {
 			logf("Processed %d signatures", sigCount)
@@ -159,18 +160,24 @@ func (f *sigProcessWithStrategy) process() {
 	}
 }
 
-func (f *sigProcessWithStrategy) check(sp *sigPair) {
+func (f *sigProcessWithStrategy) processStep() (bool) {
+	done, best := f.readTodos()
+	if done {
+		close(f.out)
+		return true
+	}
+	if best != nil {
+		f.verifyAndPublish(best)
+	}
+	return false
+}
+
+func (f *sigProcessWithStrategy) verifyAndPublish(sp *sigPair) {
 	err := f.verifySignature(sp)
 	if err != nil {
 		logf("fifo: verifying err: %s", err)
 	} else {
 		f.out <- *sp
-		/* Needs a lock
-		lvl := int(sp.level)
-		if lvl > f.highestCompleted && sp.ms.Cardinality() == f.part.Size(lvl) {
-			f.highestCompleted = lvl
-		}
-		*/
 	}
 }
 
@@ -178,8 +185,8 @@ func (f *sigProcessWithStrategy) check(sp *sigPair) {
 // queue. It needs the store to store the valid signatures, the partitioner +
 // constructor + msg to verify the signatures.
 func newFifoProcessing(part Partitioner, c Constructor, msg []byte) signatureProcessing {
-	proc := newSigProcessWithStrategy(part, c, msg)
-	go proc.process()
+	proc := newSigProcessWithStrategy(part, c, msg, newEvaluator1())
+	go proc.processLoop()
 
 	return &fifoProcessing{
 		in:   make(chan sigPair, 1000),
@@ -199,7 +206,7 @@ func (f *fifoProcessing) processIncoming() {
 			return
 		} else {
 			if !async {
-				f.proc.check(&pair)
+				f.proc.verifyAndPublish(&pair)
 			}
 		}
 	}
