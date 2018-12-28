@@ -11,29 +11,42 @@ import (
 
 var msg = []byte("Sun is Shining...")
 
-func TestHandelTestNetwork(t *testing.T) {
-	type handelTest struct {
-		n        int
-		offlines []int32
-		thr      int
-		fail     bool
-	}
+type handelTest struct {
+	n        int
+	offlines []int32
+	thr      int
+	fail     bool
+}
 
+func TestHandelTestNetworkSimple(t *testing.T) {
+	var tests = []handelTest{
+		{4, nil, 0, false},
+	}
+	testHandelTestNetwork(t, tests)
+}
+
+func TestHandelTestNetworkFull(t *testing.T) {
 	off := func(ids ...int32) []int32 {
 		return ids
 	}
 	off()
 
 	var tests = []handelTest{
-		{4, nil, 0, false},
 		{33, nil, 33, false},
 		{67, off(), 67, false},
 		{5, off(4), 4, false},
-		//{13, off(0, 1, 4, 6), 6, false},
-		//{128, off(0, 1, 4, 6), 124, false},
-		// TODO: add timeout per level to fix that
+		{13, off(0, 1, 4, 6), 6, false},
+		{128, off(0, 1, 4, 6), 124, false},
 		{10, off(0, 3, 5, 7, 9), 5, true},
 	}
+	testHandelTestNetwork(t, tests)
+}
+
+func testHandelTestNetwork(t *testing.T, tests []handelTest) {
+	off := func(ids ...int32) []int32 {
+		return ids
+	}
+	off()
 
 	for i, scenario := range tests {
 		t.Logf(" -- test %d --", i)
@@ -63,7 +76,6 @@ func TestHandelTestNetwork(t *testing.T) {
 			}
 			t.FailNow()
 		}
-
 	}
 }
 
