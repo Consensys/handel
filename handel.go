@@ -210,7 +210,6 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 	h.threshold = h.c.ContributionsThreshold(h.reg.Size())
 	h.store = newReplaceStore(part, h.c.NewBitSet, c)
 	h.store.Store(0, mySig) // Our own sig is at level 0.
-	// TODO change that to config item
 	evaluator := h.c.EvaluatorStrategy(h.store, h)
 	h.proc = newEvaluatorProcessing(part, c, msg, evaluator, h)
 	h.net.RegisterListener(h)
