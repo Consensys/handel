@@ -42,6 +42,9 @@ func TestHandelTestNetworkFull(t *testing.T) {
 }
 
 func TestHandelTestNetworkLarge(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping large test")
+	}
 	off := func(ids ...int32) []int32 {
 		return ids
 	}

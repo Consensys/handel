@@ -31,6 +31,11 @@ type signatureProcessing interface {
 	Verified() chan sigPair
 }
 
+// SigEvaluator is an interface responsible to evaluate incoming *non-verified*
+// signature according to their relevance regarding the running handel protocol.
+// This is an important part of Handel because the aggregation function (pairing
+// for bn256) can take some time, thus minimizing these number of operations is
+// essential.
 type SigEvaluator interface {
 	// Evaluate the interest to verify a signature
 	//   0: no interest, the signature can be discarded definitively
@@ -38,9 +43,12 @@ type SigEvaluator interface {
 	Evaluate(sp *sigPair) int
 }
 
+// Evaluator1 returns 1 for all signatures, leading to having all signatures
+// verified.
 type Evaluator1 struct {
 }
 
+// Evaluate implements the SigEvaluator interface.
 func (f *Evaluator1) Evaluate(sp *sigPair) int {
 	return 1
 }
@@ -49,20 +57,18 @@ func newEvaluator1() SigEvaluator {
 	return &Evaluator1{}
 }
 
+// EvaluatorStore is a wrapper around the store's evaluate strategy.
 type EvaluatorStore struct {
 	store signatureStore
 }
 
+// Evaluate implements the SigEvaluator strategy.
 func (f *EvaluatorStore) Evaluate(sp *sigPair) int {
-	ms, ok := f.store.Best(sp.level)
-	if ok && ms.Cardinality() >= sp.ms.Cardinality() {
-		//return 0
-	}
-	return 1
+	return f.store.Evaluate(sp)
 }
 
 func newEvaluatorStore(store signatureStore) SigEvaluator {
-	return &EvaluatorStore{store:store}
+	return &EvaluatorStore{store: store}
 }
 
 type sigProcessWithStrategy struct {
@@ -91,7 +97,7 @@ func newSigProcessWithStrategy(part Partitioner, c Constructor, msg []byte, e Si
 		out:       make(chan sigPair, 1000),
 		todos:     make([]*sigPair, 0),
 		evaluator: e,
-		h : h,
+		h:         h,
 	}
 }
 
@@ -119,7 +125,7 @@ func (f *sigProcessWithStrategy) readTodos() (bool, *sigPair) {
 	f.cond.L.Lock()
 	defer f.cond.L.Unlock()
 	for len(f.todos) == 0 {
-		if f.h != nil  && false{
+		if f.h != nil && false {
 			f.h.logf("waiting, todos is empty")
 		}
 		f.cond.Wait()
@@ -180,7 +186,7 @@ func (f *sigProcessWithStrategy) processLoop() {
 	}
 }
 
-func (f *sigProcessWithStrategy) processStep() (bool) {
+func (f *sigProcessWithStrategy) processStep() bool {
 	done, best := f.readTodos()
 	if done {
 		close(f.out)
@@ -218,17 +224,15 @@ func newFifoProcessing(part Partitioner, c Constructor, msg []byte, h *Handel) s
 func (f *fifoProcessing) processIncoming() {
 	async := true
 	for pair := range f.in {
-		if async {
-			p := pair
-			f.proc.add(&p)
-		}
 		if pair == deathPillPair {
 			f.close()
 			return
+		}
+		if async {
+			p := pair
+			f.proc.add(&p)
 		} else {
-			if !async {
-				f.proc.verifyAndPublish(&pair)
-			}
+			f.proc.verifyAndPublish(&pair)
 		}
 	}
 }
@@ -283,4 +287,3 @@ func (f *fifoProcessing) Stop() {
 func (f *fifoProcessing) close() {
 	close(f.in)
 }
-

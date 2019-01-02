@@ -12,12 +12,7 @@ import (
 // only the best one, merging two non-colluding multi-signatures etc.
 // NOTE: implementation MUST be thread-safe.
 type signatureStore interface {
-	// MoreStore uses the same logic as Store but do not store the
-	// multisignature. It returns the (potentially new) multisignature at
-	// the level, with a boolean indicating if there has been an entry update at
-	// this level. It can be true if there was no multisignature previously, or
-	// if the store has merged multiple multisignature together for example.
-	MockStore(level byte, ms *MultiSignature) (*MultiSignature, bool)
+	SigEvaluator
 	// Store saves the multi-signature if it is "better"
 	// (implementation-dependent) than the one previously saved at the same
 	// level. It returns true if the entry for this level has been updated,i.e.
@@ -67,27 +62,26 @@ func newReplaceStore(part Partitioner, nbs func(int) BitSet, c Constructor) *rep
 	}
 }
 
-func (r *replaceStore) MockStore(level byte, ms *MultiSignature) (*MultiSignature, bool) {
-	r.Lock()
-	defer r.Unlock()
-	return r.unsafeCheck(level, ms)
-}
-
 func (r *replaceStore) Store(level byte, ms *MultiSignature) (*MultiSignature, bool) {
 	r.Lock()
 	defer r.Unlock()
-	n, ok := r.unsafeCheck(level, ms)
-	if !ok {
+	n, score := r.unsafeCheck(level, ms)
+	if score == 0 {
 		return nil, false
 	}
 	r.store(level, n)
 	return n, true
 }
 
-func (r *replaceStore) unsafeCheck(level byte, ms *MultiSignature) (*MultiSignature, bool) {
+func (r *replaceStore) Evaluate(sp *sigPair) int {
+	_, score := r.unsafeCheck(sp.level, sp.ms)
+	return score
+}
+
+func (r *replaceStore) unsafeCheck(level byte, ms *MultiSignature) (*MultiSignature, int) {
 	ms2, ok := r.m[level]
 	if !ok {
-		return ms, true
+		return ms, 1
 	}
 
 	c1 := ms.Cardinality()
@@ -109,14 +103,14 @@ func (r *replaceStore) unsafeCheck(level byte, ms *MultiSignature) (*MultiSignat
 		sig := r.c.Signature()
 		sig = sig.Combine(ms.Signature)
 		sig = sig.Combine(ms2.Signature)
-		return &MultiSignature{Signature: sig, BitSet: final}, true
+		return &MultiSignature{Signature: sig, BitSet: final}, 2
 	}
 
 	// find if new ms has more contributions
 	if c1 > c2 {
-		return ms, true
+		return ms, 1
 	}
-	return ms2, false
+	return ms2, 0
 }
 
 func (r *replaceStore) Best(level byte) (*MultiSignature, bool) {
