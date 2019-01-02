@@ -255,7 +255,6 @@ func (h *Handel) Start() {
 	go h.rangeOnVerified()
 	go h.timeout.Start()
 	go h.periodicLoop()
-	//h.periodicUpdate()
 }
 
 func (h *Handel) periodicLoop() {
@@ -284,23 +283,14 @@ func (h *Handel) Stop() {
 func (h *Handel) periodicUpdate() {
 	for i := byte(1); i <= byte(len(h.levels)); i++ {
 		lvl := h.getLevel(i)
-		//if !lvl.sendStarted {
-		//h.decideToStartLevel(lvl)
-		//}
 		if lvl.active() {
-			h.sendUpdate(lvl, 1)
+			h.sendUpdate(lvl, h.c.UpdateCount)
 		}
 	}
 }
 
-func (h *Handel) decideToStartLevel(l *level) {
-	msSinceStart := int(time.Now().Sub(h.startTime).Seconds() * 1000)
-	if msSinceStart >= l.id*int(h.c.LevelTimeout.Seconds())*1000 {
-		l.sendStarted = true
-	}
-}
-
-// StartLevel starts the
+// StartLevel starts the given level if not started already. It sends
+// our best signature for this level up to CandidateCount peers.
 func (h *Handel) StartLevel(level int) {
 	h.Lock()
 	defer h.Unlock()
@@ -309,7 +299,7 @@ func (h *Handel) StartLevel(level int) {
 		return
 	}
 	lvl.setStarted()
-	h.sendUpdate(lvl, 1)
+	h.sendUpdate(lvl, h.c.CandidateCount)
 }
 
 // Send our best signature set for this level, to 'count' nodes

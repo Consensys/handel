@@ -16,17 +16,18 @@ type Config struct {
 	// the final level.
 	ContributionsPerc int
 
+	// UpdatePeriod indicates at which frequency a Handel nodes sends updates
+	// about its state to other Handel nodes.
+	UpdatePeriod time.Duration
+
+	// UpdateCount indicates the number of nodes contacted during each update at
+	// a given level.
+	UpdateCount int
+
 	// CandidateCount indicates how many peers should we contact each time we
 	// send packets to Handel nodes in a given candidate set. New nodes are
 	// selected each time but no more than CandidateCount.
 	CandidateCount int
-
-	// LevelTimeout Bla bla bla
-	LevelTimeout time.Duration
-
-	// UpdatePeriod indicates at which frequency a Handel nodes sends updates
-	// about its state to other Handel nodes.
-	UpdatePeriod time.Duration
 
 	// NewBitSet returns an empty bitset. This function is used to parse
 	// incoming packets containing bitsets.
@@ -52,11 +53,11 @@ func DefaultConfig(size int) *Config {
 		ContributionsPerc:    DefaultContributionsPerc,
 		CandidateCount:       DefaultCandidateCount,
 		UpdatePeriod:         DefaultUpdatePeriod,
+		UpdateCount:          DefaultUpdateCount,
 		NewBitSet:            DefaultBitSet,
 		NewPartitioner:       DefaultPartitioner,
 		NewEvaluatorStrategy: DefaultEvaluatorStrategy,
 		NewTimeoutStrategy:   DefaultTimeoutStrategy,
-		LevelTimeout:         DefaultLevelTimeout,
 	}
 }
 
@@ -69,6 +70,10 @@ const DefaultCandidateCount = 10
 
 // DefaultUpdatePeriod is the default update period used by Handel.
 const DefaultUpdatePeriod = 20 * time.Millisecond
+
+// DefaultUpdateCount is the default number of candidate contacted during an
+// update
+const DefaultUpdateCount = 10
 
 // DefaultBitSet returns the default implementation used by Handel, i.e. the
 // WilffBitSet
@@ -111,6 +116,9 @@ func mergeWithDefault(c *Config, size int) *Config {
 	if c.UpdatePeriod == 0*time.Second {
 		c2.UpdatePeriod = DefaultUpdatePeriod
 	}
+	if c.UpdateCount == 0 {
+		c2.UpdateCount = DefaultUpdateCount
+	}
 	if c.NewBitSet == nil {
 		c2.NewBitSet = DefaultBitSet
 	}
@@ -122,9 +130,6 @@ func mergeWithDefault(c *Config, size int) *Config {
 	}
 	if c.NewTimeoutStrategy == nil {
 		c2.NewTimeoutStrategy = DefaultTimeoutStrategy
-	}
-	if c.LevelTimeout == 0*time.Second {
-		c2.LevelTimeout = DefaultLevelTimeout
 	}
 	return &c2
 }
