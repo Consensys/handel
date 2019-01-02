@@ -12,11 +12,6 @@ import (
 // only the best one, merging two non-colluding multi-signatures etc.
 // NOTE: implementation MUST be thread-safe.
 type signatureStore interface {
-	// MoreStore uses the same logic as Store but do not store the
-	// multisignature. It returns the (potentially new) multisignature at
-	// the level, with a boolean indicating if there has been an entry update at
-	// this level. It can be true if there was no multisignature previously, or
-	// if the store has merged multiple multisignature together for example.
 	MockStore(level byte, ms *MultiSignature) (*MultiSignature, bool)
 	// Store saves the multi-signature if it is "better"
 	// (implementation-dependent) than the one previously saved at the same
