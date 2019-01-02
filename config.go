@@ -73,7 +73,7 @@ const DefaultUpdatePeriod = 20 * time.Millisecond
 
 // DefaultUpdateCount is the default number of candidate contacted during an
 // update
-const DefaultUpdateCount = 10
+const DefaultUpdateCount = 1
 
 // DefaultBitSet returns the default implementation used by Handel, i.e. the
 // WilffBitSet
