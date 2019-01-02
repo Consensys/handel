@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/ConsenSys/handel/simul/lib"
+	"github.com/ConsenSys/handel/simul/platform/aws"
 )
 
 // The Life of a simulation:
@@ -49,14 +50,23 @@ type Platform interface {
 }
 
 var localhost = "localhost"
+var amazonAWS = "aws"
+
+//var regions = []string{"us-west-2"}
 
 // NewPlatform returns the appropriate platform [deterlab,localhost]
 // and setups the Cleanup call in case of a signal interruption
-func NewPlatform(t string) Platform {
+func NewPlatform(t string, awsConfig string) Platform {
 	var p Platform
 	switch t {
 	case localhost:
 		p = NewLocalhost()
+	case amazonAWS:
+		config := aws.LoadConfig(awsConfig)
+		awsManager := aws.NewMultiRegionAWSManager(config.Regions)
+
+		p = NewAws(awsManager, config)
+
 	default:
 		panic("no platform of this name " + t)
 	}

@@ -13,6 +13,7 @@ import (
 )
 
 // Network is a handel.Network implementation using UDP as its transport layer
+// listens on 0.0.0.0
 type Network struct {
 	sync.RWMutex
 	udpSock   *net.UDPConn
@@ -23,7 +24,14 @@ type Network struct {
 
 // NewNetwork creates Nework baked by udp protocol
 func NewNetwork(addr string, enc network.Encoding) (*Network, error) {
-	udpAddr, err := net.ResolveUDPAddr("udp4", addr)
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+	newAddr := net.JoinHostPort("0.0.0.0", port)
+
+	// we have to bind to 0.0.0.0 (needed for AWS)
+	udpAddr, err := net.ResolveUDPAddr("udp4", newAddr)
 	if err != nil {
 		return nil, err
 	}

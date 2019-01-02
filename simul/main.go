@@ -24,6 +24,8 @@ var configFlag = flag.String("config", "", "TOML encoded config file")
 var platformFlag = flag.String("platform", "", "name of the platform to run on")
 var runTimeout = flag.Duration("run-timeout", 2*time.Minute, "timeout of a given run")
 
+var awsConfigPath = flag.String("awsConfig", "", "TOML encoded config file AWS specyfic config")
+
 var resultsDir string
 
 func init() {
@@ -36,15 +38,14 @@ func init() {
 func main() {
 	flag.Parse()
 
-	// load configs
 	c := lib.LoadConfig(*configFlag)
-	plat := platform.NewPlatform(*platformFlag)
+	plat := platform.NewPlatform(*platformFlag, *awsConfigPath)
 	if err := plat.Configure(c); err != nil {
 		panic(err)
 	}
 
 	// preparation phase
-	plat.Cleanup()
+	defer plat.Cleanup()
 	os.MkdirAll(resultsDir, 0777)
 	csvName := strings.Replace(filepath.Base(*configFlag), ".toml", ".csv", 1)
 	csvName = filepath.Join(resultsDir, csvName)
