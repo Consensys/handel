@@ -85,7 +85,7 @@ func TestProcessingFifo(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 	fifo.Stop()
 
-	fifos := make([]signatureProcessing, 0, len(tests))
+	fifos := make([]sigQueue, 0, len(tests))
 	for i, test := range tests {
 		t.Logf(" -- test %d -- ", i)
 

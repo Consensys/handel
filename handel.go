@@ -110,17 +110,6 @@ func (l *level) updateSigToSend(sig *MultiSignature) bool {
 	return false
 }
 
-// Send our best signature set for this level, to 'count' nodes
-func (h *Handel) sendUpdate(l *level, count int) {
-	if !l.active() {
-		panic("level not started!")
-	}
-
-	sp := h.store.Combined(byte(l.id) - 1)
-	newNodes, _ := l.selectNextPeers(count)
-	h.sendTo(l.id, sp, newNodes)
-}
-
 // HStats contain minimal stats about handel
 type HStats struct {
 	msgSentCt int
@@ -138,6 +127,8 @@ type Handel struct {
 	net Network
 	// Registry holding access to all Handel node's identities
 	reg Registry
+	// Partitioner used for this handel round
+	Partitioner Partitioner
 	// constructor to unmarshal signatures + aggregate pub keys
 	cons Constructor
 	// public identity of this Handel node
@@ -149,9 +140,9 @@ type Handel struct {
 	// signature store with different merging/caching strategy
 	store signatureStore
 	// processing of signature - verification strategy
-	proc signatureProcessing
+	proc sigQueue
 	// all actors registered that acts on a new signature
-	actors []actor
+	actors []PostProcessor
 	// best final signature,i.e. at the last level, seen so far
 	best *MultiSignature
 	// channel to exposes multi-signatures to the user
@@ -191,26 +182,27 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 	mySig := &MultiSignature{BitSet: firstBs, Signature: s}
 
 	h := &Handel{
-		c:      config,
-		net:    n,
-		reg:    r,
-		id:     id,
-		cons:   c,
-		msg:    msg,
-		sig:    s,
-		out:    make(chan MultiSignature, 10000),
-		ticker: time.NewTicker(config.UpdatePeriod),
-		levels: createLevels(r, part),
+		c:           config,
+		net:         n,
+		reg:         r,
+		Partitioner: part,
+		id:          id,
+		cons:        c,
+		msg:         msg,
+		sig:         s,
+		out:         make(chan MultiSignature, 10000),
+		ticker:      time.NewTicker(config.UpdatePeriod),
+		levels:      createLevels(r, part),
 	}
-	h.actors = []actor{
-		actorFunc(h.checkCompletedLevel),
-		actorFunc(h.checkFinalSignature),
+	h.actors = []PostProcessor{
+		postFunc(h.checkCompletedLevel),
+		postFunc(h.checkFinalSignature),
 	}
 
 	h.threshold = h.c.ContributionsThreshold(h.reg.Size())
 	h.store = newReplaceStore(part, h.c.NewBitSet, c)
 	h.store.Store(0, mySig) // Our own sig is at level 0.
-	evaluator := h.c.EvaluatorStrategy(h.store, h)
+	evaluator := h.c.NewEvaluatorStrategy(h.store, h)
 	h.proc = newEvaluatorProcessing(part, c, msg, evaluator, h)
 	h.net.RegisterListener(h)
 	return h
@@ -290,9 +282,29 @@ func (h *Handel) periodicUpdate() {
 
 func (h *Handel) decideToStartLevel(l *level) {
 	msSinceStart := int(time.Now().Sub(h.startTime).Seconds() * 1000)
-	if msSinceStart >= l.id*int(h.c.LevelTimeout.Seconds())*1000 {
+	if msSinceStart >= l.id*int(100)*1000 {
 		l.sendStarted = true
 	}
+}
+
+// StartLevel starts the level given, if it has not been started already.
+func (h *Handel) StartLevel(level int) {
+	lvl := h.getLevel(byte(level))
+	if lvl.sendStarted {
+		return
+	}
+	h.sendUpdate(lvl, h.c.CandidateCount)
+}
+
+// sendUpdate sends our best signature set for this level, to 'count' nodes
+func (h *Handel) sendUpdate(l *level, count int) {
+	if !l.active() {
+		panic("level not started!")
+	}
+
+	sp := h.store.Combined(byte(l.id) - 1)
+	newNodes, _ := l.selectNextPeers(count)
+	h.sendTo(l.id, sp, newNodes)
 }
 
 // FinalSignatures returns the channel over which final multi-signatures
@@ -318,20 +330,20 @@ func (h *Handel) rangeOnVerified() {
 	}
 }
 
-// actor is an interface that takes a new verified signature and acts on it
+// PostProcessor is an interface that takes a new verified signature and acts on it
 // according to its own rule. It can be checking if it passes to a next level,
 // checking if the protocol is finished, checking if a signature completes
 // higher levels so it should send it out to other peers, etc. The store is
 // guaranteed to have a multisignature present at the level indicated in the
 // verifiedSig. Each handler is called in a thread safe manner, global lock is
-// held during the call to actors.
-type actor interface {
+// held during the call to processors.
+type PostProcessor interface {
 	OnVerifiedSignature(s *sigPair)
 }
 
-type actorFunc func(s *sigPair)
+type postFunc func(s *sigPair)
 
-func (a actorFunc) OnVerifiedSignature(s *sigPair) {
+func (a postFunc) OnVerifiedSignature(s *sigPair) {
 	a(s)
 }
 

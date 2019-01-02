@@ -12,12 +12,12 @@ import (
 
 var deathPillPair = sigPair{-1, 121, nil}
 
-// signatureProcessing is an interface responsible for verifying incoming
+// sigQueue is an interface responsible for verifying incoming
 // multi-signature. It can decides to drop some incoming signatures if deemed
 // useless. It outputs verified signatures to the main handel processing logic
 // It is an asynchronous processing interface that needs to be sendStarted and
 // stopped when needed.
-type signatureProcessing interface {
+type sigQueue interface {
 	// Start is a blocking call that starts the processing routine
 	Start()
 	// Stop is a blocking call that stops the processing routine
@@ -88,7 +88,7 @@ type evaluatorProcessing struct {
 }
 
 // TODO handel argument only for logging
-func newEvaluatorProcessing(part Partitioner, c Constructor, msg []byte, e SigEvaluator, h *Handel) signatureProcessing {
+func newEvaluatorProcessing(part Partitioner, c Constructor, msg []byte, e SigEvaluator, h *Handel) sigQueue {
 	m := sync.Mutex{}
 
 	ev := &evaluatorProcessing{
@@ -233,7 +233,7 @@ type fifoProcessing struct {
 // queue. It needs the store to store the valid signatures, the partitioner +
 // constructor + msg to verify the signatures.
 func newFifoProcessing(store signatureStore, part Partitioner,
-	c Constructor, msg []byte) signatureProcessing {
+	c Constructor, msg []byte) sigQueue {
 	return &fifoProcessing{
 		part:  part,
 		store: store,
