@@ -16,15 +16,13 @@ type Config struct {
 	// the final level.
 	ContributionsPerc int
 
-	// LevelTimeout is used to decide when a Handel nodes passes to the next
-	// level even if it did not receive enough signatures. If not specified, a
-	// timeout of 100ms is used by default.
-	LevelTimeout time.Duration
-
 	// CandidateCount indicates how many peers should we contact each time we
 	// send packets to Handel nodes in a given candidate set. New nodes are
 	// selected each time but no more than CandidateCount.
 	CandidateCount int
+
+	// LevelTimeout Bla bla bla
+	LevelTimeout time.Duration
 
 	// UpdatePeriod indicates at which frequency a Handel nodes sends updates
 	// about its state to other Handel nodes.
@@ -39,30 +37,32 @@ type Config struct {
 	// responsible for and reg is the global registry of participants.
 	NewPartitioner func(id int32, reg Registry) Partitioner
 
-	// EvaluatorStrategy returns the signature evaluator to use during the
-	// Handel protocol.
-	EvaluatorStrategy func(s signatureStore, h *Handel) SigEvaluator
+	// NewEvaluatorStrategy returns the signature evaluator to use during the
+	// Handel round.
+	NewEvaluatorStrategy func(s signatureStore, h *Handel) SigEvaluator
+
+	// NewTimeoutStrategy returns the Timeout strategy to use during the Handel
+	// round. By default, it uses the linear timeout strategy.
+	NewTimeoutStrategy func(*Handel) TimeoutStrategy
 }
 
 // DefaultConfig returns a default configuration for Handel.
 func DefaultConfig(size int) *Config {
 	return &Config{
-		ContributionsPerc: DefaultContributionsPerc,
-		CandidateCount:    DefaultCandidateCount,
-		LevelTimeout:      DefaultLevelTimeout,
-		UpdatePeriod:      DefaultUpdatePeriod,
-		NewBitSet:         DefaultBitSet,
-		NewPartitioner:    DefaultPartitioner,
-		EvaluatorStrategy: DefaultEvaluatorStrategy,
+		ContributionsPerc:    DefaultContributionsPerc,
+		CandidateCount:       DefaultCandidateCount,
+		UpdatePeriod:         DefaultUpdatePeriod,
+		NewBitSet:            DefaultBitSet,
+		NewPartitioner:       DefaultPartitioner,
+		NewEvaluatorStrategy: DefaultEvaluatorStrategy,
+		NewTimeoutStrategy:   DefaultTimeoutStrategy,
+		LevelTimeout:         DefaultLevelTimeout,
 	}
 }
 
 // DefaultContributionsPerc is the default percentage used as the required
 // number of contributions in a multi-signature.
 const DefaultContributionsPerc = 51
-
-// DefaultLevelTimeout is the default level timeout used by Handel.
-const DefaultLevelTimeout = 100 * time.Millisecond
 
 // DefaultCandidateCount is the default candidate count used by Handel.
 const DefaultCandidateCount = 10
@@ -86,6 +86,12 @@ var DefaultEvaluatorStrategy = func(store signatureStore, h *Handel) SigEvaluato
 	return newEvaluatorStore(store)
 }
 
+// DefaultTimeoutStrategy returns the default timeout strategy used by handel -
+// the linear strategy with the default timeout. See DefaultLevelTimeout.
+func DefaultTimeoutStrategy(h *Handel) TimeoutStrategy {
+	return NewDefaultLinearTimeout(h)
+}
+
 // ContributionsThreshold returns the threshold of contributions required in a
 // multi-signature to be considered valid and be passed up to the application
 // using Handel. Basically multiplying the total number of node times the
@@ -102,9 +108,6 @@ func mergeWithDefault(c *Config, size int) *Config {
 	if c.CandidateCount == 0 {
 		c2.CandidateCount = DefaultCandidateCount
 	}
-	if c.LevelTimeout == 0*time.Second {
-		c2.LevelTimeout = DefaultLevelTimeout
-	}
 	if c.UpdatePeriod == 0*time.Second {
 		c2.UpdatePeriod = DefaultUpdatePeriod
 	}
@@ -114,8 +117,14 @@ func mergeWithDefault(c *Config, size int) *Config {
 	if c.NewPartitioner == nil {
 		c2.NewPartitioner = DefaultPartitioner
 	}
-	if c.EvaluatorStrategy == nil {
-		c2.EvaluatorStrategy = DefaultEvaluatorStrategy
+	if c.NewEvaluatorStrategy == nil {
+		c2.NewEvaluatorStrategy = DefaultEvaluatorStrategy
+	}
+	if c.NewTimeoutStrategy == nil {
+		c2.NewTimeoutStrategy = DefaultTimeoutStrategy
+	}
+	if c.LevelTimeout == 0*time.Second {
+		c2.LevelTimeout = DefaultLevelTimeout
 	}
 	return &c2
 }

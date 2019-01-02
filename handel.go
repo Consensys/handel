@@ -70,7 +70,15 @@ func createLevels(r Registry, partitioner Partitioner) map[int]*level {
 }
 
 func (l *level) active() bool {
-	return l.sendPeersCt < len(l.nodes) && l.sendStarted
+	return l.started() && l.sendPeersCt < len(l.nodes)
+}
+
+func (l *level) started() bool {
+	return l.sendStarted
+}
+
+func (l *level) setStarted() {
+	l.sendStarted = true
 }
 
 // Select the peers we should contact next.
@@ -110,17 +118,6 @@ func (l *level) updateSigToSend(sig *MultiSignature) bool {
 	return false
 }
 
-// Send our best signature set for this level, to 'count' nodes
-func (h *Handel) sendUpdate(l *level, count int) {
-	if !l.active() {
-		panic("level not started!")
-	}
-
-	sp := h.store.Combined(byte(l.id) - 1)
-	newNodes, _ := l.selectNextPeers(count)
-	h.sendTo(l.id, sp, newNodes)
-}
-
 // HStats contain minimal stats about handel
 type HStats struct {
 	msgSentCt int
@@ -138,6 +135,8 @@ type Handel struct {
 	net Network
 	// Registry holding access to all Handel node's identities
 	reg Registry
+	// Partitioning strategy used by the Handel round
+	Partitioner Partitioner
 	// constructor to unmarshal signatures + aggregate pub keys
 	cons Constructor
 	// public identity of this Handel node
@@ -167,6 +166,8 @@ type Handel struct {
 	levels map[int]*level
 	// Start time of Handel. Used to calculate the timeouts
 	startTime time.Time
+	// the timeout strategy used by handel
+	timeout TimeoutStrategy
 }
 
 // NewHandel returns a Handle interface that uses the given network and
@@ -191,16 +192,17 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 	mySig := &MultiSignature{BitSet: firstBs, Signature: s}
 
 	h := &Handel{
-		c:      config,
-		net:    n,
-		reg:    r,
-		id:     id,
-		cons:   c,
-		msg:    msg,
-		sig:    s,
-		out:    make(chan MultiSignature, 10000),
-		ticker: time.NewTicker(config.UpdatePeriod),
-		levels: createLevels(r, part),
+		c:           config,
+		net:         n,
+		reg:         r,
+		Partitioner: part,
+		id:          id,
+		cons:        c,
+		msg:         msg,
+		sig:         s,
+		out:         make(chan MultiSignature, 10000),
+		ticker:      time.NewTicker(config.UpdatePeriod),
+		levels:      createLevels(r, part),
 	}
 	h.actors = []actor{
 		actorFunc(h.checkCompletedLevel),
@@ -210,9 +212,10 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 	h.threshold = h.c.ContributionsThreshold(h.reg.Size())
 	h.store = newReplaceStore(part, h.c.NewBitSet, c)
 	h.store.Store(0, mySig) // Our own sig is at level 0.
-	evaluator := h.c.EvaluatorStrategy(h.store, h)
+	evaluator := h.c.NewEvaluatorStrategy(h.store, h)
 	h.proc = newEvaluatorProcessing(part, c, msg, evaluator, h)
 	h.net.RegisterListener(h)
+	h.timeout = h.c.NewTimeoutStrategy(h)
 	return h
 }
 
@@ -250,8 +253,9 @@ func (h *Handel) Start() {
 	h.startTime = time.Now()
 	go h.proc.Start()
 	go h.rangeOnVerified()
+	go h.timeout.Start()
 	go h.periodicLoop()
-	h.periodicUpdate()
+	//h.periodicUpdate()
 }
 
 func (h *Handel) periodicLoop() {
@@ -267,6 +271,7 @@ func (h *Handel) Stop() {
 	h.Lock()
 	defer h.Unlock()
 	h.ticker.Stop()
+	h.timeout.Stop()
 	h.proc.Stop()
 	h.done = true
 	close(h.out)
@@ -279,9 +284,9 @@ func (h *Handel) Stop() {
 func (h *Handel) periodicUpdate() {
 	for i := byte(1); i <= byte(len(h.levels)); i++ {
 		lvl := h.getLevel(i)
-		if !lvl.sendStarted {
-			h.decideToStartLevel(lvl)
-		}
+		//if !lvl.sendStarted {
+		//h.decideToStartLevel(lvl)
+		//}
 		if lvl.active() {
 			h.sendUpdate(lvl, 1)
 		}
@@ -293,6 +298,32 @@ func (h *Handel) decideToStartLevel(l *level) {
 	if msSinceStart >= l.id*int(h.c.LevelTimeout.Seconds())*1000 {
 		l.sendStarted = true
 	}
+}
+
+// StartLevel starts the
+func (h *Handel) StartLevel(level int) {
+	h.Lock()
+	defer h.Unlock()
+	lvl := h.getLevel(byte(level))
+	if lvl.started() {
+		return
+	}
+	lvl.setStarted()
+	h.sendUpdate(lvl, 1)
+}
+
+// Send our best signature set for this level, to 'count' nodes
+func (h *Handel) sendUpdate(l *level, count int) {
+	if !l.started() {
+		panic("level not started!")
+	}
+	if !l.active() {
+		return
+	}
+
+	sp := h.store.Combined(byte(l.id) - 1)
+	newNodes, _ := l.selectNextPeers(count)
+	h.sendTo(l.id, sp, newNodes)
 }
 
 // FinalSignatures returns the channel over which final multi-signatures
