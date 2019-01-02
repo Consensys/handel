@@ -64,11 +64,7 @@ type EvaluatorStore struct {
 
 // Evaluate implements the SigEvaluator strategy.
 func (f *EvaluatorStore) Evaluate(sp *sigPair) int {
-	ms, ok := f.store.Best(sp.level)
-	if ok && ms.Cardinality() >= sp.ms.Cardinality() {
-		//return 0
-	}
-	return 1
+	return f.store.Evaluate(sp)
 }
 
 func newEvaluatorStore(store signatureStore) SigEvaluator {
