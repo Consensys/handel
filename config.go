@@ -53,6 +53,7 @@ func DefaultConfig(size int) *Config {
 		UpdatePeriod:      DefaultUpdatePeriod,
 		NewBitSet:         DefaultBitSet,
 		NewPartitioner:    DefaultPartitioner,
+		EvaluatorStrategy: DefaultEvaluatorStrategy,
 	}
 }
 

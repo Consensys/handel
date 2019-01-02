@@ -12,3 +12,4 @@
 *.out
 .idea/
 simul/simul
+simul/results/*
