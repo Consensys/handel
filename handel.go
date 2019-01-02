@@ -39,7 +39,9 @@ type level struct {
 	sendSigSize int
 }
 
-func NewLevel(id int, nodes []Identity) *level {
+// newLevel returns a fresh new level at the given id (number) for these given
+// nodes to contact.
+func newLevel(id int, nodes []Identity) *level {
 	if id <= 0 {
 		panic("bad value for level id")
 	}
@@ -59,9 +61,9 @@ func NewLevel(id int, nodes []Identity) *level {
 func createLevels(r Registry, partitioner Partitioner) map[int]*level {
 	lvls := make(map[int]*level)
 
-	for i := 1; i <= partitioner.MaxLevel(); i += 1 {
+	for i := 1; i <= partitioner.MaxLevel(); i++ {
 		nodes, _ := partitioner.PickNextAt(i, r.Size()+1)
-		lvls[i] = NewLevel(i, nodes)
+		lvls[i] = newLevel(i, nodes)
 	}
 
 	return lvls
@@ -104,9 +106,8 @@ func (l *level) updateSigToSend(sig *MultiSignature) bool {
 		//  we can start the level without waiting for the timeout
 		l.sendStarted = true
 		return true
-	} else {
-		return false
 	}
+	return false
 }
 
 // Send our best signature set for this level, to 'count' nodes
@@ -120,7 +121,7 @@ func (h *Handel) sendUpdate(l *level, count int) {
 	h.sendTo(l.id, sp, newNodes)
 }
 
-// Minimal stats
+// HStats contain minimal stats about handel
 type HStats struct {
 	msgSentCt int
 	msgRcvCt  int
@@ -209,7 +210,9 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 	h.threshold = h.c.ContributionsThreshold(h.reg.Size())
 	h.store = newReplaceStore(part, h.c.NewBitSet, c)
 	h.store.Store(0, mySig) // Our own sig is at level 0.
-	h.proc = newFifoProcessing(part, c, msg, h)
+	// TODO change that to config item
+	evaluator := h.c.EvaluatorStrategy(h.store, h)
+	h.proc = newEvaluatorProcessing(part, c, msg, evaluator, h)
 	h.net.RegisterListener(h)
 	return h
 }
@@ -236,7 +239,7 @@ func (h *Handel) NewPacket(p *Packet) {
 		h.logf(msg)
 
 		//h.logf("%s - done ", msg)
-		h.proc.Incoming() <- sigPair{origin: p.Origin, level: p.Level, ms: ms}
+		h.proc.Add(&sigPair{origin: p.Origin, level: p.Level, ms: ms})
 	}
 }
 
@@ -288,7 +291,7 @@ func (h *Handel) periodicUpdate() {
 
 func (h *Handel) decideToStartLevel(l *level) {
 	msSinceStart := int(time.Now().Sub(h.startTime).Seconds() * 1000)
-	if msSinceStart >= l.id * int(h.c.LevelTimeout.Seconds())*1000 {
+	if msSinceStart >= l.id*int(h.c.LevelTimeout.Seconds())*1000 {
 		l.sendStarted = true
 	}
 }
@@ -361,8 +364,8 @@ func (h *Handel) checkFinalSignature(s *sigPair) {
 	}
 }
 
-func (h *Handel) getLevel(levelId byte) *level {
-	l := int(levelId)
+func (h *Handel) getLevel(levelID byte) *level {
+	l := int(levelID)
 	if l <= 0 || l > len(h.levels) {
 		msg := fmt.Sprintf("Bad level (%d) max is %d", l, len(h.levels))
 		panic(msg)

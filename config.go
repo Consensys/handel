@@ -38,6 +38,10 @@ type Config struct {
 	// nil, it returns the RandomBinPartitioner. The id is the ID Handel is
 	// responsible for and reg is the global registry of participants.
 	NewPartitioner func(id int32, reg Registry) Partitioner
+
+	// EvaluatorStrategy returns the signature evaluator to use during the
+	// Handel protocol.
+	EvaluatorStrategy func(s signatureStore, h *Handel) SigEvaluator
 }
 
 // DefaultConfig returns a default configuration for Handel.
@@ -75,6 +79,12 @@ var DefaultPartitioner = func(id int32, reg Registry) Partitioner {
 	return NewRandomBinPartitioner(id, reg, nil)
 }
 
+// DefaultEvaluatorStrategy returns an evaluator based on the store's own
+// evaluation strategy.
+var DefaultEvaluatorStrategy = func(store signatureStore, h *Handel) SigEvaluator {
+	return newEvaluatorStore(store)
+}
+
 // ContributionsThreshold returns the threshold of contributions required in a
 // multi-signature to be considered valid and be passed up to the application
 // using Handel. Basically multiplying the total number of node times the
@@ -102,6 +112,9 @@ func mergeWithDefault(c *Config, size int) *Config {
 	}
 	if c.NewPartitioner == nil {
 		c2.NewPartitioner = DefaultPartitioner
+	}
+	if c.EvaluatorStrategy == nil {
+		c2.EvaluatorStrategy = DefaultEvaluatorStrategy
 	}
 	return &c2
 }

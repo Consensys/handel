@@ -74,6 +74,8 @@ func (r *replaceStore) Store(level byte, ms *MultiSignature) (*MultiSignature, b
 }
 
 func (r *replaceStore) Evaluate(sp *sigPair) int {
+	r.Lock()
+	defer r.Unlock()
 	_, score := r.unsafeCheck(sp.level, sp.ms)
 	return score
 }
