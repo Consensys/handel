@@ -106,3 +106,25 @@ func (m *MultiSignature) String() string {
 	return fmt.Sprintf("{bitset %d/%d}",
 		m.BitSet.Cardinality(), m.BitSet.BitLength())
 }
+
+// VerifyMultiSignature verifies a multisignature against the given message, aby
+// aggregating all public keys from the registry. It returns nil if the
+// verification was sucessful, an error otherwise.
+func VerifyMultiSignature(msg []byte, ms *MultiSignature, reg Registry, cons Constructor) error {
+	n := ms.BitSet.BitLength()
+	if n != reg.Size() {
+		return errors.New("verify multisignature: inconsistent sizes")
+	}
+	aggregate := cons.PublicKey()
+	for i := 0; i < n; i++ {
+		if ms.BitSet.Get(i) {
+			id, ok := reg.Identity(i)
+			if !ok {
+				return fmt.Errorf("registry returned empty identity at %d", i)
+			}
+			aggregate = aggregate.Combine(id.PublicKey())
+		}
+	}
+
+	return aggregate.VerifySignature(msg, ms.Signature)
+}

@@ -397,12 +397,13 @@ func (h *Handel) getLevel(levelID byte) *level {
 func (h *Handel) checkCompletedLevel(s *sigPair) {
 	// The receiving phase: have we completed this level?
 	lvl := h.getLevel(s.level)
-	if s.ms.Cardinality() == len(lvl.nodes) {
+	sp, _ := h.store.Best(s.level)
+	if sp.Cardinality() == len(lvl.nodes) {
 		lvl.rcvCompleted = true
 	}
 
-	// The sending phase: for all upper levels we may have completed
-	//  the level. We check & send an update if it's the case
+	// The sending phase: for all upper levels we may have completed the level.
+	// We try to update all levels upwards & send an update if it's the case
 	for id, lvl := range h.levels {
 		if int(s.level+1) < id {
 			continue
