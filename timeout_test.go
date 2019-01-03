@@ -10,12 +10,13 @@ import (
 func TestTimeoutLinear(t *testing.T) {
 	n := 8
 	levels := 3
+	levelIDs := []int{1, 2, 3}
 	_, handels := FakeSetup(n)
 	h := handels[0]
 
 	period := 20 * time.Millisecond
 	tooLong := 30 * time.Millisecond
-	linear := NewLinearTimeout(h, period).(*linearTimeout)
+	linear := NewLinearTimeout(h, levelIDs, period).(*linearTimeout)
 
 	chNewLevel := make(chan int, 1)
 	newLevel := func(level int) {

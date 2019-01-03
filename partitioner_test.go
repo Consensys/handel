@@ -225,35 +225,33 @@ func TestPartitionerBinTreeMaxLevel(t *testing.T) {
 	}
 }
 
-func TestPartitionerBinTreePickNextAt(t *testing.T) {
-	n := 17
-	reg := FakeRegistry(n)
-	ct := NewBinPartitioner(1, reg)
-
-	type pickTest struct {
-		level int
-		// how many to pick each time
-		count         int
-		expectedLens  []int
-		expectedBools []bool
+func TestPartitionerBinLevels(t *testing.T) {
+	type levelsTest struct {
+		n      int
+		id     int32
+		levels []int
 	}
 
-	tests := []pickTest{
-		// all good
-		{1, 1, []int{1, 0}, []bool{true, false}},
-		// larger count than available
-		{2, 10, []int{2, 0}, []bool{true, false}},
-		// multiple times
-		{3, 2, []int{2, 2, 0}, []bool{true, true, false}},
+	i := func(is ...int) []int {
+		return is
 	}
 
-	for _, test := range tests {
-		for i, lenght := range test.expectedLens {
-			ids, b := ct.PickNextAt(test.level, test.count)
-			require.Equal(t, lenght, len(ids))
-			require.Equal(t, test.expectedBools[i], b)
+	tests := []levelsTest{
+		{4, 1, i(1, 2)},
+		{5, 1, i(1, 2, 3)},
+		{5, 4, i(3)},
+	}
+
+	for i, test := range tests {
+		t.Logf(" -- test %d --", i)
+		reg := FakeRegistry(test.n)
+		ct := NewBinPartitioner(test.id, reg).(*binomialPartitioner)
+		levels := ct.Levels()
+		require.Equal(t, test.levels, levels)
+		for _, lvl := range levels {
+			_, err := ct.IdentitiesAt(lvl)
+			require.NoError(t, err)
 		}
-
 	}
 }
 
@@ -409,27 +407,4 @@ func TestPartitionerRandomBin(t *testing.T) {
 	ids3, ok := r1.PickNextAt(6, 30)
 	require.True(t, ok)
 	require.NotEqual(t, ids1, ids3)
-}
-
-
-func TestPartitionerPickNextAt(t *testing.T) {
-	n := 32
-	reg := FakeRegistry(n)
-	r := NewRandomBinPartitioner(1, reg, []byte("Hello World"))
-	//r := NewBinPartitioner(1, reg)
-	ids1, res1 := r.PickNextAt(1, 10)
-	require.True(t, res1)
-	require.Equal(t, 1, len(ids1))
-
-	_, res2 := r.PickNextAt(1, 1)
-	require.False(t, res2)
-
-	ids3, res3 := r.PickNextAt(2, 1)
-	require.True(t, res3)
-	require.Equal(t, 1, len(ids3))
-
-	ids4, res4 := r.PickNextAt(2, 1)
-	require.True(t, res4)
-	require.Equal(t, 1, len(ids4))
-	require.NotEqual(t, ids3[0], ids4[0])
 }

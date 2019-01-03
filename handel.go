@@ -60,10 +60,14 @@ func newLevel(id int, nodes []Identity) *level {
 // Create a map of all the levels for this registry.
 func createLevels(r Registry, partitioner Partitioner) map[int]*level {
 	lvls := make(map[int]*level)
-
-	for i := 1; i <= partitioner.MaxLevel(); i++ {
-		nodes, _ := partitioner.PickNextAt(i, r.Size()+1)
-		lvls[i] = newLevel(i, nodes)
+	var firstActive bool
+	for _, level := range partitioner.Levels() {
+		nodes, _ := partitioner.IdentitiesAt(level)
+		lvls[level] = newLevel(level, nodes)
+		if !firstActive {
+			lvls[level].setStarted()
+			firstActive = true
+		}
 	}
 
 	return lvls
@@ -100,7 +104,7 @@ func (l *level) selectNextPeers(count int) ([]Identity, bool) {
 
 // check if the signature is better than what we have.
 // If it's better, reset the counters of the messages sent.
-// If the level is now rcvCompleted we return true; if not we return false
+// If the level is now complete, we return true; if not we return false
 func (l *level) updateSigToSend(sig *MultiSignature) bool {
 	if l.sendSigSize >= sig.Cardinality() {
 		return false
@@ -111,8 +115,8 @@ func (l *level) updateSigToSend(sig *MultiSignature) bool {
 
 	if l.sendSigSize == len(l.nodes) {
 		// If we have all the signatures to send
-		//  we can start the level without waiting for the timeout
-		l.sendStarted = true
+		// we can start the level without waiting for the timeout
+		l.setStarted()
 		return true
 	}
 	return false
@@ -215,7 +219,7 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 	evaluator := h.c.NewEvaluatorStrategy(h.store, h)
 	h.proc = newEvaluatorProcessing(part, c, msg, evaluator, h)
 	h.net.RegisterListener(h)
-	h.timeout = h.c.NewTimeoutStrategy(h)
+	h.timeout = h.c.NewTimeoutStrategy(h, part.Levels())
 	return h
 }
 
@@ -281,8 +285,7 @@ func (h *Handel) Stop() {
 //  - send a new packet
 // You must have locked handel before calling this function
 func (h *Handel) periodicUpdate() {
-	for i := byte(1); i <= byte(len(h.levels)); i++ {
-		lvl := h.getLevel(i)
+	for _, lvl := range h.levels {
 		if lvl.active() {
 			h.sendUpdate(lvl, h.c.UpdateCount)
 		}
@@ -299,7 +302,7 @@ func (h *Handel) StartLevel(level int) {
 		return
 	}
 	lvl.setStarted()
-	h.sendUpdate(lvl, h.c.CandidateCount)
+	h.sendUpdate(lvl, h.c.NodeCount)
 }
 
 // Send our best signature set for this level, to 'count' nodes
@@ -386,11 +389,12 @@ func (h *Handel) checkFinalSignature(s *sigPair) {
 
 func (h *Handel) getLevel(levelID byte) *level {
 	l := int(levelID)
-	if l <= 0 || l > len(h.levels) {
-		msg := fmt.Sprintf("Bad level (%d) max is %d", l, len(h.levels))
+	lvl, exists := h.levels[l]
+	if !exists {
+		msg := fmt.Sprintf("inexistant level %d in list %v", l, h.Partitioner.Levels())
 		panic(msg)
 	}
-	return h.levels[l]
+	return lvl
 }
 
 // When we have a new signature, multiple levels may be impacted. The store
@@ -409,7 +413,7 @@ func (h *Handel) checkCompletedLevel(s *sigPair) {
 		lvl := h.getLevel(i)
 		ms := h.store.Combined(byte(lvl.id) - 1)
 		if ms != nil && lvl.updateSigToSend(ms) {
-			h.sendUpdate(lvl, h.c.CandidateCount)
+			h.sendUpdate(lvl, h.c.NodeCount)
 		}
 	}
 }
@@ -445,10 +449,10 @@ func (h *Handel) parsePacket(p *Packet) (*MultiSignature, error) {
 		return nil, errors.New("packet's origin out of range")
 	}
 
-	lvl := int(p.Level)
-	if lvl < 1 || lvl > log2(h.reg.Size()) {
-		msg := fmt.Sprintf("packet's level out of range, level received=%d, max=%d, nodes count=%d",
-			lvl, log2(h.reg.Size()), h.reg.Size())
+	_, exists := h.levels[int(p.Level)]
+
+	if !exists {
+		msg := fmt.Sprintf("invalid packet's level %d over %v - %v", p.Level, h.Partitioner.Levels(), h.levels)
 		return nil, errors.New(msg)
 	}
 

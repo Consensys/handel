@@ -20,7 +20,7 @@ type TimeoutStrategy interface {
 type linearTimeout struct {
 	sync.Mutex
 	newLevel func(int)
-	maxLevel int
+	levels   []int
 	period   time.Duration
 	ticker   *time.Ticker
 	done     chan bool
@@ -34,17 +34,17 @@ const DefaultLevelTimeout = 100 * time.Millisecond
 // NewDefaultLinearTimeout returns a TimeoutStrategy that starts level linearly
 // with the default period of DefaultLevelTimeout.  More precisely, level i
 // starts at time i * period.
-func NewDefaultLinearTimeout(h *Handel) TimeoutStrategy {
-	return NewLinearTimeout(h, DefaultLevelTimeout)
+func NewDefaultLinearTimeout(h *Handel, levels []int) TimeoutStrategy {
+	return NewLinearTimeout(h, levels, DefaultLevelTimeout)
 }
 
 // NewLinearTimeout returns a TimeoutStrategy that starts level linearly with
 // the given period. More precisely, it starts level i at time i * period.
-func NewLinearTimeout(h *Handel, period time.Duration) TimeoutStrategy {
+func NewLinearTimeout(h *Handel, levels []int, period time.Duration) TimeoutStrategy {
 	return &linearTimeout{
 		period:   period,
 		newLevel: h.StartLevel,
-		maxLevel: h.Partitioner.MaxLevel(),
+		levels:   levels,
 		done:     make(chan bool, 1),
 	}
 }
@@ -54,8 +54,6 @@ func (l *linearTimeout) Start() {
 	defer l.Unlock()
 	l.started = true
 	l.ticker = time.NewTicker(l.period)
-	// start first level directly if not done yet
-	l.newLevel(1)
 	go l.linearLevels(l.ticker.C)
 }
 
@@ -70,12 +68,12 @@ func (l *linearTimeout) Stop() {
 }
 
 func (l *linearTimeout) linearLevels(c <-chan time.Time) {
-	level := 2
-	for level <= l.maxLevel {
+	idx := 0
+	for idx < len(l.levels) {
+		l.newLevel(l.levels[idx])
 		select {
 		case <-c:
-			l.newLevel(level)
-			level++
+			idx++
 		case <-l.done:
 			return
 		}

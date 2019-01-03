@@ -24,10 +24,10 @@ type Config struct {
 	// a given level.
 	UpdateCount int
 
-	// CandidateCount indicates how many peers should we contact each time we
+	// NodeCount indicates how many peers should we contact each time we
 	// send packets to Handel nodes in a given candidate set. New nodes are
-	// selected each time but no more than CandidateCount.
-	CandidateCount int
+	// selected each time but no more than NodeCount.
+	NodeCount int
 
 	// NewBitSet returns an empty bitset. This function is used to parse
 	// incoming packets containing bitsets.
@@ -44,14 +44,14 @@ type Config struct {
 
 	// NewTimeoutStrategy returns the Timeout strategy to use during the Handel
 	// round. By default, it uses the linear timeout strategy.
-	NewTimeoutStrategy func(*Handel) TimeoutStrategy
+	NewTimeoutStrategy func(h *Handel, levels []int) TimeoutStrategy
 }
 
 // DefaultConfig returns a default configuration for Handel.
 func DefaultConfig(size int) *Config {
 	return &Config{
 		ContributionsPerc:    DefaultContributionsPerc,
-		CandidateCount:       DefaultCandidateCount,
+		NodeCount:            DefaultCandidateCount,
 		UpdatePeriod:         DefaultUpdatePeriod,
 		UpdateCount:          DefaultUpdateCount,
 		NewBitSet:            DefaultBitSet,
@@ -93,8 +93,8 @@ var DefaultEvaluatorStrategy = func(store signatureStore, h *Handel) SigEvaluato
 
 // DefaultTimeoutStrategy returns the default timeout strategy used by handel -
 // the linear strategy with the default timeout. See DefaultLevelTimeout.
-func DefaultTimeoutStrategy(h *Handel) TimeoutStrategy {
-	return NewDefaultLinearTimeout(h)
+func DefaultTimeoutStrategy(h *Handel, levels []int) TimeoutStrategy {
+	return NewDefaultLinearTimeout(h, levels)
 }
 
 // ContributionsThreshold returns the threshold of contributions required in a
@@ -110,8 +110,8 @@ func mergeWithDefault(c *Config, size int) *Config {
 	if c.ContributionsPerc == 0 {
 		c2.ContributionsPerc = DefaultContributionsPerc
 	}
-	if c.CandidateCount == 0 {
-		c2.CandidateCount = DefaultCandidateCount
+	if c.NodeCount == 0 {
+		c2.NodeCount = DefaultCandidateCount
 	}
 	if c.UpdatePeriod == 0*time.Second {
 		c2.UpdatePeriod = DefaultUpdatePeriod
