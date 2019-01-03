@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ConsenSys/handel/simul/lib"
+	"github.com/ConsenSys/handel/simul/monitor"
 )
 
 type localPlatform struct {
@@ -15,6 +16,7 @@ type localPlatform struct {
 	regPath  string
 	binPath  string
 	confPath string
+	csvFile  *os.File
 	sync.Mutex
 	cmds []*Command
 }
@@ -38,13 +40,22 @@ func (l *localPlatform) Configure(c *lib.Config) error {
 	if err := c.WriteTo(l.confPath); err != nil {
 		return err
 	}
+
+	csvFile, err := os.Create(c.GetResultsFile())
+	if err != nil {
+		panic(err)
+	}
+	l.csvFile = csvFile
 	return nil
+
 }
 
 func (l *localPlatform) Cleanup() error {
 	os.RemoveAll(l.regPath)
 	l.Lock()
 	defer l.Unlock()
+
+	l.csvFile.Close()
 
 	for _, c := range l.cmds {
 		if err := c.Process.Kill(); err != nil {
@@ -55,6 +66,12 @@ func (l *localPlatform) Cleanup() error {
 }
 
 func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
+
+	// 0. setup monitor
+	stats := defaultStats(l.c, idx, r)
+	mon := monitor.NewMonitor(l.c.MonitorPort, stats)
+	go mon.Listen()
+
 	// 1. Generate & write the registry file
 	cons := l.c.NewConstructor()
 	parser := lib.NewCSVParser()
@@ -152,6 +169,14 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 	}
 
 	fmt.Printf("[+] Localhost round %d finished - success !\n", idx)
+
+	go mon.Stop()
+	if idx == 0 {
+		stats.WriteHeader(l.csvFile)
+	}
+	stats.WriteValues(l.csvFile)
+	fmt.Printf("[+] Closing down monitor & writing stats to\n\t%s\n", l.c.GetResultsFile())
+
 	/*for i, command := range commands {*/
 	//if str := command.Stdout(); str != "" {
 	//fmt.Printf(" ----- node %d output -----\n\t%s\n ----------------\n", i, str)
