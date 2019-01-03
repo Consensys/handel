@@ -85,9 +85,10 @@ func main() {
 
 	// Wait for final signatures !
 	enough := false
+	var sig h.MultiSignature
 	for !enough {
 		select {
-		case sig := <-reporter.FinalSignatures():
+		case sig = <-reporter.FinalSignatures():
 			if sig.BitSet.Cardinality() >= runConf.Threshold {
 				enough = true
 				break
@@ -97,7 +98,13 @@ func main() {
 		}
 	}
 	signatureGen.Record()
-	fmt.Println("finished -> sending state to sync master")
+	fmt.Println("reached good enough multi-signature!")
+
+	if err := h.VerifyMultiSignature(lib.Message, &sig, registry, cons.Handel()); err != nil {
+		panic("signature invalid !!")
+	}
+
+	fmt.Println("signature valid & finished- sending state to sync master")
 
 	// Sync with master - wait to close our node
 	syncer.Reset()
