@@ -240,7 +240,10 @@ func (a *awsPlatform) startSlave(inst aws.Instance, idx int) {
 	for _, n := range inst.Nodes {
 		startSlave := a.slaveCMDS.Start(a.masterAddr, n.Sync, int(n.ID()), idx, n.Identity.Address())
 		fmt.Println("Start Slave", startSlave)
-		slaveController.Run(startSlave)
+		err := slaveController.Start(startSlave)
+		if err != nil {
+			panic(err)
+		}
 	}
 	slaveController.Close()
 }

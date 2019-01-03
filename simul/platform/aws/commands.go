@@ -90,7 +90,7 @@ func (c SlaveCommands) CopyRegistryFileFromSharedDirToLocalStorage() map[int]str
 
 // Start starts executable
 func (c SlaveCommands) Start(masterAddr, sync string, id, run int, log string) string {
-	return "nohup " + c.SlaveBinPath + " -config " + c.ConfPath + " -registry " + c.RegPath + " -master " + masterAddr + " -id " + strconv.Itoa(id) + " -sync " + sync + " -run " + strconv.Itoa(run) + " > " + log + " &"
+	return "nohup " + c.SlaveBinPath + " -config " + c.ConfPath + " -registry " + c.RegPath + " -master " + masterAddr + " -id " + strconv.Itoa(id) + " -sync " + sync + " -run " + strconv.Itoa(run) + " &> " + log + " &"
 }
 
 func cmdMapToString(cmds map[int]string) string {
