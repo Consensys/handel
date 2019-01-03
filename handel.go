@@ -403,9 +403,11 @@ func (h *Handel) checkCompletedLevel(s *sigPair) {
 
 	// The sending phase: for all upper levels we may have completed
 	//  the level. We check & send an update if it's the case
-	for i := s.level + 1; i <= byte(len(h.levels)); i++ {
-		lvl := h.getLevel(i)
-		ms := h.store.Combined(byte(lvl.id) - 1)
+	for id, lvl := range h.levels {
+		if int(s.level+1) < id {
+			continue
+		}
+		ms := h.store.Combined(byte(id) - 1)
 		if ms != nil && lvl.updateSigToSend(ms) {
 			h.sendUpdate(lvl, h.c.NodeCount)
 		}
@@ -435,7 +437,9 @@ func (h *Handel) sendTo(lvl int, ms *MultiSignature, ids []Identity) {
 // parsePacket returns the multisignature parsed from the given packet, or an
 // error if the packet can't be unmarshalled, or contains erroneous data such as
 // out of range level.  This method is NOT thread-safe and only meant for
-// internal use.
+// internal use. After this method is called, a packet is deemed to have a valid
+// origin, a valid level. The signature is only unmarshalled, but not verified
+// yet.
 func (h *Handel) parsePacket(p *Packet) (*MultiSignature, error) {
 	h.stats.msgRcvCt++
 
