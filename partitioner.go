@@ -19,6 +19,11 @@ type Partitioner interface {
 	MaxLevel() int
 	// Returns the size of the set of Identity at this level
 	Size(level int) int
+
+	// Levels returns the list of level ids Handel must run on. It does not
+	// return the level 0 since that represents the personal contributions of
+	// the Handel node itself.
+	Levels() []int
 	// IdentitiesAt returns the list of Identity that composes the whole level in
 	// this partition scheme.
 	IdentitiesAt(level int) ([]Identity, error)
@@ -87,6 +92,18 @@ func (c *binomialPartitioner) IdentitiesAt(level int) ([]Identity, error) {
 	}
 	return ids, nil
 
+}
+
+func (c *binomialPartitioner) Levels() []int {
+	var levels []int
+	for i := 1; i <= c.MaxLevel(); i++ {
+		_, _, err := c.rangeLevel(i)
+		if err != nil {
+			continue
+		}
+		levels = append(levels, i)
+	}
+	return levels
 }
 
 // errEmptyLevel is returned when a range for a requested level is empty. This
@@ -197,7 +214,7 @@ func (c *binomialPartitioner) PickNextAt2(level, count int) ([]Identity, bool) {
 		return nil, false
 	}
 
-	last := min(minPicked + count, lmax)
+	last := min(minPicked+count, lmax)
 
 	ids, ok := c.reg.Identities(minPicked, last)
 	if !ok {
@@ -208,14 +225,12 @@ func (c *binomialPartitioner) PickNextAt2(level, count int) ([]Identity, bool) {
 	return ids, true
 }
 
-
 // PickNext returns a set of un-picked identities at the given level, up to
 // *count* elements. If no identities could have been picked, it returns false.
 func (c *binomialPartitioner) PickNextAt(level, count int) ([]Identity, bool) {
 	if level <= 0 {
 		panic("Wrong level number")
 	}
-
 
 	min, max, err := c.rangeLevel(level)
 	if err != nil {
@@ -241,11 +256,12 @@ func (c *binomialPartitioner) PickNextAt(level, count int) ([]Identity, bool) {
 	return ids, true
 }
 
-
-
 func (c *binomialPartitioner) Size(level int) int {
 	min, max, err := c.rangeLevel(level)
 	if err != nil {
+		if err == errEmptyLevel {
+			return 0
+		}
 		panic(err)
 	}
 	return max - min
