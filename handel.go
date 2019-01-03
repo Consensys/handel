@@ -305,15 +305,9 @@ func (h *Handel) StartLevel(level int) {
 	h.sendUpdate(lvl, h.c.NodeCount)
 }
 
-// Send our best signature set for this level, to 'count' nodes
+// Send our best signature set for this level, to 'count' nodes. The level must
+// be active before calling this method.
 func (h *Handel) sendUpdate(l *level, count int) {
-	if !l.started() {
-		panic("level not started!")
-	}
-	if !l.active() {
-		return
-	}
-
 	sp := h.store.Combined(byte(l.id) - 1)
 	newNodes, _ := l.selectNextPeers(count)
 	h.sendTo(l.id, sp, newNodes)
