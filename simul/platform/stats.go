@@ -8,10 +8,15 @@ import (
 )
 
 func defaultStats(c *lib.Config, i int, r *lib.RunConfig) *monitor.Stats {
+	return DefaultStats(i, r.Nodes, r.Threshold, c.Network)
+}
+
+// DefaultStats returns default stats
+func DefaultStats(run int, nodes int, threshold int, network string) *monitor.Stats {
 	return monitor.NewStats(map[string]string{
-		"run":       strconv.Itoa(i),
-		"nodes":     strconv.Itoa(r.Nodes),
-		"threshold": strconv.Itoa(r.Threshold),
-		"network":   c.Network,
+		"run":       strconv.Itoa(run),
+		"nodes":     strconv.Itoa(nodes),
+		"threshold": strconv.Itoa(threshold),
+		"network":   network,
 	}, nil)
 }

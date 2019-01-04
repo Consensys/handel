@@ -18,11 +18,15 @@ type awsPlatform struct {
 	pemBytes      []byte
 	master        aws.NodeController
 	masterAddr    string
+	monitorAddr   string
+	monitorPort   int
+	network       string
 	allSlaveNodes []*aws.Instance
 	masterCMDS    aws.MasterCommands
 	slaveCMDS     aws.SlaveCommands
 	cons          lib.Constructor
 	awsConfig     *aws.Config
+	resFile       string
 }
 
 // NewAws creates AWS Platform
@@ -56,6 +60,9 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 	CMDS := aws.NewCommands("/tmp/masterAWS", "/tmp/nodeAWS", "/tmp/aws.conf", "/tmp/aws.csv")
 	a.masterCMDS = aws.MasterCommands{CMDS}
 	a.slaveCMDS = aws.SlaveCommands{CMDS}
+	a.network = c.Network
+	a.resFile = c.GetCSVFile()
+	a.monitorPort = c.MonitorPort
 
 	// Compile binaries
 	a.pack("github.com/ConsenSys/handel/simul/node", c, CMDS.SlaveBinPath)
@@ -82,6 +89,7 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 	a.cons = cons
 	masterAddr := aws.GenRemoteAddress(*masterInstance.PublicIP, 5000)
 	a.masterAddr = masterAddr
+	a.monitorAddr = aws.GenRemoteAddress(*masterInstance.PublicIP, c.MonitorPort)
 	masterNode := lib.GenerateNode(cons, -1, masterAddr)
 	nodeAndSync := aws.NodeAndSync{masterNode, ""}
 	masterInstance.Nodes = []aws.NodeAndSync{nodeAndSync}
@@ -200,7 +208,16 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 		}
 	}
 
-	masterStart := a.masterCMDS.Start(a.masterAddr, a.awsConfig.NbOfInstances*nodePerInstances, a.awsConfig.MasterTimeOut)
+	masterStart := a.masterCMDS.Start(
+		a.masterAddr,
+		a.awsConfig.NbOfInstances*nodePerInstances,
+		a.awsConfig.MasterTimeOut,
+		idx,
+		r.Threshold,
+		a.network,
+		a.resFile,
+		a.monitorPort)
+
 	fmt.Println("       Exec:", len(shareRegistryFile)+1, masterStart)
 	a.master.Start(masterStart)
 
@@ -238,7 +255,7 @@ func (a *awsPlatform) startSlave(inst aws.Instance, idx int) {
 	}
 
 	for _, n := range inst.Nodes {
-		startSlave := a.slaveCMDS.Start(a.masterAddr, n.Sync, int(n.ID()), idx, n.Identity.Address())
+		startSlave := a.slaveCMDS.Start(a.masterAddr, n.Sync, a.monitorAddr, int(n.ID()), idx, n.Identity.Address())
 		fmt.Println("Start Slave", startSlave)
 		err := slaveController.Start(startSlave)
 		if err != nil {
