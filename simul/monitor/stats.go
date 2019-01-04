@@ -464,6 +464,7 @@ func (t *Value) String() string {
 	return fmt.Sprintf("{%s_avg: %f}", t.name, t.Avg())
 }
 
+// DefaultStats returns default stats
 func DefaultStats(run int, nodes int, threshold int, network string) *Stats {
 	return NewStats(map[string]string{
 		"run":       strconv.Itoa(run),

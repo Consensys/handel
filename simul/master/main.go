@@ -45,7 +45,6 @@ func main() {
 	defer csvFile.Close()
 
 	stats := monitor.DefaultStats(*run, *nbOfNodes, *threshold, *network)
-	//defaultStats(*nbOfNodes)
 	mon := monitor.NewMonitor(10000, stats)
 	go mon.Listen()
 
