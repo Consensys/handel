@@ -11,6 +11,7 @@ import (
 
 	"github.com/ConsenSys/handel/simul/lib"
 	"github.com/ConsenSys/handel/simul/monitor"
+	"github.com/ConsenSys/handel/simul/platform"
 )
 
 var nbOfNodes = flag.Int("nbOfNodes", 0, "number of slave nodes")
@@ -44,7 +45,7 @@ func main() {
 	}
 	defer csvFile.Close()
 
-	stats := monitor.DefaultStats(*run, *nbOfNodes, *threshold, *network)
+	stats := platform.DefaultStats(*run, *nbOfNodes, *threshold, *network)
 	mon := monitor.NewMonitor(10000, stats)
 	go mon.Listen()
 

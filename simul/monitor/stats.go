@@ -6,7 +6,6 @@ import (
 	"io"
 	"math"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -462,14 +461,4 @@ func (t *Value) SingleValues(i int) []string {
 
 func (t *Value) String() string {
 	return fmt.Sprintf("{%s_avg: %f}", t.name, t.Avg())
-}
-
-// DefaultStats returns default stats
-func DefaultStats(run int, nodes int, threshold int, network string) *Stats {
-	return NewStats(map[string]string{
-		"run":       strconv.Itoa(run),
-		"nodes":     strconv.Itoa(nodes),
-		"threshold": strconv.Itoa(threshold),
-		"network":   network,
-	}, nil)
 }
