@@ -92,7 +92,6 @@ func (s *SyncMaster) handleReady(incoming *syncMessage) {
 		return
 	}
 
-	//fmt.Print(s.String())
 	if len(s.readys) < s.exp {
 		return
 	}
@@ -180,7 +179,6 @@ func (s *SyncSlave) sendReadyState() {
 	packet := &handel.Packet{MultiSig: buff}
 	id := handel.NewStaticIdentity(0, s.master, nil)
 	go s.net.Send([]handel.Identity{id}, packet)
-	fmt.Printf("%s -> sending ready state to %s\n", s.own, s.master)
 }
 
 // WaitMaster returns a channel that receives a value when the sync master sends

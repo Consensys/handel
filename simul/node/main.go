@@ -3,9 +3,9 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"time"
 
+	"github.com/ConsenSys/handel"
 	h "github.com/ConsenSys/handel"
 	"github.com/ConsenSys/handel/simul/lib"
 	"github.com/ConsenSys/handel/simul/monitor"
@@ -43,6 +43,7 @@ func main() {
 	// XXX maybe try with a database-backed registry if loading file in memory is
 	// too much when overloading
 	config := lib.LoadConfig(*configFile)
+	logger := config.Logger()
 	runConf := config.Runs[*run]
 
 	cons := config.NewConstructor()
@@ -56,23 +57,18 @@ func main() {
 		panic(err)
 	}
 	// Setup report handel
-	handel := h.NewHandel(network, registry, node.Identity, cons.Handel(), lib.Message, signature)
+	handel := h.NewHandel(network, registry, node.Identity, cons.Handel(), lib.Message, signature, &handel.Config{Logger: logger})
 	reporter := h.NewReportHandel(handel)
 
 	// Sync with master - wait for the START signal
 	syncer := lib.NewSyncSlave(*syncAddr, *master, *id)
 	select {
 	case <-syncer.WaitMaster():
-		now := time.Now()
-		formatted := fmt.Sprintf("%02d:%02d:%02d:%03d", now.Hour(),
-			now.Minute(),
-			now.Second(),
-			now.Nanosecond())
-
-		fmt.Printf("\n%s [+] %s synced - starting\n", formatted, node.Identity.Address())
+		break
 	case <-time.After(BeaconTimeout):
 		panic("Haven't received beacon in time!")
 	}
+	logger.Debug("node", *id, "sync", "finished")
 
 	// Start handel and run a timeout on the whole thing
 	signatureGen := monitor.NewTimeMeasure("sigen")
@@ -98,25 +94,17 @@ func main() {
 		}
 	}
 	signatureGen.Record()
-	fmt.Println("reached good enough multi-signature!")
+	logger.Debug("node", *id, "sigen", "finished")
 
 	if err := h.VerifyMultiSignature(lib.Message, &sig, registry, cons.Handel()); err != nil {
 		panic("signature invalid !!")
 	}
 
-	fmt.Println("signature valid & finished- sending state to sync master")
-
 	// Sync with master - wait to close our node
 	syncer.Reset()
 	select {
 	case <-syncer.WaitMaster():
-		now := time.Now()
-		formatted := fmt.Sprintf("%02d:%02d:%02d:%03d", now.Hour(),
-			now.Minute(),
-			now.Second(),
-			now.Nanosecond())
-
-		fmt.Printf("\n%s [+] %s synced - closing shop\n", formatted, node.Identity.Address())
+		logger.Debug("node", *id, "last_sync", "started")
 	case <-time.After(BeaconTimeout):
 		panic("Haven't received beacon in time!")
 	}

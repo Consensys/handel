@@ -115,12 +115,12 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 
 			go func() {
 				for str := range commands[j].LineOutput() {
-					fmt.Printf("NODE %d: %s\n", j, str)
+					fmt.Printf(str + "\n")
 				}
 			}()
 			time.Sleep(200 * time.Millisecond)
 			if err := commands[j].Wait(); err != nil {
-				fmt.Printf("node %d: %s\n", j, commands[j].ReadAll())
+				fmt.Printf("%s\n", commands[j].ReadAll())
 
 				errCh <- j
 			}
@@ -163,7 +163,7 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 			panic("global timeout reached")
 		}
 		if nOk+nErr >= r.Nodes {
-			fmt.Printf("nOk = %d, nErr = %d\n", nOk, nErr)
+			fmt.Printf("[+] nOk = %d, nErr = %d\n", nOk, nErr)
 			break
 		}
 	}

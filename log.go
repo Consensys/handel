@@ -35,20 +35,22 @@ type kitLogger struct {
 }
 
 // NewKitLoggerFrom returns a Logger out of a go-kit/kit/log logger interface. The
-// caller can set the options that it needs to the logger first.
+// caller can set the options that it needs to the logger first. By default, it
+// wraps the logger with a SyncLogger since Handel is highly concurrent.
 func NewKitLoggerFrom(l log.Logger) Logger {
-	return &kitLogger{l}
+	return &kitLogger{log.NewSyncLogger(l)}
 }
 
 // NewKitLogger returns a Logger based on go-kit/kit/log default logger
 // structure that outputs to stdout. You can pass in options to only allow
-// certain levels.
+// certain levels. By default, it also includes the caller stack.
 func NewKitLogger(opts ...lvl.Option) Logger {
-	logger := log.NewLogfmtLogger(os.Stdout)
+	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
 	for _, opt := range opts {
 		logger = lvl.NewFilter(logger, opt)
 	}
-	return &kitLogger{logger}
+	logger = log.With(logger, "call", log.Caller(8))
+	return NewKitLoggerFrom(logger)
 }
 
 func (k *kitLogger) Info(kv ...interface{}) {

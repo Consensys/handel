@@ -367,6 +367,7 @@ func (h *Handel) checkFinalSignature(s *sigPair) {
 			return
 		}
 		h.best = ms
+		h.log.Info("new_sig", fmt.Sprintf("%d/%d/%d", ms.Cardinality(), h.threshold, h.reg.Size()))
 		h.out <- *h.best
 	}
 
