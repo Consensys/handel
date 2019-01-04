@@ -183,10 +183,14 @@ func (c *Config) GetMonitorAddress(ip string) string {
 	return net.JoinHostPort(ip, strconv.Itoa(c.MonitorPort))
 }
 
+func (c *Config) GetCSVFile() string {
+	csvName := strings.Replace(filepath.Base(c.configPath), ".toml", ".csv", 1)
+	return csvName
+}
+
 // GetResultsFile returns the path where to write the resulting csv file
 func (c *Config) GetResultsFile() string {
-	csvName := strings.Replace(filepath.Base(c.configPath), ".toml", ".csv", 1)
-	return filepath.Join(resultsDir, csvName)
+	return filepath.Join(resultsDir, c.GetCSVFile())
 }
 
 // GetResultsDir returns the directory where results will be written

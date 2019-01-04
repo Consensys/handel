@@ -6,5 +6,5 @@ MaxTimeout = "2m"
 Retrials = 1
 
 [[Runs]]
-    Nodes = 16
-    Threshold = 8
+    Nodes = 4
+    Threshold = 4
