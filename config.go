@@ -45,6 +45,9 @@ type Config struct {
 	// NewTimeoutStrategy returns the Timeout strategy to use during the Handel
 	// round. By default, it uses the linear timeout strategy.
 	NewTimeoutStrategy func(h *Handel, levels []int) TimeoutStrategy
+
+	// Logger to use for logging handel actions
+	Logger Logger
 }
 
 // DefaultConfig returns a default configuration for Handel.
@@ -58,6 +61,7 @@ func DefaultConfig(size int) *Config {
 		NewPartitioner:       DefaultPartitioner,
 		NewEvaluatorStrategy: DefaultEvaluatorStrategy,
 		NewTimeoutStrategy:   DefaultTimeoutStrategy,
+		Logger:               DefaultLogger,
 	}
 }
 
@@ -130,6 +134,9 @@ func mergeWithDefault(c *Config, size int) *Config {
 	}
 	if c.NewTimeoutStrategy == nil {
 		c2.NewTimeoutStrategy = DefaultTimeoutStrategy
+	}
+	if c.Logger == nil {
+		c2.Logger = DefaultLogger
 	}
 	return &c2
 }

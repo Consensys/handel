@@ -172,6 +172,9 @@ type Handel struct {
 	startTime time.Time
 	// the timeout strategy used by handel
 	timeout TimeoutStrategy
+
+	// the logger used by this Handel - always contains the ID
+	log Logger
 }
 
 // NewHandel returns a Handle interface that uses the given network and
@@ -207,6 +210,7 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 		out:         make(chan MultiSignature, 10000),
 		ticker:      time.NewTicker(config.UpdatePeriod),
 		levels:      createLevels(r, part),
+		log:         config.Logger.With("id", id.ID()),
 	}
 	h.actors = []actor{
 		actorFunc(h.checkCompletedLevel),
@@ -217,7 +221,7 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 	h.store = newReplaceStore(part, h.c.NewBitSet, c)
 	h.store.Store(0, mySig) // Our own sig is at level 0.
 	evaluator := h.c.NewEvaluatorStrategy(h.store, h)
-	h.proc = newEvaluatorProcessing(part, c, msg, evaluator, h)
+	h.proc = newEvaluatorProcessing(part, c, msg, evaluator, h.log)
 	h.net.RegisterListener(h)
 	h.timeout = h.c.NewTimeoutStrategy(h, part.Levels())
 	return h
@@ -241,10 +245,7 @@ func (h *Handel) NewPacket(p *Packet) {
 
 	// sends it to processing
 	if !h.getLevel(p.Level).rcvCompleted {
-		msg := fmt.Sprintf("packet received from %d for level %d", p.Origin, p.Level)
-		h.logf(msg)
-
-		//h.logf("%s - done ", msg)
+		h.log.Debug("rcvd_from", p.Origin, "rcvd_level", p.Level)
 		h.proc.Add(&sigPair{origin: p.Origin, level: p.Level, ms: ms})
 	}
 }
@@ -430,8 +431,7 @@ func (h *Handel) sendTo(lvl int, ms *MultiSignature, ids []Identity) {
 		MultiSig: buff,
 	}
 
-	msg := fmt.Sprintf("packet sent of level %d to %v", p.Level, ids)
-	h.logf(msg)
+	h.log.Debug("sent_level", p.Level, "sent_nodes", fmt.Sprintf("%s", ids))
 	h.net.Send(ids, p)
 }
 
@@ -451,8 +451,7 @@ func (h *Handel) parsePacket(p *Packet) (*MultiSignature, error) {
 	_, exists := h.levels[int(p.Level)]
 
 	if !exists {
-		msg := fmt.Sprintf("invalid packet's level %d over %v - %v", p.Level, h.Partitioner.Levels(), h.levels)
-		return nil, errors.New(msg)
+		return nil, fmt.Errorf("invalid packet's level %d over %v - %v", p.Level, h.Partitioner.Levels(), h.levels)
 	}
 
 	ms := new(MultiSignature)

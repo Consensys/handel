@@ -5,6 +5,8 @@ import (
 	"fmt"
 	mathRand "math/rand"
 	"time"
+
+	lvl "github.com/go-kit/kit/log/level"
 )
 
 // Test is a struct implementing some useful functionality to test specific
@@ -47,12 +49,13 @@ func NewTest(keys []SecretKey, pubs []PublicKey, c Constructor, msg []byte) *Tes
 		nets[i] = &TestNetwork{id: id, list: nets}
 	}
 	reg := NewArrayRegistry(ids)
+	logger := NewKitLogger(lvl.AllowDebug())
 	for i := 0; i < n; i++ {
 		newPartitioner := func(id int32, reg Registry) Partitioner {
 			return NewRandomBinPartitioner(id, reg, nil)
 			//return NewBinPartitioner(id, reg)
 		}
-		conf := &Config{NewPartitioner: newPartitioner}
+		conf := &Config{NewPartitioner: newPartitioner, Logger: logger}
 		handels[i] = NewHandel(nets[i], reg, ids[i], c, msg, sigs[i], conf)
 	}
 	return &Test{

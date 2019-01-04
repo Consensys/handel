@@ -1,2 +1,2 @@
 network,nodes,run,threshold,sigen_system_min,sigen_system_max,sigen_system_avg,sigen_system_sum,sigen_system_dev,sigen_user_min,sigen_user_max,sigen_user_avg,sigen_user_sum,sigen_user_dev,sigen_wall_min,sigen_wall_max,sigen_wall_avg,sigen_wall_sum,sigen_wall_dev
-udp,16,0,8,0.000000,0.006779,0.001557,0.024918,0.001915,0.017396,0.027259,0.021946,0.351141,0.002720,0.040013,0.072454,0.057037,0.912596,0.011306
+udp,32,0,20,0.000000,0.012887,0.004015,0.128484,0.003374,0.026396,0.070990,0.051060,1.633930,0.011896,0.126150,0.350676,0.245455,7.854557,0.066511

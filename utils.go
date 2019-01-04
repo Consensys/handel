@@ -36,6 +36,14 @@ func isSet(nb, index uint) bool {
 	return ((nb >> index) & 1) == 1
 }
 
+func addresses(ids []Identity) []string {
+	a := make([]string, len(ids))
+	for i, id := range ids {
+		a[i] = id.Address()
+	}
+	return a
+}
+
 // PrintLog makes logf print all statements if it is true. If false, no log are
 // outputted.
 var PrintLog = true
