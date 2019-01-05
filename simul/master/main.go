@@ -6,7 +6,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"github.com/ConsenSys/handel/simul/lib"
@@ -39,7 +38,8 @@ func main() {
 
 	os.MkdirAll(resultsDir, 0777)
 	csvName := filepath.Join(resultsDir, *resultFile)
-	csvFile, err := os.Create(csvName)
+	//	csvFile, err := os.Create(csvName)
+	csvFile, err := os.OpenFile(csvName, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0777)
 	if err != nil {
 		panic(err)
 	}
@@ -69,13 +69,9 @@ func main() {
 		panic(msg)
 	}
 
-	stats.WriteHeader(csvFile)
+	if *run == 0 {
+		stats.WriteHeader(csvFile)
+	}
 	stats.WriteValues(csvFile)
 	mon.Stop()
-}
-
-func defaultStats(nbOfNodes int) *monitor.Stats {
-	return monitor.NewStats(map[string]string{
-		"nodes": strconv.Itoa(nbOfNodes),
-	}, nil)
 }
