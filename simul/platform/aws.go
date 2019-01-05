@@ -135,9 +135,7 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 	}
 
 	//*** Configure Slaves
-	fmt.Println(*masterInstance.PublicIP)
 	slaveCmds := a.slaveCMDS.Configure(*masterInstance.PublicIP)
-	fmt.Println(*masterInstance.PublicIP)
 
 	fmt.Println("")
 	fmt.Println("")
@@ -219,8 +217,15 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 		a.monitorPort)
 
 	fmt.Println("       Exec:", len(shareRegistryFile)+1, masterStart)
-	a.master.Start(masterStart)
+	done := make(chan bool)
+	go func() {
+		_, err := a.master.Run(masterStart)
+		if err != nil {
+			panic(err)
+		}
 
+		done <- true
+	}()
 	//*** Starte slaves
 	var wg sync.WaitGroup
 	for _, n := range slaveNodes {
@@ -233,6 +238,7 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 		}(*n)
 	}
 	wg.Wait()
+	<-done
 	return nil
 }
 
