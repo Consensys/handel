@@ -1,6 +1,6 @@
 PemFile = "/Users/blaze/Desktop/AWS/AWSRnD.pem"
-NbOfInstances = 8
-Regions = ["us-west-2"]
+NbOfInstances = 16
+Regions = ["us-west-2", "us-east-1"]
 MasterTimeOut = 4
 SSHUser = "ubuntu"
 TargetSystem = "linux"

@@ -20,8 +20,6 @@ type Instance struct {
 	Tag string
 
 	Nodes []NodeAndSync
-
-	Idx int
 }
 
 //Manager manages group of EC2 instances
@@ -60,17 +58,17 @@ func GenRemoteAddress(ip string, port int) string {
 }
 
 func UpdateInstances(instances []*Instance, nbOfNodesPerInstance int, cons lib.Constructor) {
-	for _, inst := range instances {
-		UpdateInstance(inst, nbOfNodesPerInstance, cons)
+	for idx, inst := range instances {
+		UpdateInstance(idx, inst, nbOfNodesPerInstance, cons)
 	}
 }
 
-func UpdateInstance(instances *Instance, nbOfNodesPerInstance int, cons lib.Constructor) {
+func UpdateInstance(idx int, instances *Instance, nbOfNodesPerInstance int, cons lib.Constructor) {
 	var ls = []NodeAndSync{}
 	for i := 0; i < nbOfNodesPerInstance; i++ {
 		addr1 := GenRemoteAddress(*instances.PublicIP, base+i)
 		addr2 := GenRemoteAddress(*instances.PublicIP, base+nbOfNodesPerInstance+i)
-		node := lib.GenerateNode(cons, nbOfNodesPerInstance*instances.Idx+i, addr1)
+		node := lib.GenerateNode(cons, nbOfNodesPerInstance*idx+i, addr1)
 		nodeAndSync := NodeAndSync{node, addr2}
 
 		ls = append(ls, nodeAndSync)

@@ -73,7 +73,6 @@ func (a *singleRegionAWSManager) RefreshInstances() ([]Instance, error) {
 	}
 
 	var instances []Instance
-	idx := 0
 	for _, reservation := range result.Reservations {
 		for _, i := range reservation.Instances {
 			id := i.InstanceId
@@ -81,12 +80,11 @@ func (a *singleRegionAWSManager) RefreshInstances() ([]Instance, error) {
 			pubIP := i.PublicIpAddress
 			for _, tag := range i.Tags {
 				if *tag.Value == RnDMasterTag {
-					inst := Instance{id, pubIP, state, a.region, *tag.Value, nil, -1}
+					inst := Instance{id, pubIP, state, a.region, *tag.Value, nil}
 					instances = append(instances, inst)
 				}
 				if *tag.Value == RnDTag {
-					inst := Instance{id, pubIP, state, a.region, *tag.Value, nil, idx}
-					idx++
+					inst := Instance{id, pubIP, state, a.region, *tag.Value, nil}
 					instances = append(instances, inst)
 				}
 			}

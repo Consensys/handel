@@ -191,7 +191,6 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 	aws.UpdateInstances(slaveNodes, nodePerInstances, a.cons)
 
 	writeRegFile(slaveNodes, a.masterCMDS.RegPath)
-
 	//*** Start Master
 	fmt.Println("[+] Registry file written to local storage(", r.Nodes, " nodes)")
 	fmt.Println("[+] Transfering registry file to Master")
