@@ -56,7 +56,7 @@ func TestCSVParser(t *testing.T) {
 	}
 
 	var tests = []csvTest{
-		{csv: csvContent(), expErr: false, expSize: 1},
+		{csv: csvContent(), expErr: false, expSize: 3},
 		{csv: csvCorrupted(), expErr: true},
 	}
 
