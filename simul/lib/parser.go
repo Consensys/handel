@@ -3,6 +3,7 @@ package lib
 import (
 	"bufio"
 	"encoding/csv"
+	"fmt"
 	"io"
 	"os"
 	"strconv"
@@ -19,26 +20,62 @@ type NodeParser interface {
 	Write(uri string, records []*NodeRecord) error
 }
 
+// NodeList is a type that contains all informations on all nodes, and that
+// implements the Registry interface. It is useful for binaries that retrieves
+// multiple node information - not only the Identity.
+type NodeList []*Node
+
+// Node returns the Node structure at the given index
+func (n *NodeList) Node(i int) *Node {
+	if i < 0 || i > n.Size() {
+		panic("that should not happen")
+	}
+	return (*n)[i]
+}
+
+// Size implements the Registry interface
+func (n *NodeList) Size() int {
+	return len(*n)
+}
+
+// Identity implements the Registry interface
+func (n *NodeList) Identity(i int) (h.Identity, bool) {
+	if i < 0 || i >= n.Size() {
+		return nil, false
+	}
+	return (*n)[i].Identity, true
+}
+
+// Identities implements the Registry interface
+func (n *NodeList) Identities(from, to int) ([]h.Identity, bool) {
+	if from < 0 || from >= n.Size() || to < 0 || to > n.Size() {
+		fmt.Println("requesting from", from, "to", to, " of nodelist", len(*n))
+		return nil, false
+	}
+	sli := (*n)[from:to]
+	ids := make([]h.Identity, len(sli))
+	for i, n := range sli {
+		ids[i] = n.Identity
+	}
+	return ids, true
+}
+
 // ReadAll reads the whole set of nodes from the given parser to the given URI.
-// It returns the registry and the node corresponding to the ID given.
-func ReadAll(uri string, id int, parser NodeParser, c Constructor) (h.Registry, *Node, error) {
-	var ids []h.Identity
-	var ownNode *Node
+// It returns the node list which can be used as a Registry as well
+func ReadAll(uri string, parser NodeParser, c Constructor) (NodeList, error) {
 	records, err := parser.Read(uri)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
+	var nodes NodeList
 	for _, rec := range records {
 		node, err := rec.ToNode(c)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
-		if rec.ID == int32(id) {
-			ownNode = node
-		}
-		ids = append(ids, node.Identity)
+		nodes = append(nodes, node)
 	}
-	return h.NewArrayRegistry(ids), ownNode, nil
+	return nodes, nil
 }
 
 type csvParser struct{}
@@ -80,7 +117,6 @@ func (c *csvParser) Read(uri string) ([]*NodeRecord, error) {
 		nodeRecord := &NodeRecord{ID: id, Addr: addr, Private: priv, Public: pub}
 		nodes = append(nodes, nodeRecord)
 	}
-	return nodes, nil
 }
 
 func (c *csvParser) Write(uri string, records []*NodeRecord) error {
