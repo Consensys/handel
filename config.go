@@ -1,6 +1,8 @@
 package handel
 
 import (
+	"crypto/rand"
+	"io"
 	"math"
 	"time"
 )
@@ -45,6 +47,15 @@ type Config struct {
 	// NewTimeoutStrategy returns the Timeout strategy to use during the Handel
 	// round. By default, it uses the linear timeout strategy.
 	NewTimeoutStrategy func(h *Handel, levels []int) TimeoutStrategy
+
+	// Rand provides the source of entropy for shuffling the list of nodes that
+	// Handel must contact at each level. If not set, golang's crypto/rand is
+	// used.
+	Rand io.Reader
+
+	// DisableShuffling is a debugging flag to not shuffle any list of nodes - it
+	// is much easier to detect pattern in bugs in this manner
+	DisableShuffling bool
 }
 
 // DefaultConfig returns a default configuration for Handel.
@@ -58,6 +69,7 @@ func DefaultConfig(size int) *Config {
 		NewPartitioner:       DefaultPartitioner,
 		NewEvaluatorStrategy: DefaultEvaluatorStrategy,
 		NewTimeoutStrategy:   DefaultTimeoutStrategy,
+		Rand:                 rand.Reader,
 	}
 }
 
@@ -130,6 +142,12 @@ func mergeWithDefault(c *Config, size int) *Config {
 	}
 	if c.NewTimeoutStrategy == nil {
 		c2.NewTimeoutStrategy = DefaultTimeoutStrategy
+	}
+	if c.Rand == nil {
+		c2.Rand = rand.Reader
+	}
+	if c.DisableShuffling {
+		c2.DisableShuffling = true
 	}
 	return &c2
 }

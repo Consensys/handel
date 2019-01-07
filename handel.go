@@ -1,8 +1,11 @@
 package handel
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -58,12 +61,20 @@ func newLevel(id int, nodes []Identity) *level {
 }
 
 // Create a map of all the levels for this registry.
-func createLevels(r Registry, partitioner Partitioner) map[int]*level {
+func createLevels(c *Config, r Registry, partitioner Partitioner) map[int]*level {
 	lvls := make(map[int]*level)
 	var firstActive bool
 	for _, level := range partitioner.Levels() {
-		nodes, _ := partitioner.IdentitiesAt(level)
+		nodes2, _ := partitioner.IdentitiesAt(level)
+		nodes := nodes2
+		if !c.DisableShuffling {
+			fmt.Printf(" shuffling - with %p\n", c.Rand)
+			nodes := make([]Identity, len(nodes2))
+			copy(nodes, nodes2)
+			shuffle(nodes, c.Rand)
+		}
 		lvls[level] = newLevel(level, nodes)
+		//fmt.Println(lvls[level].String())
 		if !firstActive {
 			lvls[level].setStarted()
 			firstActive = true
@@ -120,6 +131,17 @@ func (l *level) updateSigToSend(sig *MultiSignature) bool {
 		return true
 	}
 	return false
+}
+
+func (l *level) String() string {
+	var b bytes.Buffer
+	fmt.Fprintf(&b, "level %d:", l.id)
+	var nodes []string
+	for _, n := range l.nodes {
+		nodes = append(nodes, strconv.Itoa(int(n.ID())))
+	}
+	fmt.Fprintf(&b, "\t%s\n", strings.Join(nodes, ", "))
+	return b.String()
 }
 
 // HStats contain minimal stats about handel
@@ -197,6 +219,7 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 	firstBs.Set(0, true)
 	mySig := &MultiSignature{BitSet: firstBs, Signature: s}
 
+	fmt.Println(" -- handel ", id.ID(), " --")
 	h := &Handel{
 		c:           config,
 		net:         n,
@@ -208,7 +231,7 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 		sig:         s,
 		out:         make(chan MultiSignature, 10000),
 		ticker:      time.NewTicker(config.UpdatePeriod),
-		levels:      createLevels(r, part),
+		levels:      createLevels(config, r, part),
 		ids:         part.Levels(),
 	}
 	h.actors = []actor{
