@@ -90,7 +90,7 @@ func (sshCMD *sshController) Run(command string) (string, error) {
 	var stdoutBuf bytes.Buffer
 	session, err := sshCMD.client.NewSession()
 
-	session.Stdout = &stdoutBuf
+	//	session.Stdout = &stdoutBuf
 	if err != nil {
 		return "", err
 	}

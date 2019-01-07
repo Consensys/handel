@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -14,10 +15,11 @@ import (
 )
 
 type awsPlatform struct {
-	aws           aws.Manager
-	pemBytes      []byte
-	master        aws.NodeController
+	aws      aws.Manager
+	pemBytes []byte
+	//master        aws.NodeController
 	masterAddr    string
+	masterIP      string
 	monitorAddr   string
 	monitorPort   int
 	network       string
@@ -89,17 +91,17 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 	a.cons = cons
 	masterAddr := aws.GenRemoteAddress(*masterInstance.PublicIP, 5000)
 	a.masterAddr = masterAddr
+	a.masterIP = *masterInstance.PublicIP
 	a.monitorAddr = aws.GenRemoteAddress(*masterInstance.PublicIP, c.MonitorPort)
 	masterNode := lib.GenerateNode(cons, -1, masterAddr)
-	nodeAndSync := aws.NodeAndSync{masterNode, ""}
-	masterInstance.Nodes = []aws.NodeAndSync{nodeAndSync}
-
+	masterInstance.Nodes = []*lib.Node{masterNode}
 	//Create master controller
 	master, err := aws.NewSSHNodeController(*masterInstance.PublicIP, a.pemBytes, a.awsConfig.SSHUser)
 	if err != nil {
 		return err
 	}
-	a.master = master
+
+	//a.master = master
 
 	for {
 		err := master.Init()
@@ -164,6 +166,7 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 		a.allSlaveNodes = append(a.allSlaveNodes, slave)
 	}
 	wg.Wait()
+	master.Close()
 	return nil
 }
 
@@ -181,11 +184,27 @@ func configureSlave(slaveNodeController aws.NodeController, slaveCmds map[int]st
 }
 
 func (a *awsPlatform) Cleanup() error {
-	a.master.Close()
 	return a.aws.StopInstances()
 }
 
 func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
+
+	//Create master controller
+	master, err := aws.NewSSHNodeController(a.masterIP, a.pemBytes, a.awsConfig.SSHUser)
+	if err != nil {
+		return err
+	}
+
+	for {
+		err := master.Init()
+		if err != nil {
+			fmt.Println("Master Init failed, trying one more time", err)
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		break
+	}
+
 	nodePerInstances := r.Nodes
 	slaveNodes := a.allSlaveNodes[0:a.awsConfig.NbOfInstances]
 	aws.UpdateInstances(slaveNodes, nodePerInstances, a.cons)
@@ -194,14 +213,14 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 	//*** Start Master
 	fmt.Println("[+] Registry file written to local storage(", r.Nodes, " nodes)")
 	fmt.Println("[+] Transfering registry file to Master")
-	a.master.CopyFiles(a.masterCMDS.RegPath)
+	master.CopyFiles(a.masterCMDS.RegPath)
 	shareRegistryFile := a.masterCMDS.ShareRegistryFile()
 	fmt.Println("[+] Master handel node:")
 	for i := 0; i < len(shareRegistryFile); i++ {
 		fmt.Println("       Exec:", i, shareRegistryFile[i])
-		_, err := a.master.Run(shareRegistryFile[i])
+		_, err := master.Run(shareRegistryFile[i])
 		if err != nil {
-			return err
+			panic(err)
 		}
 	}
 
@@ -219,7 +238,7 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 	fmt.Println("       Exec:", len(shareRegistryFile)+1, masterStart)
 	done := make(chan bool)
 	go func() {
-		_, err := a.master.Run(masterStart)
+		_, err := master.Run(masterStart)
 		if err != nil {
 			panic(err)
 		}
@@ -239,6 +258,7 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 	}
 	wg.Wait()
 	<-done
+	master.Close()
 	return nil
 }
 
@@ -260,15 +280,23 @@ func (a *awsPlatform) startSlave(inst aws.Instance, idx int) {
 		}
 	}
 
+	idArgs := []string{}
+
 	for _, n := range inst.Nodes {
-		startSlave := a.slaveCMDS.Start(a.masterAddr, n.Sync, a.monitorAddr, int(n.ID()), idx, n.Identity.Address())
-		fmt.Println("Start Slave", startSlave)
-		err := slaveController.Start(startSlave)
-		if err != nil {
-			panic(err)
-		}
+		id := " -id " + strconv.Itoa(int(n.ID()))
+		idArgs = append(idArgs, id)
 	}
+
+	ids := strings.Join(idArgs, "")
+	startSlave := a.slaveCMDS.Start(a.masterAddr, inst.Sync, a.monitorAddr, ids, idx, "log.txt")
+	fmt.Println("Start Slave", startSlave)
+	err = slaveController.Start(startSlave)
+	if err != nil {
+		panic(err)
+	}
+
 	slaveController.Close()
+
 }
 
 func cmdToString(cmd []string) string {
@@ -280,7 +308,7 @@ func writeRegFile(instances []*aws.Instance, regPath string) {
 	var nodes []*lib.Node
 	for _, inst := range instances {
 		for _, n := range inst.Nodes {
-			nodes = append(nodes, n.Node)
+			nodes = append(nodes, n)
 		}
 	}
 	lib.WriteAll(nodes, parser, regPath)

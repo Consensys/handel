@@ -80,11 +80,11 @@ func (a *singleRegionAWSManager) RefreshInstances() ([]Instance, error) {
 			pubIP := i.PublicIpAddress
 			for _, tag := range i.Tags {
 				if *tag.Value == RnDMasterTag {
-					inst := Instance{id, pubIP, state, a.region, *tag.Value, nil}
+					inst := Instance{id, pubIP, state, a.region, *tag.Value, nil, ""}
 					instances = append(instances, inst)
 				}
 				if *tag.Value == RnDTag {
-					inst := Instance{id, pubIP, state, a.region, *tag.Value, nil}
+					inst := Instance{id, pubIP, state, a.region, *tag.Value, nil, ""}
 					instances = append(instances, inst)
 				}
 			}
