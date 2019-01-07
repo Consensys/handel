@@ -3,7 +3,6 @@ package handel
 import (
 	"bytes"
 	"encoding/binary"
-
 	"github.com/willf/bitset"
 )
 
@@ -29,9 +28,21 @@ type BitSet interface {
 	UnmarshalBinary([]byte) error
 	// returns the binary representation of this bitset in string
 	String() string
+	// All returns true if all bits are set, false otherwise. Returns true for
+	// empty sets.
+	All() bool
+	// None returns true if no bit is set, false otherwise. Returns true for
+	// empty sets.
+	None() bool
+	// Any returns true if any bit is set, false otherwise
+	Any() bool
+	Or(b2 BitSet) BitSet
+	And(b2 BitSet) BitSet
+	Xor(b2 BitSet) BitSet
 }
 
-// WilffBitSet implementats a BitSet using the wilff library.
+
+// WilffBitSet implements a BitSet using the wilff library.
 type WilffBitSet struct {
 	b *bitset.BitSet
 	l int
@@ -45,9 +56,16 @@ func NewWilffBitset(length int) BitSet {
 	}
 }
 
+func newWilffBitset(bs *bitset.BitSet) BitSet {
+	return &WilffBitSet{
+		b: bs,
+		l: int(bs.Len()),
+	}
+}
+
 // BitLength implements the BitSet interface
 func (w *WilffBitSet) BitLength() int {
-	return w.l
+	return int(w.l)
 }
 
 // Cardinality implements the BitSet interface
@@ -58,8 +76,7 @@ func (w *WilffBitSet) Cardinality() int {
 // Set implements the BitSet interface
 func (w *WilffBitSet) Set(idx int, status bool) {
 	if !w.inBound(idx) {
-		// do nothing if out of bounds
-		return
+		panic("bitset: set out of bounds")
 	}
 	w.b = w.b.SetTo(uint(idx), status)
 }
@@ -67,7 +84,7 @@ func (w *WilffBitSet) Set(idx int, status bool) {
 // Get implements the BitSet interface
 func (w *WilffBitSet) Get(idx int) bool {
 	if !w.inBound(idx) {
-		return false
+		panic("bitset: get out of bounds")
 	}
 	return w.b.Test(uint(idx))
 }
@@ -79,15 +96,27 @@ func (w *WilffBitSet) Combine(b2 BitSet) BitSet {
 	// ourselves.
 	w2 := b2.(*WilffBitSet)
 	totalLength := w.l + w2.l
-	w3 := NewWilffBitset(totalLength)
-	for i := 0; i < w.l; i++ {
-		w3.Set(i, w.Get(i))
-	}
+	w3 := NewWilffBitset(totalLength).(*WilffBitSet)
+
+	w3.b.InPlaceUnion(w.b)
 	for i := 0; i < w2.l; i++ {
 		w3.Set(i+w.l, w2.Get(i))
 	}
 	return w
 }
+
+func (w *WilffBitSet) Or(b2 BitSet) BitSet {
+	return newWilffBitset(w.b.Union(b2.(*WilffBitSet).b))
+}
+
+func (w *WilffBitSet) And(b2 BitSet) BitSet {
+	return newWilffBitset(w.b.Intersection(b2.(*WilffBitSet).b))
+}
+
+func (w *WilffBitSet) Xor(b2 BitSet) BitSet {
+	return newWilffBitset(w.b.SymmetricDifference(b2.(*WilffBitSet).b))
+}
+
 
 // Slice implements the BitSet interface
 func (w *WilffBitSet) Slice(from, to int) BitSet {
@@ -140,3 +169,17 @@ func (w *WilffBitSet) UnmarshalBinary(buff []byte) error {
 func (w *WilffBitSet) String() string {
 	return w.b.String()
 }
+
+func (w *WilffBitSet) All() bool {
+	return w.b.All()
+}
+
+func (w *WilffBitSet) None() bool {
+	return w.b.None()
+}
+
+func (w *WilffBitSet) Any() bool {
+	return w.b.Any()
+}
+
+

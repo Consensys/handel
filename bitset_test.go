@@ -29,7 +29,6 @@ func TestBitSetWilff(t *testing.T) {
 		{
 			func() BitSet {
 				b := nb(10)
-				b.Set(11, true)
 				b.Set(3, true)
 				return b
 			}, 10, 1, []int{3},
