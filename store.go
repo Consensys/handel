@@ -88,20 +88,9 @@ func (r *replaceStore) unsafeCheck(level byte, ms *MultiSignature) (*MultiSignat
 
 	c1 := ms.Cardinality()
 	c2 := ms2.Cardinality()
-	final := r.nbs(ms.BitLength())
-	// find if both bs are disjoint
-	var disjoint = true
-	for i := 0; i < ms.BitSet.BitLength(); i++ {
-		v1 := ms.Get(i)
-		v2 := ms2.Get(i)
-		if v1 && v2 {
-			disjoint = false
-			break
-		}
-		final.Set(i, v1 || v2)
-	}
+	final := ms2.Or(ms.BitSet)
 
-	if disjoint {
+	if c1+c2 == final.Cardinality() {
 		sig := r.c.Signature()
 		sig = sig.Combine(ms.Signature)
 		sig = sig.Combine(ms2.Signature)
