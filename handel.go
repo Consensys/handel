@@ -472,7 +472,7 @@ func (h *Handel) parsePacket(p *Packet) (*MultiSignature, error) {
 		return nil, errors.New("packet's origin out of range")
 	}
 
-	_, exists := h.levels[int(p.Level)]
+	lvl, exists := h.levels[int(p.Level)]
 
 	if !exists {
 		msg := fmt.Sprintf("invalid packet's level %d over %v - %v", p.Level, h.ids, h.levels)
@@ -481,6 +481,12 @@ func (h *Handel) parsePacket(p *Packet) (*MultiSignature, error) {
 
 	ms := new(MultiSignature)
 	err := ms.Unmarshal(p.MultiSig, h.cons.Signature(), h.c.NewBitSet)
+	if err != nil {
+		return nil, err
+	}
+	if ms.BitLength() != len(lvl.nodes) {
+		return nil, errors.New("invalid bitset's size for given level")
+	}
 	return ms, err
 }
 
