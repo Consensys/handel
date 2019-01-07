@@ -208,6 +208,7 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 	masterStart := a.masterCMDS.Start(
 		a.masterAddr,
 		a.awsConfig.NbOfInstances*nodePerInstances,
+		a.awsConfig.NbOfInstances,
 		a.awsConfig.MasterTimeOut,
 		idx,
 		r.Threshold,
