@@ -229,6 +229,7 @@ func genProcInfo(nHandels, nProc int) ([]procInfo, []string) {
 			globalHandels = append(globalHandels, addrHandel)
 			handels = append(handels, baseID)
 			baseID++
+			rem--
 		}
 		infos[p] = procInfo{syncAddr: addrSync, ids: handels}
 		fmt.Printf("info[%d] = %s\n", p, infos[p].String())
