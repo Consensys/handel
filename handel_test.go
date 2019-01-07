@@ -324,6 +324,8 @@ func TestHandelParsePacket(t *testing.T) {
 	}
 	correctSig := newSig(fullBitset(2))
 	buffMs, _ := correctSig.MarshalBinary()
+	incorrectSig := newSig(fullBitset(5))
+	invalidMsBuff, _ := incorrectSig.MarshalBinary()
 	packets := []*packetTest{
 		{
 			&Packet{
@@ -352,6 +354,13 @@ func TestHandelParsePacket(t *testing.T) {
 				Level:    2,
 				MultiSig: buffMs,
 			}, false,
+		},
+		{
+			&Packet{
+				Origin:   3,
+				Level:    2,
+				MultiSig: invalidMsBuff,
+			}, true,
 		},
 	}
 	for i, test := range packets {
