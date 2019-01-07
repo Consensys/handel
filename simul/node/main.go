@@ -4,6 +4,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	h "github.com/ConsenSys/handel"
@@ -18,11 +21,16 @@ const BeaconTimeout = 2 * time.Minute
 
 var configFile = flag.String("config", "", "config file created for the exp.")
 var registryFile = flag.String("registry", "", "registry file based - array registry")
-var id = flag.Int("id", -1, "peer id")
+var ids arrayFlags
+
 var run = flag.Int("run", -1, "which RunConfig should we run")
 var master = flag.String("master", "", "master address to synchronize")
 var syncAddr = flag.String("sync", "", "address to listen for master START")
 var monitorAddr = flag.String("monitor", "", "address to send measurements")
+
+func init() {
+	flag.Var(&ids, "id", "ID to run on this node - can specify multiple -id flags")
+}
 
 var isMonitoring bool
 
@@ -47,20 +55,30 @@ func main() {
 
 	cons := config.NewConstructor()
 	parser := lib.NewCSVParser()
-	registry, node, err := lib.ReadAll(*registryFile, *id, parser, cons)
-	network := config.NewNetwork(node.Identity)
-
-	// make the signature
-	signature, err := node.Sign(lib.Message, nil)
+	nodeList, err := lib.ReadAll(*registryFile, parser, cons)
 	if err != nil {
 		panic(err)
 	}
-	// Setup report handel
-	handel := h.NewHandel(network, registry, node.Identity, cons.Handel(), lib.Message, signature)
-	reporter := h.NewReportHandel(handel)
+
+	// instantiate handel for all specified ids in the flags
+	var handels []*h.ReportHandel
+	for _, id := range ids {
+		node := nodeList.Node(id)
+		network := config.NewNetwork(node.Identity)
+
+		// make the signature
+		signature, err := node.Sign(lib.Message, nil)
+		if err != nil {
+			panic(err)
+		}
+		// Setup report handel
+		handel := h.NewHandel(network, &nodeList, node.Identity, cons.Handel(), lib.Message, signature)
+		reporter := h.NewReportHandel(handel)
+		handels = append(handels, reporter)
+	}
 
 	// Sync with master - wait for the START signal
-	syncer := lib.NewSyncSlave(*syncAddr, *master, *id)
+	syncer := lib.NewSyncSlave(*syncAddr, *master, ids)
 	select {
 	case <-syncer.WaitMaster():
 		now := time.Now()
@@ -69,41 +87,44 @@ func main() {
 			now.Second(),
 			now.Nanosecond())
 
-		fmt.Printf("\n%s [+] %s synced - starting\n", formatted, node.Identity.Address())
+		fmt.Printf("\n%s [+] %s synced - starting\n", formatted, ids.String())
 	case <-time.After(BeaconTimeout):
 		panic("Haven't received beacon in time!")
 	}
 
-	// Start handel and run a timeout on the whole thing
-	signatureGen := monitor.NewTimeMeasure("sigen")
-	go reporter.Start()
-	out := make(chan bool, 1)
-	go func() {
-		<-time.After(config.GetMaxTimeout())
-		out <- true
-	}()
-
-	// Wait for final signatures !
-	enough := false
-	var sig h.MultiSignature
-	for !enough {
-		select {
-		case sig = <-reporter.FinalSignatures():
-			if sig.BitSet.Cardinality() >= runConf.Threshold {
-				enough = true
-				break
+	// Start all handels and run a timeout on the signature generation time
+	var wg sync.WaitGroup
+	for i := range handels {
+		wg.Add(1)
+		go func(j int) {
+			handel := handels[j]
+			signatureGen := monitor.NewTimeMeasure("sigen")
+			go handel.Start()
+			// Wait for final signatures !
+			enough := false
+			var sig h.MultiSignature
+			for !enough {
+				select {
+				case sig = <-handel.FinalSignatures():
+					if sig.BitSet.Cardinality() >= runConf.Threshold {
+						enough = true
+						wg.Done()
+						fmt.Printf(" --- NODE  %d FINISHED ---", j)
+						break
+					}
+				case <-time.After(config.GetMaxTimeout()):
+					panic("max timeout")
+				}
 			}
-		case <-out:
-			panic("max timeout")
-		}
-	}
-	signatureGen.Record()
-	fmt.Println("reached good enough multi-signature!")
+			signatureGen.Record()
+			fmt.Println("reached good enough multi-signature!")
 
-	if err := h.VerifyMultiSignature(lib.Message, &sig, registry, cons.Handel()); err != nil {
-		panic("signature invalid !!")
+			if err := h.VerifyMultiSignature(lib.Message, &sig, &nodeList, cons.Handel()); err != nil {
+				panic("signature invalid !!")
+			}
+		}(i)
 	}
-
+	wg.Wait()
 	fmt.Println("signature valid & finished- sending state to sync master")
 
 	// Sync with master - wait to close our node
@@ -116,8 +137,27 @@ func main() {
 			now.Second(),
 			now.Nanosecond())
 
-		fmt.Printf("\n%s [+] %s synced - closing shop\n", formatted, node.Identity.Address())
+		fmt.Printf("\n%s [+] %s synced - closing shop\n", formatted, ids.String())
 	case <-time.After(BeaconTimeout):
 		panic("Haven't received beacon in time!")
 	}
+}
+
+type arrayFlags []int
+
+func (i *arrayFlags) String() string {
+	var a = make([]string, len(*i))
+	for i, v := range *i {
+		a[i] = strconv.Itoa(v)
+	}
+	return strings.Join(a, "-")
+}
+
+func (i *arrayFlags) Set(value string) error {
+	newID, err := strconv.Atoi(value)
+	if err != nil {
+		return err
+	}
+	*i = append(*i, newID)
+	return nil
 }

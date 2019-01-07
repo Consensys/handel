@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"strconv"
@@ -11,7 +12,10 @@ import (
 	"github.com/ConsenSys/handel/simul/monitor"
 )
 
+var processes = flag.Int("proc", 0, "number of processes to run locally")
+
 type localPlatform struct {
+	proc     int
 	c        *lib.Config
 	regPath  string
 	binPath  string
@@ -22,9 +26,12 @@ type localPlatform struct {
 }
 
 // NewLocalhost returns a Platform that is executing binaries on localhost
-func NewLocalhost() Platform { return &localPlatform{} }
+func NewLocalhost() Platform { return &localPlatform{proc: *processes} }
 
 func (l *localPlatform) Configure(c *lib.Config) error {
+	if l.proc == 0 {
+		l.proc = c.MaxNodes()
+	}
 	l.c = c
 	l.regPath = "/tmp/local.csv"
 	l.binPath = "/tmp/local.bin"
@@ -75,7 +82,7 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 	// 1. Generate & write the registry file
 	cons := l.c.NewConstructor()
 	parser := lib.NewCSVParser()
-	addresses, syncs := genLocalAddresses(r.Nodes)
+	procInfos, addresses := genProcInfo(r.Nodes, l.proc)
 	nodes := lib.GenerateNodes(cons, addresses)
 	lib.WriteAll(nodes, parser, l.regPath)
 	fmt.Println("[+] Registry file written (", r.Nodes, " nodes)")
@@ -86,20 +93,23 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 	fmt.Println("[+] Master synchronization daemon launched")
 
 	// 3. Run binaries
-	commands := make([]*Command, r.Nodes)
-	doneCh := make(chan int, r.Nodes)
-	errCh := make(chan int, r.Nodes)
+	commands := make([]*Command, len(procInfos))
+	doneCh := make(chan int, len(procInfos))
+	errCh := make(chan int, len(procInfos))
 	sameArgs := []string{"-config", l.confPath,
 		"-registry", l.regPath,
 		"-master", masterAddr,
 		"-monitor", l.c.GetMonitorAddress("127.0.0.1")}
 
-	for i := 0; i < r.Nodes; i++ {
+	for i := 0; i < len(procInfos); i++ {
 		// 3.1 prepare args
 		args := make([]string, len(sameArgs))
 		copy(args, sameArgs)
-		args = append(args, []string{"-id", strconv.Itoa(i),
-			"-sync", syncs[i],
+		proc := procInfos[i]
+		for _, id := range proc.ids {
+			args = append(args, []string{"-id", strconv.Itoa(id)}...)
+		}
+		args = append(args, []string{"-sync", proc.syncAddr,
 			"-run", strconv.Itoa(idx)}...)
 
 		// 3.2 run command
@@ -162,7 +172,7 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 		case <-maxTimeout:
 			panic("global timeout reached")
 		}
-		if nOk+nErr >= r.Nodes {
+		if nOk+nErr >= len(procInfos) {
 			fmt.Printf("nOk = %d, nErr = %d\n", nOk, nErr)
 			break
 		}
@@ -184,6 +194,56 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 
 	/*}*/
 	return nil
+}
+
+type procInfo struct {
+	syncAddr string
+	ids      []int
+}
+
+func (p *procInfo) String() string {
+	return fmt.Sprintf("proc{sync:%s, ids %v}", p.syncAddr, p.ids)
+}
+
+func genProcInfo(nHandels, nProc int) ([]procInfo, []string) {
+	infos := make([]procInfo, nProc)
+	globalHandels := make([]string, 0, nHandels)
+	handelPerProc, rem := divmod(nHandels, nProc)
+	base := 3000
+	baseSync := 25000
+	baseID := 0
+	for p := 0; p < nProc; p++ {
+		portSync := baseSync + p
+		addrSync := "127.0.0.1:" + strconv.Itoa(portSync)
+		handels := make([]int, 0, handelPerProc)
+		for i := 0; i < handelPerProc; i++ {
+			portHandel := base + p*100 + i
+			addrHandel := "127.0.0.1:" + strconv.Itoa(portHandel)
+			globalHandels = append(globalHandels, addrHandel)
+			handels = append(handels, baseID)
+			baseID++
+		}
+		if rem > 0 {
+			portHandel := base + p*100 + handelPerProc
+			addrHandel := "127.0.0.1:" + strconv.Itoa(portHandel)
+			globalHandels = append(globalHandels, addrHandel)
+			handels = append(handels, baseID)
+			baseID++
+			rem--
+		}
+		infos[p] = procInfo{syncAddr: addrSync, ids: handels}
+		fmt.Printf("info[%d] = %s\n", p, infos[p].String())
+	}
+	if baseID != nHandels {
+		panic("aie aie aie")
+	}
+	return infos, globalHandels
+}
+
+func divmod(numerator, denominator int) (quotient, remainder int) {
+	quotient = numerator / denominator // integer division, decimals are truncated
+	remainder = numerator % denominator
+	return
 }
 
 // this generates n * 2 addresses: one for handel, one for the sync

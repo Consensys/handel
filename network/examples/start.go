@@ -40,7 +40,8 @@ func start() {
 
 	parser := lib.NewCSVParser()
 	cons := lib.NewEmptyConstructor()
-	registry, node, err := lib.ReadAll(*regPath, int(localPeerID), parser, cons)
+	registry, err := lib.ReadAll(*regPath, parser, cons)
+	node := registry.Node(int(localPeerID))
 	if err != nil {
 		panic(err)
 	}
@@ -54,7 +55,7 @@ func start() {
 		panic(err)
 	}
 
-	listener := exampleListener{net, registry, localPeerID}
+	listener := exampleListener{net, &registry, localPeerID}
 	net.RegisterListener(listener)
 
 	packet := h.Packet{Origin: localPeerID, Level: 0, MultiSig: []byte("hello")}

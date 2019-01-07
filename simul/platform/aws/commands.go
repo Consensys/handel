@@ -66,8 +66,8 @@ func (c MasterCommands) ShareRegistryFile() map[int]string {
 }
 
 // Start starts master executable
-func (c MasterCommands) Start(masterAddr string, nbOfNodes, timeOut int, run int, threshold int, network string, resFile string, monitorPort int) string {
-	return "nohup " + c.MasterBinPath + " -masterAddr " + masterAddr + " -nbOfNodes " + strconv.Itoa(nbOfNodes) + " -timeOut " + strconv.Itoa(timeOut) + " -run " + strconv.Itoa(run) + " -threshold " + strconv.Itoa(threshold) + " -network " + network + " -resultFile " + resFile + " -monitorPort " + strconv.Itoa(monitorPort) + " &> " + logFile + "_" + strconv.Itoa(run)
+func (c MasterCommands) Start(masterAddr string, nbOfNodes, nbOfInstances, timeOut int, run int, threshold int, network string, resFile string, monitorPort int) string {
+	return "nohup " + c.MasterBinPath + " -masterAddr " + masterAddr + " -nbOfNodes " + strconv.Itoa(nbOfNodes) + " -nbOfInstances " + strconv.Itoa(nbOfInstances) + " -timeOut " + strconv.Itoa(timeOut) + " -run " + strconv.Itoa(run) + " -threshold " + strconv.Itoa(threshold) + " -network " + network + " -resultFile " + resFile + " -monitorPort " + strconv.Itoa(monitorPort) + " &> " + logFile + "_" + strconv.Itoa(run)
 }
 
 // Configure copies files form the shared directory to slave local storage

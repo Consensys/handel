@@ -52,16 +52,11 @@ func TestCSVParser(t *testing.T) {
 	type csvTest struct {
 		csv     [][]string
 		expErr  bool
-		idx     int32
-		expAddr string
-		expID   int32
 		expSize int
-		reqID   int32
-		reqAddr string
 	}
 
 	var tests = []csvTest{
-		{csvContent(), false, 1, "127.0.0.1:3001", 1, 3, 2, "127.0.0.1:3002"},
+		{csv: csvContent(), expErr: false, expSize: 3},
 		{csv: csvCorrupted(), expErr: true},
 	}
 
@@ -70,7 +65,7 @@ func TestCSVParser(t *testing.T) {
 		name := writeCSV(test.csv)
 		defer os.RemoveAll(name)
 
-		reg, node, err := ReadAll(name, 1, parser, cons)
+		nodeList, err := ReadAll(name, parser, cons)
 		if test.expErr {
 			require.Error(t, err)
 			continue
@@ -78,11 +73,7 @@ func TestCSVParser(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		require.Equal(t, test.expAddr, node.Identity.Address())
-		require.Equal(t, test.expID, node.Identity.ID())
-		require.Equal(t, test.expSize, reg.Size())
-		id, _ := reg.Identity(int(test.reqID))
-		require.Equal(t, test.reqAddr, id.Address())
+		require.Equal(t, test.expSize, nodeList.Size())
 	}
 
 }
