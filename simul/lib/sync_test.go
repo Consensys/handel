@@ -13,14 +13,14 @@ func TestSyncer(t *testing.T) {
 		"127.0.0.1:3002",
 		"127.0.0.1:3003",
 	}
-	n := len(slaveAddrs)
-	master := NewSyncMaster(masterAddr, 3)
+	n := len(slaveAddrs) * 2 // 2 nodes per instances
+	master := NewSyncMaster(masterAddr, n)
 	defer master.Stop()
 
 	var slaves = make([]*SyncSlave, len(slaveAddrs))
 	doneSlave := make(chan bool, len(slaveAddrs))
 	for i, addr := range slaveAddrs {
-		slaves[i] = NewSyncSlave(addr, masterAddr, i)
+		slaves[i] = NewSyncSlave(addr, masterAddr, []int{i * 2, i*2 + 1})
 		defer slaves[i].Stop()
 	}
 
@@ -43,7 +43,7 @@ func TestSyncer(t *testing.T) {
 			case <-time.After(1000 * time.Millisecond):
 				panic("aie aie aie")
 			}
-			if masterDone && slavesDone == n {
+			if masterDone && slavesDone == len(slaveAddrs) {
 				return
 			}
 		}
