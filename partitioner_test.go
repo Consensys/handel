@@ -375,36 +375,3 @@ func TestIsSet(t *testing.T) {
 		require.Equal(t, test.expected, res, "%d - failed: %v", i, test)
 	}
 }
-
-func TestPartitionerRandomBin(t *testing.T) {
-	n := 125
-	reg := FakeRegistry(n)
-
-	// try two different seeds
-	s1 := []byte("Hello World")
-	s2 := []byte("Sun is Shining")
-	r1 := NewRandomBinPartitioner(1, reg, s1)
-	r2 := NewRandomBinPartitioner(1, reg, s2)
-	r3 := NewBinPartitioner(1, reg)
-
-	ids1, more := r1.PickNextAt(6, 30)
-	require.True(t, more)
-	require.Equal(t, 30, len(ids1))
-	ids2, more := r2.PickNextAt(6, 30)
-	require.Equal(t, 30, len(ids2))
-	require.True(t, more)
-
-	ids11, more := r3.PickNextAt(6, 30)
-	require.Equal(t, 30, len(ids11))
-	require.True(t, more)
-
-	// Given the size of the array, the probability to
-	//  have exactly the same set is quite low, so this test
-	//  should not be flaky
-	require.NotEqual(t, ids1, ids2)
-	require.NotEqual(t, ids1, ids11)
-
-	ids3, ok := r1.PickNextAt(6, 30)
-	require.True(t, ok)
-	require.NotEqual(t, ids1, ids3)
-}

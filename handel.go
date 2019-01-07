@@ -64,6 +64,7 @@ func createLevels(r Registry, partitioner Partitioner) map[int]*level {
 	for _, level := range partitioner.Levels() {
 		nodes, _ := partitioner.IdentitiesAt(level)
 		lvls[level] = newLevel(level, nodes)
+		//rand.Shuffle(len(nodes), func(i, j int) { nodes[i], nodes[j] = nodes[j], nodes[i] })
 		if !firstActive {
 			lvls[level].setStarted()
 			firstActive = true
