@@ -6,14 +6,16 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/ConsenSys/handel/simul/lib"
 	"github.com/ConsenSys/handel/simul/monitor"
-	"github.com/ConsenSys/handel/simul/platform"
 )
 
 var nbOfNodes = flag.Int("nbOfNodes", 0, "number of slave nodes")
+var nbOfInstances = flag.Int("nbOfInstances", 0, "number of slave instances")
+
 var timeOut = flag.Int("timeOut", 0, "timeout in minutes")
 var masterAddr = flag.String("masterAddr", "", "master address")
 var network = flag.String("network", "", "network type")
@@ -45,7 +47,7 @@ func main() {
 	}
 	defer csvFile.Close()
 
-	stats := platform.DefaultStats(*run, *nbOfNodes, *threshold, *network)
+	stats := DefaultStats(*run, *nbOfNodes, *threshold, *nbOfInstances, *network)
 	mon := monitor.NewMonitor(10000, stats)
 	go mon.Listen()
 
@@ -74,4 +76,14 @@ func main() {
 	}
 	stats.WriteValues(csvFile)
 	mon.Stop()
+}
+
+func DefaultStats(run, nodes, threshold, nbOfInstances int, network string) *monitor.Stats {
+	return monitor.NewStats(map[string]string{
+		"run":            strconv.Itoa(run),
+		"totalNbOfNodes": strconv.Itoa(nodes),
+		"nbOfInstances":  strconv.Itoa(nbOfInstances),
+		"threshold":      strconv.Itoa(threshold),
+		"network":        network,
+	}, nil)
 }
