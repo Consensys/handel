@@ -7,6 +7,6 @@ Retrials = 1
 
 [[Runs]]
     Nodes = 128
-    Threshold = 60
+    Threshold = 64
 
 

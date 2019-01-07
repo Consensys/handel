@@ -23,10 +23,11 @@ func TestSigProcessingStrategy(t *testing.T) {
 	sig1 := fullSigPair(1)
 	sig2 := fullSigPair(2)
 
-	ss := newSigProcessWithStrategy(partitioner, cons, nil, &EvaluatorLevel{}, nil)
+	s := newEvaluatorProcessing(partitioner, cons, nil, &EvaluatorLevel{}, nil)
+	ss := s.(*evaluatorProcessing)
 
 	require.Equal(t, 0, len(ss.todos))
-	ss.add(sig2)
+	ss.Add(sig2)
 	require.Equal(t, 1, len(ss.todos))
 
 	stop := ss.processStep()
@@ -35,15 +36,15 @@ func TestSigProcessingStrategy(t *testing.T) {
 
 	// With the evaluator used, signatures at level 0 are discarded & signatures with
 	//  an higher level are verified first.
-	ss.add(sig0)
-	ss.add(sig1)
-	ss.add(sig2)
-	ss.add(sig0)
+	ss.Add(sig0)
+	ss.Add(sig1)
+	ss.Add(sig2)
+	ss.Add(sig0)
 	ss.processStep()
 	require.Equal(t, 1, len(ss.todos))
 	require.Equal(t, sig1, ss.todos[0])
 
-	ss.add(&deathPillPair)
+	ss.Add(&deathPillPair)
 	stop2 := ss.processStep()
 	require.Equal(t, true, stop2)
 }
@@ -53,6 +54,7 @@ func TestProcessingFifo(t *testing.T) {
 	registry := FakeRegistry(n)
 	partitioner := NewBinPartitioner(1, registry)
 	cons := new(fakeCons)
+	store := newReplaceStore(partitioner, NewWilffBitset, cons)
 
 	type testProcess struct {
 		in  []*sigPair
@@ -73,12 +75,12 @@ func TestProcessingFifo(t *testing.T) {
 		// The following cases test the logic of the processing, eg.
 		//  skipping some validations
 		// twice the same: we expect only one sig on the out chan
-		//{s(sig2, sig2), s(sig2, nil)},
+		{s(sig2, sig2), s(sig2, nil)},
 		// diff level:
-		//{s(sig2, sig3, sig2), s(sig2, sig3, nil)},
+		{s(sig2, sig3, sig2), s(sig2, sig3, nil)},
 	}
 
-	fifo := newFifoProcessing(partitioner, cons, msg, nil).(*fifoProcessing)
+	fifo := newFifoProcessing(store, partitioner, cons, msg).(*fifoProcessing)
 	go fifo.Start()
 	time.Sleep(20 * time.Millisecond)
 	fifo.Stop()
@@ -88,18 +90,16 @@ func TestProcessingFifo(t *testing.T) {
 		t.Logf(" -- test %d -- ", i)
 
 		store := newReplaceStore(partitioner, NewWilffBitset, cons)
-		fifo := newFifoProcessing(partitioner, cons, msg, nil)
+		fifo := newFifoProcessing(store, partitioner, cons, msg)
 		fifos = append(fifos, fifo)
 		go fifo.Start()
 
-		in := fifo.Incoming()
-		require.NotNil(t, in)
 		verified := fifo.Verified()
 		require.NotNil(t, verified)
 
 		// input all signature pairs
 		for i, sp := range test.in {
-			in <- *sp
+			fifo.Add(sp)
 			// expect same order of verified
 			out := test.out[i]
 			var s *sigPair

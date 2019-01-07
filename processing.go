@@ -22,8 +22,8 @@ type signatureProcessing interface {
 	Start()
 	// Stop is a blocking call that stops the processing routine
 	Stop()
-	// channel upon which to send new incoming signatures
-	Incoming() chan sigPair
+	// Add a sigpair to the processing list
+	Add(sp *sigPair)
 	// channel that outputs verified signatures. Implementation must guarantee
 	// that all verified signatures are signatures that have been sent on the
 	// incoming channel. No new signatures must be outputted on this channel (
@@ -31,6 +31,11 @@ type signatureProcessing interface {
 	Verified() chan sigPair
 }
 
+// SigEvaluator is an interface responsible to evaluate incoming *non-verified*
+// signature according to their relevance regarding the running handel protocol.
+// This is an important part of Handel because the aggregation function (pairing
+// for bn256) can take some time, thus minimizing these number of operations is
+// essential.
 type SigEvaluator interface {
 	// Evaluate the interest to verify a signature
 	//   0: no interest, the signature can be discarded definitively
@@ -38,9 +43,12 @@ type SigEvaluator interface {
 	Evaluate(sp *sigPair) int
 }
 
+// Evaluator1 returns 1 for all signatures, leading to having all signatures
+// verified.
 type Evaluator1 struct {
 }
 
+// Evaluate implements the SigEvaluator interface.
 func (f *Evaluator1) Evaluate(sp *sigPair) int {
 	return 1
 }
@@ -49,23 +57,23 @@ func newEvaluator1() SigEvaluator {
 	return &Evaluator1{}
 }
 
+// EvaluatorStore is a wrapper around the store's evaluate strategy.
 type EvaluatorStore struct {
 	store signatureStore
 }
 
+// Evaluate implements the SigEvaluator strategy.
 func (f *EvaluatorStore) Evaluate(sp *sigPair) int {
-	ms, ok := f.store.Best(sp.level)
-	if ok && ms.Cardinality() >= sp.ms.Cardinality() {
-		//return 0
-	}
-	return 1
+	return f.store.Evaluate(sp)
 }
 
 func newEvaluatorStore(store signatureStore) SigEvaluator {
-	return &EvaluatorStore{store:store}
+	return &EvaluatorStore{store: store}
 }
 
-type sigProcessWithStrategy struct {
+// evaluator processing processing incoming signatures according to an signature
+// evalutor strategy.
+type evaluatorProcessing struct {
 	cond *sync.Cond
 
 	h *Handel
@@ -79,10 +87,11 @@ type sigProcessWithStrategy struct {
 	evaluator SigEvaluator
 }
 
-func newSigProcessWithStrategy(part Partitioner, c Constructor, msg []byte, e SigEvaluator, h *Handel) *sigProcessWithStrategy {
+// TODO handel argument only for logging
+func newEvaluatorProcessing(part Partitioner, c Constructor, msg []byte, e SigEvaluator, h *Handel) signatureProcessing {
 	m := sync.Mutex{}
 
-	return &sigProcessWithStrategy{
+	ev := &evaluatorProcessing{
 		cond: sync.NewCond(&m),
 		part: part,
 		cons: c,
@@ -91,18 +100,24 @@ func newSigProcessWithStrategy(part Partitioner, c Constructor, msg []byte, e Si
 		out:       make(chan sigPair, 1000),
 		todos:     make([]*sigPair, 0),
 		evaluator: e,
-		h : h,
+		h:         h,
 	}
+	return ev
 }
 
-// fifoProcessing implements the signatureProcessing interface using a simple
-// fifo queue, verifying all incoming signatures, not matter relevant or not.
-type fifoProcessing struct {
-	in   chan sigPair
-	proc *sigProcessWithStrategy
+func (f *evaluatorProcessing) Start() {
+	go f.processLoop()
 }
 
-func (f *sigProcessWithStrategy) add(sp *sigPair) {
+func (f *evaluatorProcessing) Stop() {
+	f.Add(&deathPillPair)
+}
+
+func (f *evaluatorProcessing) Verified() chan sigPair {
+	return f.out
+}
+
+func (f *evaluatorProcessing) Add(sp *sigPair) {
 	f.cond.L.Lock()
 	defer f.cond.L.Unlock()
 
@@ -115,11 +130,11 @@ func (f *sigProcessWithStrategy) add(sp *sigPair) {
 
 // Look at the signatures received so far and select the one
 //  that should be processed first.
-func (f *sigProcessWithStrategy) readTodos() (bool, *sigPair) {
+func (f *evaluatorProcessing) readTodos() (bool, *sigPair) {
 	f.cond.L.Lock()
 	defer f.cond.L.Unlock()
 	for len(f.todos) == 0 {
-		if f.h != nil  && false{
+		if f.h != nil && false {
 			f.h.logf("waiting, todos is empty")
 		}
 		f.cond.Wait()
@@ -160,13 +175,13 @@ func (f *sigProcessWithStrategy) readTodos() (bool, *sigPair) {
 	return false, best
 }
 
-func (f *sigProcessWithStrategy) hasTodos() bool {
+func (f *evaluatorProcessing) hasTodos() bool {
 	f.cond.L.Lock()
 	defer f.cond.L.Unlock()
 	return len(f.todos) > 0
 }
 
-func (f *sigProcessWithStrategy) processLoop() {
+func (f *evaluatorProcessing) processLoop() {
 	sigCount := 0
 	for {
 		stop := f.processStep()
@@ -180,7 +195,7 @@ func (f *sigProcessWithStrategy) processLoop() {
 	}
 }
 
-func (f *sigProcessWithStrategy) processStep() (bool) {
+func (f *evaluatorProcessing) processStep() bool {
 	done, best := f.readTodos()
 	if done {
 		close(f.out)
@@ -192,8 +207,8 @@ func (f *sigProcessWithStrategy) processStep() (bool) {
 	return false
 }
 
-func (f *sigProcessWithStrategy) verifyAndPublish(sp *sigPair) {
-	err := f.verifySignature(sp)
+func (f *evaluatorProcessing) verifyAndPublish(sp *sigPair) {
+	err := verifySignature(sp, f.msg, f.part, f.cons)
 	if err != nil {
 		logf("fifo: verifying err: %s", err)
 	} else {
@@ -201,43 +216,64 @@ func (f *sigProcessWithStrategy) verifyAndPublish(sp *sigPair) {
 	}
 }
 
+// fifoProcessing implements the signatureProcessing interface using a simple
+// fifo queue, verifying all incoming signatures, not matter relevant or not.
+type fifoProcessing struct {
+	sync.Mutex
+	store signatureStore
+	part  Partitioner
+	cons  Constructor
+	msg   []byte
+	in    chan sigPair
+	out   chan sigPair
+	done  bool
+}
+
 // newFifoProcessing returns a signatureProcessing implementation using a fifo
 // queue. It needs the store to store the valid signatures, the partitioner +
 // constructor + msg to verify the signatures.
-func newFifoProcessing(part Partitioner, c Constructor, msg []byte, h *Handel) signatureProcessing {
-	proc := newSigProcessWithStrategy(part, c, msg, newEvaluator1(), h)
-	go proc.processLoop()
-
+func newFifoProcessing(store signatureStore, part Partitioner,
+	c Constructor, msg []byte) signatureProcessing {
 	return &fifoProcessing{
-		in:   make(chan sigPair, 1000),
-		proc: proc,
+		part:  part,
+		store: store,
+		cons:  c,
+		msg:   msg,
+		in:    make(chan sigPair, 100),
+		out:   make(chan sigPair, 100),
 	}
 }
 
 // processIncoming simply verifies the signature, stores it, and outputs it
 func (f *fifoProcessing) processIncoming() {
-	async := true
 	for pair := range f.in {
-		if async {
-			p := pair
-			f.proc.add(&p)
+		score := f.store.Evaluate(&pair)
+		if score == 0 {
+			//logf("handel: fifo: skipping verification of signature %s", pair.String())
+			continue
 		}
-		if pair == deathPillPair {
-			f.close()
-			return
-		} else {
-			if !async {
-				f.proc.verifyAndPublish(&pair)
-			}
+
+		err := f.verifySignature(&pair)
+		if err != nil {
+			logf("handel: fifo: verifying err: %s", err)
+			continue
+		}
+
+		f.Lock()
+		done := f.done
+		if !done {
+			//logf("handel: handling back verified signature to actors")
+			f.out <- pair
+		}
+		f.Unlock()
+		if done {
+			break
 		}
 	}
 }
 
-func (f *sigProcessWithStrategy) verifySignature(pair *sigPair) error {
+func (f *fifoProcessing) verifySignature(pair *sigPair) error {
 	level := pair.level
-	if level <= 0 {
-		panic("level <= 0")
-	}
 	ms := pair.ms
 	ids, err := f.part.IdentitiesAt(int(level))
 	if err != nil {
@@ -264,12 +300,12 @@ func (f *sigProcessWithStrategy) verifySignature(pair *sigPair) error {
 	return nil
 }
 
-func (f *fifoProcessing) Incoming() chan sigPair {
-	return f.in
+func (f *fifoProcessing) Add(sp *sigPair) {
+	f.in <- *sp
 }
 
 func (f *fifoProcessing) Verified() chan sigPair {
-	return f.proc.out
+	return f.out
 }
 
 func (f *fifoProcessing) Start() {
@@ -277,10 +313,47 @@ func (f *fifoProcessing) Start() {
 }
 
 func (f *fifoProcessing) Stop() {
-	f.in <- deathPillPair
-}
-
-func (f *fifoProcessing) close() {
+	f.Lock()
+	defer f.Unlock()
+	if f.done {
+		return
+	}
+	f.done = true
 	close(f.in)
+	close(f.out)
 }
 
+func (f *fifoProcessing) isStopped() bool {
+	f.Lock()
+	defer f.Unlock()
+	// OK since once we call stop, we'll no go back to done = false
+	return f.done
+}
+
+func verifySignature(pair *sigPair, msg []byte, part Partitioner, cons Constructor) error {
+	level := pair.level
+	ms := pair.ms
+	ids, err := part.IdentitiesAt(int(level))
+	if err != nil {
+		return err
+	}
+
+	if ms.BitSet.BitLength() != len(ids) {
+		return errors.New("handel: inconsistent bitset with given level")
+	}
+
+	// compute the aggregate public key corresponding to bitset
+	aggregateKey := cons.PublicKey()
+	for i := 0; i < ms.BitSet.BitLength(); i++ {
+		if !ms.BitSet.Get(i) {
+			continue
+		}
+		aggregateKey = aggregateKey.Combine(ids[i].PublicKey())
+	}
+
+	if err := aggregateKey.VerifySignature(msg, ms.Signature); err != nil {
+		logf("processing err: from %d -> level %d -> %s", pair.origin, pair.level, ms.String())
+		return fmt.Errorf("handel: %s", err)
+	}
+	return nil
+}

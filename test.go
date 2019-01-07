@@ -11,6 +11,8 @@ import (
 // implementations on Handel
 type Test struct {
 	reg     Registry
+	cons    Constructor
+	msg     []byte
 	nets    []Network
 	handels []*Handel
 	// notifies when one handel instance have finished
@@ -50,11 +52,13 @@ func NewTest(keys []SecretKey, pubs []PublicKey, c Constructor, msg []byte) *Tes
 			return NewRandomBinPartitioner(id, reg, nil)
 			//return NewBinPartitioner(id, reg)
 		}
-		conf := &Config{NewPartitioner: newPartitioner, CandidateCount: 100}
+		conf := &Config{NewPartitioner: newPartitioner}
 		handels[i] = NewHandel(nets[i], reg, ids[i], c, msg, sigs[i], conf)
 	}
 	return &Test{
 		reg:             reg,
+		cons:            c,
+		msg:             msg,
 		nets:            nets,
 		handels:         handels,
 		done:            make(chan bool),
@@ -199,6 +203,9 @@ func (t *Test) waitFinalSig(i int) {
 			//fmt.Println("+++++++ ms", ms)
 			/*fmt.Println("+++++++ ms.BitSet ", ms.BitSet)*/
 			if ms.BitSet.Cardinality() >= t.threshold {
+				if err := VerifyMultiSignature(t.msg, &ms, t.reg, t.cons); err != nil {
+					fmt.Println(" !!! --- Test verification failed --- !!!")
+				}
 				// one full !
 				t.finished <- i
 				return

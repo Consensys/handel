@@ -1,6 +1,11 @@
 package handel
 
-import "fmt"
+import (
+	"encoding/binary"
+	"fmt"
+	"io"
+	mathRand "math/rand"
+)
 
 // IDSIZE of the ID used in Handel. This is fixed at the moment.
 const IDSIZE = 32
@@ -95,4 +100,39 @@ func (a *arrayRegistry) Identities(from, to int) ([]Identity, bool) {
 
 func (a *arrayRegistry) inBound(idx int) bool {
 	return !(idx < 0 || idx > len(a.ids))
+}
+
+func shuffle(arr []Identity, r io.Reader) {
+	var isource int64
+	if err := binary.Read(r, binary.BigEndian, &isource); err != nil {
+		panic(err)
+	}
+	rnd := mathRand.New(mathRand.NewSource(isource))
+	//rnd := mathRand.New(&readerSource{r})
+	rnd.Shuffle(len(arr), func(i, j int) { arr[i], arr[j] = arr[j], arr[i] })
+}
+
+func equals(arr1, arr2 []Identity) bool {
+	for i := 0; i < len(arr1); i++ {
+		if arr1[i] != arr2[i] {
+			return false
+		}
+	}
+	return true
+}
+
+type readerSource struct {
+	io.Reader
+}
+
+func (r *readerSource) Int63() int64 {
+	var b [8]byte
+	fmt.Println(" -- before reading --")
+	r.Reader.Read(b[:])
+	fmt.Println(" -- after reading --")
+	return int64(binary.BigEndian.Uint64(b[:]) & (1<<63 - 1))
+}
+
+func (r *readerSource) Seed(seed int64) {
+	panic("seed")
 }

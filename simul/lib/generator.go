@@ -11,11 +11,17 @@ import (
 func GenerateNodes(cons Constructor, addresses []string) []*Node {
 	nodes := make([]*Node, len(addresses))
 	for i, addr := range addresses {
-		sec, pub := cons.KeyPair(rand.Reader)
-		id := h.NewStaticIdentity(int32(i), addr, pub)
-		nodes[i] = &Node{SecretKey: sec, Identity: id}
+		nodes[i] = GenerateNode(cons, i, addr)
 	}
 	return nodes
+}
+
+// GenerateNode create the necessary key pair & identites out of the given addresses.
+// for a singel node
+func GenerateNode(cons Constructor, idx int, addr string) *Node {
+	sec, pub := cons.KeyPair(rand.Reader)
+	id := h.NewStaticIdentity(int32(idx), addr, pub)
+	return &Node{SecretKey: sec, Identity: id}
 }
 
 // WriteAll writes down all the given nodes to the specified URI with the given

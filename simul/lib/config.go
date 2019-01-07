@@ -4,7 +4,10 @@ import (
 	"errors"
 	"net"
 	"os"
+	"path"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -16,12 +19,25 @@ import (
 	"github.com/ConsenSys/handel/simul/monitor"
 )
 
+var resultsDir string
+
+func init() {
+	currentDir, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+	resultsDir = path.Join(currentDir, "results")
+	os.MkdirAll(resultsDir, 0777)
+}
+
 // Message that will get signed
 var Message = []byte("Everything that is beautiful and noble is the product of reason and calculation.")
 
 // Config is read from a TOML encoded file and passed to Platform.Config and
 // prepares the platform for specific system-wide configurations.
 type Config struct {
+	// private fields do not get marshalled
+	configPath string
 	// which network should we use
 	// Valid value: "udp" (default)
 	Network string
@@ -80,6 +96,7 @@ func LoadConfig(path string) *Config {
 	if c.MonitorPort == 0 {
 		c.MonitorPort = monitor.DefaultSinkPort
 	}
+	c.configPath = path
 	return c
 }
 
@@ -164,6 +181,22 @@ func (c *Config) GetMaxTimeout() time.Duration {
 // apprended with the port from the config.
 func (c *Config) GetMonitorAddress(ip string) string {
 	return net.JoinHostPort(ip, strconv.Itoa(c.MonitorPort))
+}
+
+// GetCSVFile returns a name of the CSV file
+func (c *Config) GetCSVFile() string {
+	csvName := strings.Replace(filepath.Base(c.configPath), ".toml", ".csv", 1)
+	return csvName
+}
+
+// GetResultsFile returns the path where to write the resulting csv file
+func (c *Config) GetResultsFile() string {
+	return filepath.Join(resultsDir, c.GetCSVFile())
+}
+
+// GetResultsDir returns the directory where results will be written
+func (c *Config) GetResultsDir() string {
+	return resultsDir
 }
 
 // Duration is an alias for time.Duration
