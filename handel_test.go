@@ -380,14 +380,11 @@ func TestHandelCreateLevel(t *testing.T) {
 	_, err := rand.Reader.Read(seed)
 	require.NoError(t, err)
 
-	fmt.Println("mapping2 = ", mapping2)
 	c.DisableShuffling = false
 	var r bytes.Buffer
 	r.Write(seed)
 	c.Rand = &r
-	fmt.Printf("-- test c.Rand = %p\n", c.Rand)
 	mapping3 := createLevels(c, registry, part)
-	fmt.Println("mapping3 = ", mapping3)
 	require.NotEqual(t, mapping3, mapping2)
 
 	var r2 bytes.Buffer

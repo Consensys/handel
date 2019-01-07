@@ -68,8 +68,7 @@ func createLevels(c *Config, r Registry, partitioner Partitioner) map[int]*level
 		nodes2, _ := partitioner.IdentitiesAt(level)
 		nodes := nodes2
 		if !c.DisableShuffling {
-			fmt.Printf(" shuffling - with %p\n", c.Rand)
-			nodes := make([]Identity, len(nodes2))
+			nodes = make([]Identity, len(nodes2))
 			copy(nodes, nodes2)
 			shuffle(nodes, c.Rand)
 		}

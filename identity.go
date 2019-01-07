@@ -109,13 +109,7 @@ func shuffle(arr []Identity, r io.Reader) {
 	}
 	rnd := mathRand.New(mathRand.NewSource(isource))
 	//rnd := mathRand.New(&readerSource{r})
-	arr2 := make([]Identity, len(arr))
-	copy(arr2, arr)
 	rnd.Shuffle(len(arr), func(i, j int) { arr[i], arr[j] = arr[j], arr[i] })
-	if equals(arr, arr2) {
-		fmt.Println("isource = ", isource)
-		panic("aie aie aie")
-	}
 }
 
 func equals(arr1, arr2 []Identity) bool {
