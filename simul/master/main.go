@@ -35,7 +35,7 @@ func init() {
 }
 func main() {
 	flag.Parse()
-	master := lib.NewSyncMaster(*masterAddr, *nbOfNodes)
+	master := lib.NewSyncMaster(*masterAddr, *nbOfNodes, *nbOfNodes)
 	fmt.Println("Master: listen on", *masterAddr)
 
 	os.MkdirAll(resultsDir, 0777)
@@ -47,7 +47,7 @@ func main() {
 	}
 	defer csvFile.Close()
 
-	stats := DefaultStats(*run, *nbOfNodes, *threshold, *nbOfInstances, *network)
+	stats := defaultStats(*run, *nbOfNodes, *threshold, *nbOfInstances, *network)
 	mon := monitor.NewMonitor(10000, stats)
 	go mon.Listen()
 
@@ -78,7 +78,7 @@ func main() {
 	mon.Stop()
 }
 
-func DefaultStats(run, nodes, threshold, nbOfInstances int, network string) *monitor.Stats {
+func defaultStats(run, nodes, threshold, nbOfInstances int, network string) *monitor.Stats {
 	return monitor.NewStats(map[string]string{
 		"run":            strconv.Itoa(run),
 		"totalNbOfNodes": strconv.Itoa(nodes),
