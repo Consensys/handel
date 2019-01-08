@@ -1,7 +1,6 @@
 package aws
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"net"
@@ -85,24 +84,40 @@ func copyFile(sftpClient *sftp.Client, file string) error {
 }
 
 //Run runs command on a remote host using ssh and waits for output
-func (sshCMD *sshController) Run(command string) (string, error) {
-	//fmt.Println(">>>> Runnning >>>> ", command)
-	var stdoutBuf bytes.Buffer
+func (sshCMD *sshController) Run(command string) (io.Reader, error) {
 	session, err := sshCMD.client.NewSession()
-
-	session.Stdout = &stdoutBuf
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
+	// +++ We need to be careful here:
+	// From the doc:
+	// If the StdoutPipe reader is
+	// not serviced fast enough it may eventually cause the
+	// remote command to block.
+	outPipe, err := session.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	errPipe, err := session.StderrPipe()
+	if err != nil {
+		return nil, err
+	}
+	pipe := io.MultiReader(outPipe, errPipe)
+	if err != nil {
+		return nil, err
+	}
+	// +++Seems like even after closing ssh-session we can recive data (it works)
+	// From the doc:
+	// Close signals end of channel use. No data may be sent after this call.
 	defer session.Close()
 
 	err = session.Run(command)
 	if err != nil {
 		fmt.Println("SSH Run error ", command, sshCMD.sshHost, err)
-		return "", err
+		return nil, err
 	}
-	return stdoutBuf.String(), nil
+	return pipe, nil
 }
 
 //Start starts command on a remote host using ssh

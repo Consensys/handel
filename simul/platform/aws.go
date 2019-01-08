@@ -3,6 +3,7 @@ package platform
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -273,7 +274,25 @@ func (a *awsPlatform) startSlave(inst aws.Instance, idx int) {
 		panic(err)
 	}
 
-	fmt.Println(out)
+	buf := make([]byte, 0, 512)
+	for {
+		n, err := out.Read(buf[:cap(buf)])
+		buf = buf[:n]
+		if n == 0 {
+			if err == nil {
+				continue
+			}
+			if err == io.EOF {
+				break
+			}
+			panic(err)
+		}
+		// process buf
+		if err != nil && err != io.EOF {
+			panic(err)
+		}
+		fmt.Println(string(buf))
+	}
 
 	slaveController.Close()
 }

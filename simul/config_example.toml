@@ -5,6 +5,15 @@ MonitorPort = 10000
 MaxTimeout = "2m"
 Retrials = 1
 
+
 [[Runs]]
     Nodes = 8
+    Threshold = 4
+
+[[Runs]]
+    Nodes = 16
+    Threshold = 4
+
+[[Runs]]
+    Nodes = 32
     Threshold = 4
