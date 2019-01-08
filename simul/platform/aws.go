@@ -96,21 +96,9 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 	masterNode := lib.GenerateNode(cons, -1, masterAddr)
 	masterInstance.Nodes = []*lib.Node{masterNode}
 	//Create master controller
-	master, err := aws.NewSSHNodeController(*masterInstance.PublicIP, a.pemBytes, a.awsConfig.SSHUser)
+	master, err := a.connectToMaster()
 	if err != nil {
-		return err
-	}
-
-	//a.master = master
-
-	for {
-		err := master.Init()
-		if err != nil {
-			fmt.Println("Master Init failed, trying one more time", err, *masterInstance.ID, *masterInstance.PublicIP, *masterInstance.State)
-			time.Sleep(3 * time.Second)
-			continue
-		}
-		break
+		return nil
 	}
 
 	fmt.Println("[+] Master Instances")
@@ -190,19 +178,9 @@ func (a *awsPlatform) Cleanup() error {
 func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 
 	//Create master controller
-	master, err := aws.NewSSHNodeController(a.masterIP, a.pemBytes, a.awsConfig.SSHUser)
+	master, err := a.connectToMaster()
 	if err != nil {
-		return err
-	}
-
-	for {
-		err := master.Init()
-		if err != nil {
-			fmt.Println("Master Init failed, trying one more time", err)
-			time.Sleep(3 * time.Second)
-			continue
-		}
-		break
+		return nil
 	}
 
 	nodePerInstances := r.Nodes
@@ -297,6 +275,25 @@ func (a *awsPlatform) startSlave(inst aws.Instance, idx int) {
 
 	slaveController.Close()
 
+}
+
+func (a *awsPlatform) connectToMaster() (aws.NodeController, error) {
+	//Create master controller
+	master, err := aws.NewSSHNodeController(a.masterIP, a.pemBytes, a.awsConfig.SSHUser)
+	if err != nil {
+		return nil, err
+	}
+
+	for {
+		err := master.Init()
+		if err != nil {
+			fmt.Println("Master Init failed, trying one more time", err)
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		break
+	}
+	return master, nil
 }
 
 func cmdToString(cmd []string) string {
