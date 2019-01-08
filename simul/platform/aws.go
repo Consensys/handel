@@ -98,7 +98,7 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 	//Create master controller
 	master, err := a.connectToMaster()
 	if err != nil {
-		return nil
+		return err
 	}
 
 	fmt.Println("[+] Master Instances")
