@@ -1,5 +1,7 @@
 package aws
 
+import "io"
+
 // NodeController represents avaliable operations to perform on a remote node
 type NodeController interface {
 	// CopyFiles copies files to equivalent location on a remote host
@@ -9,7 +11,7 @@ type NodeController interface {
 	// Node returns underlying NodeAndSync
 	//	Node() NodeAndSync
 	// Run runs command on a remote node, for example Run("ls -l") and blocks until completion
-	Run(command string) (string, error)
+	Run(command string) (io.Reader, error)
 	// Start runs command on a remote node, doesn't block
 	Start(command string) error
 	// Init inits connection to the remote node
