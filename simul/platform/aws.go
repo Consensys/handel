@@ -1,9 +1,9 @@
 package platform
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -273,27 +273,16 @@ func (a *awsPlatform) startSlave(inst aws.Instance, idx int) {
 	if err != nil {
 		panic(err)
 	}
-
-	buf := make([]byte, 0, 512)
+	scanner := bufio.NewScanner(out)
 	for {
-		n, err := out.Read(buf[:cap(buf)])
-		buf = buf[:n]
-		if n == 0 {
-			if err == nil {
-				continue
+		if !scanner.Scan() {
+			if err := scanner.Err(); err != nil {
+				panic(err)
 			}
-			if err == io.EOF {
-				break
-			}
-			panic(err)
+			break
 		}
-		// process buf
-		if err != nil && err != io.EOF {
-			panic(err)
-		}
-		fmt.Println(string(buf))
+		fmt.Println(scanner.Text())
 	}
-
 	slaveController.Close()
 }
 
