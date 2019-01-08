@@ -216,7 +216,7 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 	fmt.Println("       Exec:", len(shareRegistryFile)+1, masterStart)
 	done := make(chan bool)
 	go func() {
-		_, err := master.Run(masterStart)
+		_, err = master.Run(masterStart)
 		if err != nil {
 			panic(err)
 		}
@@ -266,15 +266,16 @@ func (a *awsPlatform) startSlave(inst aws.Instance, idx int) {
 	}
 
 	ids := strings.Join(idArgs, "")
-	startSlave := a.slaveCMDS.Start(a.masterAddr, inst.Sync, a.monitorAddr, ids, idx, "log.txt")
+	startSlave := a.slaveCMDS.Start(a.masterAddr, inst.Sync, a.monitorAddr, ids, idx)
 	fmt.Println("Start Slave", startSlave)
-	err = slaveController.Start(startSlave)
+	out, err := slaveController.Run(startSlave)
 	if err != nil {
 		panic(err)
 	}
 
-	slaveController.Close()
+	fmt.Println(out)
 
+	slaveController.Close()
 }
 
 func (a *awsPlatform) connectToMaster() (aws.NodeController, error) {
