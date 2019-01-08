@@ -2,12 +2,6 @@ package aws
 
 import "io"
 
-type OUT interface {
-	Reader() io.Reader
-	Err() error
-	Close()
-}
-
 // NodeController represents avaliable operations to perform on a remote node
 type NodeController interface {
 	// CopyFiles copies files to equivalent location on a remote host
