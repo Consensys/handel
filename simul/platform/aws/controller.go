@@ -1,7 +1,5 @@
 package aws
 
-import "github.com/ConsenSys/handel/simul/lib"
-
 // NodeController represents avaliable operations to perform on a remote node
 type NodeController interface {
 	// CopyFiles copies files to equivalent location on a remote host
@@ -18,10 +16,4 @@ type NodeController interface {
 	Init() error
 	// Close
 	Close()
-}
-
-// NodeAndSync cpmbines Node and Sync address
-type NodeAndSync struct {
-	*lib.Node
-	Sync string
 }
