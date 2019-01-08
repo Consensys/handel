@@ -47,6 +47,9 @@ type Config struct {
 	// which encoding should we use on the network
 	// valid value: "gob" (default)
 	Encoding string
+	// which allocator to use when experimenting failing nodes
+	// valid value: "linear" (default)
+	Allocator string
 	// which is the port to send measurements to
 	MonitorPort int
 	// Debug forwards the debug output if set to != 0
@@ -62,17 +65,6 @@ type Config struct {
 	Runs []RunConfig
 }
 
-// MaxNodes returns the maximum number of nodes to test
-func (c *Config) MaxNodes() int {
-	max := 0
-	for _, rc := range c.Runs {
-		if max < rc.Nodes {
-			max = rc.Nodes
-		}
-	}
-	return max
-}
-
 // RunConfig is the config holding parameters for a specific run. A platform can
 // start multiple runs sequentially with different parameters each.
 type RunConfig struct {
@@ -80,10 +72,10 @@ type RunConfig struct {
 	Nodes int
 	// threshold of signatures to wait for
 	Threshold int
+	// Number of failing nodes
+	Failing int
 	// extra for particular information for specific platform for examples
 	Extra interface{}
-	// XXX NOT USED YET
-	//Failing   int
 }
 
 // LoadConfig looks up the given file to unmarshal a TOML encoded Config.
@@ -110,6 +102,17 @@ func (c *Config) WriteTo(path string) error {
 
 	enc := toml.NewEncoder(file)
 	return enc.Encode(c)
+}
+
+// MaxNodes returns the maximum number of nodes to test
+func (c *Config) MaxNodes() int {
+	max := 0
+	for _, rc := range c.Runs {
+		if max < rc.Nodes-rc.Failing {
+			max = rc.Nodes - rc.Failing
+		}
+	}
+	return max
 }
 
 // NewNetwork returns the network implementation designated by this config for this
@@ -168,6 +171,17 @@ func (c *Config) NewConstructor() Constructor {
 	}
 }
 
+// NewAllocator returns the allocation determined by the "Allocator" string field
+// of the config.
+func (c *Config) NewAllocator() Allocator {
+	switch c.Allocator {
+	case "linear":
+		return new(linearAllocator)
+	default:
+		return new(linearAllocator)
+	}
+}
+
 // GetMaxTimeout returns the global maximum timeout specified in the config
 func (c *Config) GetMaxTimeout() time.Duration {
 	dd, err := time.ParseDuration(c.MaxTimeout)
@@ -215,4 +229,11 @@ func (d *Duration) UnmarshalText(text []byte) error {
 func (d *Duration) MarshalText() ([]byte, error) {
 	str := time.Duration(*d).String()
 	return []byte(str), nil
+}
+
+// Divmod returns the integer results and remainder of the division
+func Divmod(numerator, denominator int) (quotient, remainder int) {
+	quotient = numerator / denominator // integer division, decimals are truncated
+	remainder = numerator % denominator
+	return
 }

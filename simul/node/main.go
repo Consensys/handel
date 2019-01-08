@@ -109,7 +109,7 @@ func main() {
 					if sig.BitSet.Cardinality() >= runConf.Threshold {
 						enough = true
 						wg.Done()
-						fmt.Printf(" --- NODE  %d FINISHED ---", j)
+						fmt.Printf(" --- NODE  %d FINISHED ---\n", j)
 						break
 					}
 				case <-time.After(config.GetMaxTimeout()):
