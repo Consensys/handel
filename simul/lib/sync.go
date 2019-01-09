@@ -27,6 +27,7 @@ type SyncMaster struct {
 	sync.Mutex
 	addr      string
 	exp       int
+	total     int
 	n         *udp.Network
 	readys    map[int]bool
 	addresses map[string]bool
@@ -36,7 +37,7 @@ type SyncMaster struct {
 
 // NewSyncMaster returns an SyncMaster that listens on the given address,
 // for a expected number of READY messages.
-func NewSyncMaster(addr string, expected int) *SyncMaster {
+func NewSyncMaster(addr string, expected, total int) *SyncMaster {
 	n, err := udp.NewNetwork(addr, network.NewGOBEncoding())
 	if err != nil {
 		panic(err)
@@ -45,6 +46,7 @@ func NewSyncMaster(addr string, expected int) *SyncMaster {
 	n.RegisterListener(s)
 	s.exp = expected
 	s.n = n
+	s.total = total
 	s.addr = addr
 	s.readys = make(map[int]bool)
 	s.addresses = make(map[string]bool)
@@ -127,7 +129,7 @@ func (s *SyncMaster) handleReady(incoming *syncMessage) {
 func (s *SyncMaster) String() string {
 	var b bytes.Buffer
 	fmt.Fprintf(&b, "Sync Master received %d/%d status\n", len(s.readys), s.exp)
-	for id := 0; id < s.exp; id++ {
+	for id := 0; id < s.total; id++ {
 		_, ok := s.readys[id]
 		if !ok {
 			fmt.Fprintf(&b, "\t- %d -absent-", id)
@@ -136,7 +138,7 @@ func (s *SyncMaster) String() string {
 			//_, port, _ := net.SplitHostPort(msg.Address)
 			fmt.Fprintf(&b, "\t- %d +finished+", id)
 		}
-		if (id+1)%5 == 0 {
+		if (id+1)%4 == 0 {
 			fmt.Fprintf(&b, "\n")
 		}
 	}

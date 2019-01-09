@@ -18,6 +18,7 @@ type NodeRecord struct {
 type Node struct {
 	SecretKey
 	handel.Identity
+	Active bool
 }
 
 // ToRecord maps a Node to a NodeRecord, its string-human-readable equivalent

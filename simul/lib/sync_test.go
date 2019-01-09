@@ -14,7 +14,7 @@ func TestSyncer(t *testing.T) {
 		"127.0.0.1:3003",
 	}
 	n := len(slaveAddrs) * 2 // 2 nodes per instances
-	master := NewSyncMaster(masterAddr, n)
+	master := NewSyncMaster(masterAddr, n, n)
 	defer master.Stop()
 
 	var slaves = make([]*SyncSlave, len(slaveAddrs))

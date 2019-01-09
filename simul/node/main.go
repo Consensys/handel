@@ -59,10 +59,12 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	registry := nodeList.Registry()
 
 	// instantiate handel for all specified ids in the flags
 	var handels []*h.ReportHandel
 	for _, id := range ids {
+		fmt.Println(nodeList)
 		node := nodeList.Node(id)
 		network := config.NewNetwork(node.Identity)
 
@@ -72,7 +74,7 @@ func main() {
 			panic(err)
 		}
 		// Setup report handel
-		handel := h.NewHandel(network, &nodeList, node.Identity, cons.Handel(), lib.Message, signature)
+		handel := h.NewHandel(network, registry, node.Identity, cons.Handel(), lib.Message, signature)
 		reporter := h.NewReportHandel(handel)
 		handels = append(handels, reporter)
 	}
@@ -98,6 +100,7 @@ func main() {
 		wg.Add(1)
 		go func(j int) {
 			handel := handels[j]
+			id := ids[j]
 			signatureGen := monitor.NewTimeMeasure("sigen")
 			go handel.Start()
 			// Wait for final signatures !
@@ -109,7 +112,7 @@ func main() {
 					if sig.BitSet.Cardinality() >= runConf.Threshold {
 						enough = true
 						wg.Done()
-						fmt.Printf(" --- NODE  %d FINISHED ---", j)
+						fmt.Printf(" --- NODE  %d FINISHED ---\n", id)
 						break
 					}
 				case <-time.After(config.GetMaxTimeout()):
@@ -119,7 +122,7 @@ func main() {
 			signatureGen.Record()
 			fmt.Println("reached good enough multi-signature!")
 
-			if err := h.VerifyMultiSignature(lib.Message, &sig, &nodeList, cons.Handel()); err != nil {
+			if err := h.VerifyMultiSignature(lib.Message, &sig, registry, cons.Handel()); err != nil {
 				panic("signature invalid !!")
 			}
 		}(i)

@@ -3,7 +3,6 @@ package lib
 import (
 	"bufio"
 	"encoding/csv"
-	"fmt"
 	"io"
 	"os"
 	"strconv"
@@ -25,39 +24,21 @@ type NodeParser interface {
 // multiple node information - not only the Identity.
 type NodeList []*Node
 
+// Registry returns a handel.Registry interface
+func (n *NodeList) Registry() h.Registry {
+	ids := make([]h.Identity, len(*n))
+	for i := 0; i < len(ids); i++ {
+		ids[i] = (*n)[i].Identity
+	}
+	return h.NewArrayRegistry(ids)
+}
+
 // Node returns the Node structure at the given index
 func (n *NodeList) Node(i int) *Node {
-	if i < 0 || i > n.Size() {
+	if i < 0 || i > len(*n) {
 		panic("that should not happen")
 	}
 	return (*n)[i]
-}
-
-// Size implements the Registry interface
-func (n *NodeList) Size() int {
-	return len(*n)
-}
-
-// Identity implements the Registry interface
-func (n *NodeList) Identity(i int) (h.Identity, bool) {
-	if i < 0 || i >= n.Size() {
-		return nil, false
-	}
-	return (*n)[i].Identity, true
-}
-
-// Identities implements the Registry interface
-func (n *NodeList) Identities(from, to int) ([]h.Identity, bool) {
-	if from < 0 || from >= n.Size() || to < 0 || to > n.Size() {
-		fmt.Println("requesting from", from, "to", to, " of nodelist", len(*n))
-		return nil, false
-	}
-	sli := (*n)[from:to]
-	ids := make([]h.Identity, len(sli))
-	for i, n := range sli {
-		ids[i] = n.Identity
-	}
-	return ids, true
 }
 
 // ReadAll reads the whole set of nodes from the given parser to the given URI.
@@ -67,13 +48,13 @@ func ReadAll(uri string, parser NodeParser, c Constructor) (NodeList, error) {
 	if err != nil {
 		return nil, err
 	}
-	var nodes NodeList
+	var nodes = make([]*Node, len(records))
 	for _, rec := range records {
 		node, err := rec.ToNode(c)
 		if err != nil {
 			return nil, err
 		}
-		nodes = append(nodes, node)
+		nodes[int(node.ID())] = node
 	}
 	return nodes, nil
 }

@@ -73,7 +73,7 @@ func TestCSVParser(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		require.Equal(t, test.expSize, nodeList.Size())
+		require.Equal(t, test.expSize, nodeList.Registry().Size())
 	}
 
 }
