@@ -29,6 +29,7 @@ type awsPlatform struct {
 	cons          lib.Constructor
 	awsConfig     *aws.Config
 	resFile       string
+	c             *lib.Config
 }
 
 // NewAws creates AWS Platform
@@ -60,11 +61,12 @@ func (a *awsPlatform) pack(path string, c *lib.Config, binPath string) error {
 func (a *awsPlatform) Configure(c *lib.Config) error {
 
 	CMDS := aws.NewCommands("/tmp/masterAWS", "/tmp/nodeAWS", "/tmp/aws.conf", "/tmp/aws.csv")
-	a.masterCMDS = aws.MasterCommands{CMDS}
-	a.slaveCMDS = aws.SlaveCommands{CMDS}
+	a.masterCMDS = aws.MasterCommands{Commands: CMDS}
+	a.slaveCMDS = aws.SlaveCommands{Commands: CMDS}
 	a.network = c.Network
 	a.resFile = c.GetCSVFile()
 	a.monitorPort = c.MonitorPort
+	a.c = c
 
 	// Compile binaries
 	a.pack("github.com/ConsenSys/handel/simul/node", c, CMDS.SlaveBinPath)
@@ -172,7 +174,8 @@ func configureSlave(slaveNodeController aws.NodeController, slaveCmds map[int]st
 }
 
 func (a *awsPlatform) Cleanup() error {
-	return a.aws.StopInstances()
+	//return a.aws.StopInstances()
+	return nil
 }
 
 func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
@@ -183,11 +186,11 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 		return nil
 	}
 
-	nodePerInstances := r.Nodes
 	slaveNodes := a.allSlaveNodes[0:a.awsConfig.NbOfInstances]
-	aws.UpdateInstances(slaveNodes, nodePerInstances, a.cons)
-
-	writeRegFile(slaveNodes, a.masterCMDS.RegPath)
+	allocator := a.c.NewAllocator()
+	ids := allocator.Allocate(r.Nodes, r.Failing)
+	aws.UpdateInstances(ids, r.Nodes, slaveNodes, a.cons)
+	writeRegFile(r.Nodes, slaveNodes, a.masterCMDS.RegPath)
 	//*** Start Master
 	fmt.Println("[+] Registry file written to local storage(", r.Nodes, " nodes)")
 	fmt.Println("[+] Transfering registry file to Master")
@@ -204,7 +207,9 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 
 	masterStart := a.masterCMDS.Start(
 		a.masterAddr,
-		a.awsConfig.NbOfInstances*nodePerInstances,
+		//a.awsConfig.NbOfInstances*nodePerInstances,
+		r.Nodes,
+		r.Failing,
 		a.awsConfig.NbOfInstances,
 		a.awsConfig.MasterTimeOut,
 		idx,
@@ -261,6 +266,9 @@ func (a *awsPlatform) startSlave(inst aws.Instance, idx int) {
 	idArgs := []string{}
 
 	for _, n := range inst.Nodes {
+		if !n.Active {
+			continue
+		}
 		id := " -id " + strconv.Itoa(int(n.ID()))
 		idArgs = append(idArgs, id)
 	}
@@ -300,12 +308,12 @@ func cmdToString(cmd []string) string {
 	return strings.Join(cmd[:], " ")
 }
 
-func writeRegFile(instances []*aws.Instance, regPath string) {
+func writeRegFile(total int, instances []*aws.Instance, regPath string) {
 	parser := lib.NewCSVParser()
-	var nodes []*lib.Node
+	var nodes = make([]*lib.Node, total)
 	for _, inst := range instances {
 		for _, n := range inst.Nodes {
-			nodes = append(nodes, n)
+			nodes[int(n.ID())] = n
 		}
 	}
 	lib.WriteAll(nodes, parser, regPath)

@@ -59,7 +59,7 @@ func (l *localPlatform) Configure(c *lib.Config) error {
 }
 
 func (l *localPlatform) Cleanup() error {
-	os.RemoveAll(l.regPath)
+	//os.RemoveAll(l.regPath)
 	l.Lock()
 	defer l.Unlock()
 
@@ -195,6 +195,7 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 	stats.WriteValues(l.csvFile)
 	fmt.Printf("[+] Closing down monitor & writing stats to\n\t%s\n", l.c.GetResultsFile())
 
+	fmt.Println("REGPATH = ", l.regPath)
 	/*for i, command := range commands {*/
 	//if str := command.Stdout(); str != "" {
 	//fmt.Printf(" ----- node %d output -----\n\t%s\n ----------------\n", i, str)
