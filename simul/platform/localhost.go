@@ -1,7 +1,6 @@
 package platform
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"sort"
@@ -13,10 +12,9 @@ import (
 	"github.com/ConsenSys/handel/simul/monitor"
 )
 
-var processes = flag.Int("proc", 0, "number of processes to run locally")
+//var processes = flag.Int("proc", 0, "number of processes to run locally")
 
 type localPlatform struct {
-	proc     int
 	c        *lib.Config
 	regPath  string
 	binPath  string
@@ -27,12 +25,9 @@ type localPlatform struct {
 }
 
 // NewLocalhost returns a Platform that is executing binaries on localhost
-func NewLocalhost() Platform { return &localPlatform{proc: *processes} }
+func NewLocalhost() Platform { return &localPlatform{} }
 
 func (l *localPlatform) Configure(c *lib.Config) error {
-	if l.proc == 0 {
-		l.proc = c.MaxNodes()
-	}
 	l.c = c
 	l.regPath = "/tmp/local.csv"
 	l.binPath = "/tmp/local.bin"
@@ -85,7 +80,7 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 	parser := lib.NewCSVParser()
 	allocator := l.c.NewAllocator()
 
-	procInfos, addresses := genProcInfo(r.Nodes, l.proc)
+	procInfos, addresses := genProcInfo(r.Nodes, r.NbOfProc)
 	nodes := lib.GenerateNodes(cons, addresses)
 	lib.WriteAll(nodes, parser, l.regPath)
 	fmt.Println("[+] Registry file written (", r.Nodes, " nodes)")
@@ -122,6 +117,7 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 
 		// 3.2 run command
 		commands[i] = NewCommand(l.binPath, args...)
+
 		go func(j int) {
 			fmt.Printf("[+] Starting node %d.\n", j)
 			if err := commands[j].Start(); err != nil {
