@@ -100,6 +100,7 @@ func main() {
 		wg.Add(1)
 		go func(j int) {
 			handel := handels[j]
+			id := ids[j]
 			signatureGen := monitor.NewTimeMeasure("sigen")
 			go handel.Start()
 			// Wait for final signatures !
@@ -111,7 +112,7 @@ func main() {
 					if sig.BitSet.Cardinality() >= runConf.Threshold {
 						enough = true
 						wg.Done()
-						fmt.Printf(" --- NODE  %d FINISHED ---\n", j)
+						fmt.Printf(" --- NODE  %d FINISHED ---\n", id)
 						break
 					}
 				case <-time.After(config.GetMaxTimeout()):
