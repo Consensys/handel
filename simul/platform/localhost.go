@@ -78,7 +78,7 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 	parser := lib.NewCSVParser()
 	allocator := l.c.NewAllocator()
 
-	procInfos, addresses := genProcInfo(r.Nodes, r.NbOfProc)
+	procInfos, addresses := genProcInfo(r.Nodes, r.Processes)
 	nodes := lib.GenerateNodes(cons, addresses)
 	lib.WriteAll(nodes, parser, l.regPath)
 	fmt.Println("[+] Registry file written (", r.Nodes, " nodes)")

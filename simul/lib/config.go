@@ -74,8 +74,8 @@ type RunConfig struct {
 	Threshold int
 	// Number of failing nodes
 	Failing int
-	// Number of processes/instances for this run
-	NbOfProc int
+	// Number of processes for this run
+	Processes int
 	// extra for particular information for specific platform for examples
 	Extra interface{}
 }

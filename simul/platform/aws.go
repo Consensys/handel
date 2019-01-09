@@ -187,7 +187,7 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 		return nil
 	}
 
-	slaveNodes := a.allSlaveNodes[0:r.NbOfProc]
+	slaveNodes := a.allSlaveNodes[0:r.Processes]
 	allocator := a.c.NewAllocator()
 	ids := allocator.Allocate(r.Nodes, r.Failing)
 	aws.UpdateInstances(ids, r.Nodes, slaveNodes, a.cons)
@@ -210,7 +210,7 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 		a.masterAddr,
 		r.Nodes,
 		r.Failing,
-		r.NbOfProc,
+		r.Processes,
 		a.awsConfig.MasterTimeOut,
 		idx,
 		r.Threshold,
