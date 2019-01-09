@@ -12,8 +12,6 @@ import (
 	"github.com/ConsenSys/handel/simul/monitor"
 )
 
-//var processes = flag.Int("proc", 0, "number of processes to run locally")
-
 type localPlatform struct {
 	c        *lib.Config
 	regPath  string
@@ -117,7 +115,6 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 
 		// 3.2 run command
 		commands[i] = NewCommand(l.binPath, args...)
-
 		go func(j int) {
 			fmt.Printf("[+] Starting node %d.\n", j)
 			if err := commands[j].Start(); err != nil {
