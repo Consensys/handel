@@ -167,7 +167,7 @@ func (c *Config) NewConstructor() Constructor {
 	}
 	switch c.Curve {
 	case "bn256":
-		return &handelConstructor{bn256.NewConstructor()}
+		return &SimulConstructor{bn256.NewConstructor()}
 	default:
 		panic("not implemented yet")
 	}
