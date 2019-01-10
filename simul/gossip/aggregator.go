@@ -18,6 +18,8 @@ type Aggregator struct {
 	accSig handel.Signature
 	accBs  handel.BitSet
 	c      handel.Constructor
+	acc    chan []byte
+	done   chan bool
 }
 
 // NewAggregator returns an aggregator from the P2PNode
@@ -31,6 +33,8 @@ func NewAggregator(n *P2PNode, r handel.Registry, c handel.Constructor, total in
 		accBs:   handel.NewWilffBitset(total),
 		accSig:  c.Signature(),
 		out:     make(chan *handel.MultiSignature, 1),
+		acc:     make(chan []byte, total),
+		done:    make(chan bool, 1),
 	}
 }
 
@@ -65,8 +69,8 @@ func (a *Aggregator) Start() {
 	if err := a.Gossip(buff); err != nil {
 		panic(err)
 	}
-	fmt.Println(a.handelID, " gossiped his signature")
 	go a.handleIncoming()
+	go a.processLoop()
 }
 
 func (a *Aggregator) handleIncoming() {
@@ -75,6 +79,18 @@ func (a *Aggregator) handleIncoming() {
 		if err != nil {
 			fmt.Println("error !!", err)
 			break
+		}
+		a.acc <- buff
+	}
+}
+
+func (a *Aggregator) processLoop() {
+	for {
+		var buff []byte
+		select {
+		case buff = <-a.acc:
+		case <-a.done:
+			return
 		}
 		packet := new(handel.Packet)
 		if err := packet.UnmarshalBinary(buff); err != nil {
@@ -89,7 +105,7 @@ func (a *Aggregator) handleIncoming() {
 
 		// verify it
 		ms := new(handel.MultiSignature)
-		err = ms.Unmarshal(packet.MultiSig, a.c.Signature(), handel.NewWilffBitset)
+		err := ms.Unmarshal(packet.MultiSig, a.c.Signature(), handel.NewWilffBitset)
 		if err != nil {
 			panic(err)
 		}
@@ -106,10 +122,10 @@ func (a *Aggregator) handleIncoming() {
 		a.accSig = a.accSig.Combine(ms.Signature)
 		a.accBs.Set(int(packet.Origin), true)
 		a.rcvd++
-		fmt.Println(a.handelID, " got sig from", packet.Origin, " -> ", a.rcvd, "/", a.total)
+		//fmt.Println(a.handelID, " got sig from", packet.Origin, " -> ", a.rcvd, "/", a.total)
 		// are we done ?
 		if a.rcvd == a.total {
-			fmt.Println("looping out")
+			//fmt.Println("looping out")
 			a.out <- &handel.MultiSignature{
 				Signature: a.accSig,
 				BitSet:    a.accBs,

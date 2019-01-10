@@ -15,26 +15,27 @@ import (
 )
 
 func TestAggregator(t *testing.T) {
-	n := 5
-	nbOutgoing := 2
+	n := 50
+	nbOutgoing := 3
 	connector := NewNeighborConnector()
 	ids, nodes := FakeSetup(n, connector, nbOutgoing)
 	registry := P2PRegistry(ids)
 	cons := bn256.NewConstructor()
 	aggregators := make([]*Aggregator, n)
+	time.Sleep(1 * time.Second)
 	for i := 0; i < n; i++ {
 		agg := NewAggregator(nodes[i], &registry, cons, n)
 		aggregators[i] = agg
 		go agg.Start()
 	}
-	time.Sleep(1 * time.Second)
 
 	var wg sync.WaitGroup
 	for _, agg := range aggregators {
 		wg.Add(1)
 		go func(a *Aggregator) {
 			sig := <-a.FinalMultiSignature()
-			handel.VerifyMultiSignature(lib.Message, sig, &registry, cons)
+			err := handel.VerifyMultiSignature(lib.Message, sig, &registry, cons)
+			require.NoError(t, err)
 			wg.Done()
 		}(agg)
 	}

@@ -91,14 +91,14 @@ func NewP2PNode(handelNode *lib.Node) (*P2PNode, error) {
 		return nil, err
 	}
 
-	basicHost.SetStreamHandler(ping, func(s p2pnet.Stream) {
-		if err := pong(s); err != nil {
-			log.Println(err)
-			s.Reset()
-		} else {
-			s.Close()
-		}
-	})
+	/*basicHost.SetStreamHandler(ping, func(s p2pnet.Stream) {*/
+	//if err := pong(s); err != nil {
+	//log.Println(err)
+	//s.Reset()
+	//} else {
+	//s.Close()
+	//}
+	//})
 
 	// needed to run in insecure mode... ><
 	basicHost.Peerstore().AddPubKey(basicHost.ID(), priv.GetPublic())
