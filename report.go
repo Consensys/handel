@@ -6,11 +6,10 @@ type ReportHandel struct {
 	*Handel
 }
 
-// Stats contains different stats about the different components of Handel. Not
-// complete.
-type Stats struct {
-	Network map[string]float64
-	Store   map[string]float64
+// Reporter is a generic interface that can report different data about its
+// internal state
+type Reporter interface {
+	Values() map[string]float64
 }
 
 // NewReportHandel returns a Handel that can report some statistis about its
@@ -21,14 +20,30 @@ func NewReportHandel(h *Handel) *ReportHandel {
 	return &ReportHandel{h}
 }
 
-// Stats returns the stats of internal components of Handel.
-func (r *ReportHandel) Stats() *Stats {
-	s := new(Stats)
+// Values returns the values of ALL internal components of Handel merged together.
+func (r *ReportHandel) Values() map[string]float64 {
 	net := r.Handel.net.(*ReportNetwork)
-	s.Network = net.Values()
+	netValues := net.Values()
 	store := r.Handel.store.(*ReportStore)
-	s.Store = store.Values()
-	return s
+	storeValues := store.Values()
+	merged := make(map[string]float64)
+	for k, v := range netValues {
+		merged["net_"+k] = float64(v)
+	}
+	for k, v := range storeValues {
+		merged["store_"+k] = float64(v)
+	}
+	return merged
+}
+
+// Network returns the Network reporter interface
+func (r *ReportHandel) Network() Reporter {
+	return r.Handel.net.(*ReportNetwork)
+}
+
+// Store returns the Store reporter interface
+func (r *ReportHandel) Store() Reporter {
+	return r.Handel.store.(*ReportStore)
 }
 
 // ReportNetwork is a struct that implements the Network interface by augmenting
@@ -82,8 +97,8 @@ func (r *ReportNetwork) Received() uint32 {
 // Values implements the simul/monitor/CounterIO interface
 func (r *ReportNetwork) Values() map[string]float64 {
 	return map[string]float64{
-		"sentPackets": float64(r.Sent()),
-		"rcvdPackets": float64(r.Received()),
+		"sent": float64(r.Sent()),
+		"rcvd": float64(r.Received()),
 	}
 }
 
@@ -91,6 +106,7 @@ func (r *ReportNetwork) Values() map[string]float64 {
 type ReportStore struct {
 	signatureStore
 	sucessReplaced int64
+	replacedTrial  int64
 }
 
 // newReportStore returns a signatureStore with som eadditional reporting
@@ -106,6 +122,8 @@ func (r *ReportStore) Store(level byte, ms *MultiSignature) (*MultiSignature, bo
 	ms, isNew := r.signatureStore.Store(level, ms)
 	if isNew {
 		r.sucessReplaced++
+	} else {
+		r.replacedTrial++
 	}
 	return ms, isNew
 }
@@ -114,5 +132,6 @@ func (r *ReportStore) Store(level byte, ms *MultiSignature) (*MultiSignature, bo
 func (r *ReportStore) Values() map[string]float64 {
 	return map[string]float64{
 		"sucessReplace": float64(r.sucessReplaced),
+		"replaceTrial":  float64(r.replacedTrial),
 	}
 }
