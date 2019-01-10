@@ -73,7 +73,7 @@ func NewConstructor() *Constructor {
 
 // Signature implements the handel.Constructor  interface
 func (s *Constructor) Signature() handel.Signature {
-	return new(bls)
+	return new(SigBLS)
 }
 
 // PublicKey implements the handel.Constructor interface
@@ -110,7 +110,7 @@ func (p *PublicKey) String() string {
 // e(x*H(m), B2) == e(S, B2) holds where e is the pairing operation and B2 is
 // the base point from curve G2.
 func (p *PublicKey) VerifySignature(msg []byte, sig handel.Signature) error {
-	ms := sig.(*bls)
+	ms := sig.(*SigBLS)
 	HM, err := hashedMessage(msg)
 	if err != nil {
 		return err
@@ -177,7 +177,7 @@ func (s *SecretKey) Sign(msg []byte, reader io.Reader) (handel.Signature, error)
 	}
 	p := new(bn256.G1)
 	p = p.ScalarMult(hashed, s.s)
-	return &bls{p}, nil
+	return &SigBLS{p}, nil
 }
 
 // MarshalBinary implements the simul/lib/SecretKey interface
@@ -192,18 +192,21 @@ func (s *SecretKey) UnmarshalBinary(buff []byte) error {
 	return nil
 }
 
-type bls struct {
+// SigBLS represents a BLS signature using the BN256 curves
+type SigBLS struct {
 	e *bn256.G1
 }
 
-func (m *bls) MarshalBinary() ([]byte, error) {
+// MarshalBinary implements the handel.Signature interface
+func (m *SigBLS) MarshalBinary() ([]byte, error) {
 	if m.e == nil {
 		return nil, errors.New("bn256: multisig can't marshal if nil")
 	}
 	return m.e.Marshal(), nil
 }
 
-func (m *bls) UnmarshalBinary(b []byte) error {
+// UnmarshalBinary implements the handel.Signature interface
+func (m *SigBLS) UnmarshalBinary(b []byte) error {
 	m.e = new(bn256.G1)
 	_, err := m.e.Unmarshal(b)
 	if err != nil {
@@ -212,17 +215,18 @@ func (m *bls) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-func (m *bls) Combine(ms handel.Signature) handel.Signature {
+// Combine implements the handel.Signature interface
+func (m *SigBLS) Combine(ms handel.Signature) handel.Signature {
 	if m.e == nil {
 		return ms
 	}
-	m2 := ms.(*bls)
+	m2 := ms.(*SigBLS)
 	res := new(bn256.G1)
 	res.Add(m.e, m2.e)
-	return &bls{e: res}
+	return &SigBLS{e: res}
 }
 
-func (m *bls) String() string {
+func (m *SigBLS) String() string {
 	return m.e.String()
 }
 
