@@ -4,11 +4,14 @@ Encoding = "gob"
 MonitorPort = 10000
 MaxTimeout = "2m" 
 Retrials = 1
-Simulation = "handel"
+Simulation = "gossip"
 
 [[Runs]]
     Nodes = 50
     Threshold = 50
     Processes = 5
+    [Runs.Extra]
+        Connector = "neighbor"
+        Count = "15"
 
 

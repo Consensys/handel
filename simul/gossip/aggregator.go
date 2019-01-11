@@ -126,7 +126,7 @@ func (a *Aggregator) processLoop() {
 		a.accSig = a.accSig.Combine(ms.Signature)
 		a.accBs.Set(int(packet.Origin), true)
 		a.rcvd++
-		//fmt.Println(a.handelID, " got sig from", packet.Origin, " -> ", a.rcvd, "/", a.total)
+		fmt.Println(a.handelID, " got sig from", packet.Origin, " -> ", a.rcvd, "/", a.total)
 		// are we done ?
 		if a.rcvd == a.total {
 			//fmt.Println("looping out")

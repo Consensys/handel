@@ -70,11 +70,13 @@ func main() {
 	for _, agg := range aggregators {
 		err := connector.Connect(agg.P2PNode, []*P2PIdentity(*list), count)
 		if err != nil {
+			fmt.Println("err : ", err)
 			panic(err)
 		}
 	}
 
-	time.Sleep(2 * time.Second)
+	fmt.Println(" overlay network  - connections - setup ")
+	time.Sleep(3 * time.Second)
 	// Sync with master - wait for the START signal
 	syncer := lib.NewSyncSlave(*syncAddr, *master, ids)
 	select {
@@ -183,7 +185,6 @@ func ReadRegistry(ctx context.Context, uri string, parser lib.NodeParser, c lib.
 		}
 
 		if isIncluded(ids, id) {
-			fmt.Println("creating node ", node)
 			p2pNode, err := NewP2PNode(ctx, node)
 			if err != nil {
 				fmt.Println(err)
@@ -223,8 +224,10 @@ func extractConnector(r *lib.RunConfig) (Connector, int) {
 	switch strings.ToLower(c) {
 	case "neighbor":
 		con = NewNeighborConnector()
+		fmt.Println(" selecting NEIGHBOR connector with ", count)
 	case "random":
 		con = NewRandomConnector()
+		fmt.Println(" selecting RANDOM connector with ", count)
 	}
 	return con, count
 

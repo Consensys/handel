@@ -128,8 +128,11 @@ func NewP2PNode(ctx context.Context, handelNode *lib.Node) (*P2PNode, error) {
 // Connect to the given identity
 func (p *P2PNode) Connect(p2 *P2PIdentity) error {
 	p.h.Peerstore().AddAddr(p2.id, p2.addr, pstore.PermanentAddrTTL)
+	err := p.h.Connect(context.Background(), p.h.Peerstore().PeerInfo(p2.id))
+	if err != nil {
+		return err
+	}
 	return p.ping(p2)
-	//return p.h.Connect(context.Background(), p.h.Peerstore().PeerInfo(p2.id))
 }
 
 // Gossip broadcasts the given message to the overlay network
