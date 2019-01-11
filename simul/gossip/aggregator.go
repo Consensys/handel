@@ -11,6 +11,7 @@ import (
 // gossiped until it gets the final one
 type Aggregator struct {
 	*P2PNode
+	sig    handel.Signature
 	total  int
 	rcvd   int
 	out    chan *handel.MultiSignature
@@ -24,7 +25,12 @@ type Aggregator struct {
 
 // NewAggregator returns an aggregator from the P2PNode
 func NewAggregator(n *P2PNode, r handel.Registry, c handel.Constructor, total int) *Aggregator {
+	sig, err := n.priv.SecretKey.Sign(lib.Message, nil)
+	if err != nil {
+		panic(err)
+	}
 	return &Aggregator{
+		sig:     sig,
 		P2PNode: n,
 		r:       r,
 		total:   total,
@@ -46,12 +52,8 @@ func (a *Aggregator) FinalMultiSignature() chan *handel.MultiSignature {
 
 // Start the aggregation for this node's perspective
 func (a *Aggregator) Start() {
-	sig, err := a.P2PNode.priv.SecretKey.Sign(lib.Message, nil)
-	if err != nil {
-		panic(err)
-	}
 	ms := &handel.MultiSignature{
-		Signature: sig,
+		Signature: a.sig,
 		BitSet:    handel.NewWilffBitset(1),
 	}
 	msBuff, _ := ms.MarshalBinary()
@@ -69,6 +71,7 @@ func (a *Aggregator) Start() {
 	if err := a.Gossip(buff); err != nil {
 		panic(err)
 	}
+	//fmt.Println(a.P2PNode.handelID, " gossiped his signature")
 	go a.handleIncoming()
 	go a.processLoop()
 }
@@ -97,6 +100,7 @@ func (a *Aggregator) processLoop() {
 			fmt.Println("error unmarshaling ", err)
 			panic(err)
 		}
+		//fmt.Printf("aggregator %d received packet from %d\n", a.P2PNode.handelID, packet.Origin)
 		// check if already received
 		if a.accBs.Get(int(packet.Origin)) {
 			fmt.Println("already received - continue")

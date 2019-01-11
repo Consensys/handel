@@ -13,6 +13,10 @@ import (
 	"github.com/ConsenSys/handel/simul/monitor"
 )
 
+// MaxCount represents the number of outgoing connections a gossip node should
+// make
+const MaxCount = 10
+
 // BeaconTimeout represents how much time do we wait to receive the beacon
 const BeaconTimeout = 2 * time.Minute
 
@@ -32,6 +36,8 @@ func init() {
 var isMonitoring bool
 
 func main() {
+
+	//golog.SetAllLoggers(gologging.INFO)
 	flag.Parse()
 	//
 	// SETUP PHASE
@@ -52,30 +58,18 @@ func main() {
 
 	cons := config.NewConstructor()
 	parser := lib.NewCSVParser()
-	nodeList, err := lib.ReadAll(*registryFile, parser, cons)
-	if err != nil {
-		panic(err)
-	}
-	registry := nodeList.Registry()
-
-	// instantiate handel for all specified ids in the flags
-	var handels []*h.ReportHandel
-	for _, id := range ids {
-		fmt.Println(nodeList)
-		node := nodeList.Node(id)
-		network := config.NewNetwork(node.Identity)
-
-		// make the signature
-		signature, err := node.Sign(lib.Message, nil)
+	registry, aggregators := ReadRegistry(*registryFile, parser, cons, ids)
+	list := registry.(*P2PRegistry)
+	// connect the nodes - create the overlay
+	connector, count := extractConnector(&runConf)
+	for _, agg := range aggregators {
+		err := connector.Connect(agg.P2PNode, []*P2PIdentity(*list), count)
 		if err != nil {
 			panic(err)
 		}
-		// Setup report handel
-		handel := h.NewHandel(network, registry, node.Identity, cons.Handel(), lib.Message, signature)
-		reporter := h.NewReportHandel(handel)
-		handels = append(handels, reporter)
 	}
 
+	time.Sleep(2 * time.Second)
 	// Sync with master - wait for the START signal
 	syncer := lib.NewSyncSlave(*syncAddr, *master, ids)
 	select {
@@ -91,21 +85,21 @@ func main() {
 		panic("Haven't received beacon in time!")
 	}
 
-	// Start all handels and run a timeout on the signature generation time
+	// Start all aggregators and run a timeout on the signature generation time
 	var wg sync.WaitGroup
-	for i := range handels {
+	for i := range aggregators {
 		wg.Add(1)
 		go func(j int) {
-			handel := handels[j]
-			id := ids[j]
+			agg := aggregators[j]
+			id := agg.handelID
 			signatureGen := monitor.NewTimeMeasure("sigen")
-			go handel.Start()
+			go agg.Start()
 			// Wait for final signatures !
 			enough := false
-			var sig h.MultiSignature
+			var sig *h.MultiSignature
 			for !enough {
 				select {
-				case sig = <-handel.FinalSignatures():
+				case sig = <-agg.FinalMultiSignature():
 					if sig.BitSet.Cardinality() >= runConf.Threshold {
 						enough = true
 						wg.Done()
@@ -119,7 +113,7 @@ func main() {
 			signatureGen.Record()
 			fmt.Println("reached good enough multi-signature!")
 
-			if err := h.VerifyMultiSignature(lib.Message, &sig, registry, cons.Handel()); err != nil {
+			if err := h.VerifyMultiSignature(lib.Message, sig, registry, cons.Handel()); err != nil {
 				panic("signature invalid !!")
 			}
 		}(i)
@@ -160,4 +154,73 @@ func (i *arrayFlags) Set(value string) error {
 	}
 	*i = append(*i, newID)
 	return nil
+}
+
+// ReadRegistry extracts a list of P2PIdentity and the relevant Aggregators from the
+// registry directly - alleviating the need for keeping a second list.
+func ReadRegistry(uri string, parser lib.NodeParser, c lib.Constructor, ids []int) (h.Registry, []*Aggregator) {
+	records, err := parser.Read(uri)
+	if err != nil {
+		panic(err)
+	}
+	total := len(records)
+	var aggregators = make([]*Aggregator, 0, len(ids))
+	var registry = P2PRegistry(make([]*P2PIdentity, total))
+	for _, rec := range records {
+		node, err := rec.ToNode(c)
+		if err != nil {
+			panic(err)
+		}
+		id := int(node.ID())
+		registry[id], err = NewP2PIdentity(node.Identity)
+		if err != nil {
+			panic(err)
+		}
+
+		if isIncluded(ids, id) {
+			fmt.Println("creating node ", node)
+			p2pNode, err := NewP2PNode(node)
+			if err != nil {
+				fmt.Println(err)
+				panic(err)
+			}
+			agg := NewAggregator(p2pNode, &registry, c.Handel(), total)
+			aggregators = append(aggregators, agg)
+		}
+	}
+	return &registry, aggregators
+}
+
+func isIncluded(arr []int, v int) bool {
+	for _, a := range arr {
+		if v == a {
+			return true
+		}
+	}
+	return false
+}
+
+func extractConnector(r *lib.RunConfig) (Connector, int) {
+	c, exists := r.Extra["Connector"]
+	if !exists {
+		c = "neighbor"
+	}
+	countStr, exists := r.Extra["Count"]
+	count := MaxCount
+	if exists {
+		var err error
+		count, err = strconv.Atoi(countStr)
+		if err != nil {
+			panic(err)
+		}
+	}
+	var con Connector
+	switch strings.ToLower(c) {
+	case "neighbor":
+		con = NewNeighborConnector()
+	case "random":
+		con = NewRandomConnector()
+	}
+	return con, count
+
 }

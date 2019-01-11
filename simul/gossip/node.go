@@ -91,17 +91,21 @@ func NewP2PNode(handelNode *lib.Node) (*P2PNode, error) {
 		return nil, err
 	}
 
-	/*basicHost.SetStreamHandler(ping, func(s p2pnet.Stream) {*/
-	//if err := pong(s); err != nil {
-	//log.Println(err)
-	//s.Reset()
-	//} else {
-	//s.Close()
-	//}
-	//})
+	basicHost.SetStreamHandler(ping, func(s p2pnet.Stream) {
+		if err := pong(s); err != nil {
+			log.Println(err)
+			s.Reset()
+		} else {
+			s.Close()
+		}
+	})
 
 	// needed to run in insecure mode... ><
 	basicHost.Peerstore().AddPubKey(basicHost.ID(), priv.GetPublic())
+
+	//manager := basicHost.ConnManager()
+	////bundle := manager.Notifee().(*p2pnet.NotifyBundle)
+	//fmt.Println(bundle)
 
 	// create the pubsub struct
 	opt := pubsub.WithMessageSigning(false)
@@ -124,8 +128,8 @@ func NewP2PNode(handelNode *lib.Node) (*P2PNode, error) {
 // Connect to the given identity
 func (p *P2PNode) Connect(p2 *P2PIdentity) error {
 	p.h.Peerstore().AddAddr(p2.id, p2.addr, pstore.PermanentAddrTTL)
-	//return p.ping(p2)
-	return p.h.Connect(context.Background(), p.h.Peerstore().PeerInfo(p2.id))
+	return p.ping(p2)
+	//return p.h.Connect(context.Background(), p.h.Peerstore().PeerInfo(p2.id))
 }
 
 // Gossip broadcasts the given message to the overlay network
@@ -139,6 +143,7 @@ func (p *P2PNode) Next() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	//fmt.Printf("p2pnode %d - new message from %s\n", p.handelID, string(pbMsg.From))
 	return pbMsg.Data, nil
 }
 

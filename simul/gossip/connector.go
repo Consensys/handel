@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math/rand"
 )
 
@@ -34,6 +35,7 @@ func (*neighbor) Connect(node *P2PNode, ids []*P2PIdentity, max int) error {
 		if err := node.Connect(ids[baseID]); err != nil {
 			return err
 		}
+		fmt.Printf("node %d connected to %d\n", nodeID, baseID)
 		chosen++
 		baseID++
 		continue

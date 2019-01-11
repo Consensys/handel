@@ -54,6 +54,9 @@ type Config struct {
 	MonitorPort int
 	// Debug forwards the debug output if set to != 0
 	Debug int
+	// which simulation are we running -
+	// valid values: "handel" (default) or "gossip"
+	Simulation string
 	// Maximum time to wait for the whole thing to finish
 	// string because of ugly format of TOML encoding ---
 	MaxTimeout string
@@ -77,7 +80,7 @@ type RunConfig struct {
 	// Number of processes for this run
 	Processes int
 	// extra for particular information for specific platform for examples
-	Extra interface{}
+	Extra map[string]string
 }
 
 // LoadConfig looks up the given file to unmarshal a TOML encoded Config.
@@ -89,6 +92,9 @@ func LoadConfig(path string) *Config {
 	}
 	if c.MonitorPort == 0 {
 		c.MonitorPort = monitor.DefaultSinkPort
+	}
+	if c.Simulation == "" {
+		c.Simulation = "handel"
 	}
 	c.configPath = path
 	return c
