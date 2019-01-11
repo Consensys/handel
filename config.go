@@ -92,9 +92,9 @@ const DefaultUpdateCount = 1
 var DefaultBitSet = func(bitlength int) BitSet { return NewWilffBitset(bitlength) }
 
 // DefaultPartitioner returns the default implementation of the Partitioner used
-// by Handel, i.e. RandomBinPartitioner.
+// by Handel, i.e. BinPartitioner.
 var DefaultPartitioner = func(id int32, reg Registry) Partitioner {
-	return NewRandomBinPartitioner(id, reg, nil)
+	return NewBinPartitioner(id, reg)
 }
 
 // DefaultEvaluatorStrategy returns an evaluator based on the store's own
