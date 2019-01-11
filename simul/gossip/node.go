@@ -25,6 +25,9 @@ import (
 const topicName = "handel"
 const ping = "/echo/1.0.0"
 
+// NewRouter is a type to designate router creation factory
+type NewRouter func(context.Context, host.Host, ...pubsub.Option) (*pubsub.PubSub, error)
+
 // P2PIdentity represents the public side of a node within the libp2p gossip
 // context
 type P2PIdentity struct {
@@ -68,7 +71,7 @@ type P2PNode struct {
 }
 
 // NewP2PNode transforms a lib.Node to a p2p node.
-func NewP2PNode(ctx context.Context, handelNode *lib.Node) (*P2PNode, error) {
+func NewP2PNode(ctx context.Context, handelNode *lib.Node, n NewRouter) (*P2PNode, error) {
 	secret := handelNode.SecretKey.(*bn256.SecretKey)
 	pub := handelNode.Identity.PublicKey().(*bn256.PublicKey)
 	priv := &bn256Priv{
@@ -109,18 +112,19 @@ func NewP2PNode(ctx context.Context, handelNode *lib.Node) (*P2PNode, error) {
 
 	// create the pubsub struct
 	opt := pubsub.WithMessageSigning(false)
-	gossip, err := pubsub.NewGossipSub(ctx, basicHost, opt)
+	router, err := n(ctx, basicHost, opt)
+	//gossip, err := pubsub.NewGossipSub(ctx, basicHost, opt)
 	//gossip, err := pubsub.NewFloodSub(context.Background(), basicHost, opt)
 	if err != nil {
 		return nil, err
 	}
 
-	subscription, err := gossip.Subscribe(topicName)
+	subscription, err := router.Subscribe(topicName)
 	return &P2PNode{
 		handelID: handelNode.Identity.ID(),
 		priv:     priv,
 		h:        basicHost,
-		g:        gossip,
+		g:        router,
 		s:        subscription,
 	}, err
 }

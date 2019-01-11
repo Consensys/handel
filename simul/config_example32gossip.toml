@@ -11,7 +11,8 @@ Simulation = "gossip"
     Threshold = 50
     Processes = 5
     [Runs.Extra]
+        Router = "gossip"
         Connector = "neighbor"
-        Count = "15"
+        Count = "10"
 
 

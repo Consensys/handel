@@ -12,6 +12,9 @@ import (
 	h "github.com/ConsenSys/handel"
 	"github.com/ConsenSys/handel/simul/lib"
 	"github.com/ConsenSys/handel/simul/monitor"
+	golog "github.com/ipfs/go-log"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	gologging "github.com/whyrusleeping/go-logging"
 )
 
 // MaxCount represents the number of outgoing connections a gossip node should
@@ -38,7 +41,10 @@ var isMonitoring bool
 
 func main() {
 
-	//golog.SetAllLoggers(gologging.INFO)
+	if true {
+		golog.SetAllLoggers(gologging.INFO)
+	}
+
 	flag.Parse()
 	//
 	// SETUP PHASE
@@ -63,7 +69,8 @@ func main() {
 
 	cons := config.NewConstructor()
 	parser := lib.NewCSVParser()
-	registry, aggregators := ReadRegistry(ctx, *registryFile, parser, cons, ids)
+	registry, aggregators := ReadRegistry(ctx, *registryFile, parser, cons, ids,
+		extractRouter(&runConf))
 	list := registry.(*P2PRegistry)
 	// connect the nodes - create the overlay
 	connector, count := extractConnector(&runConf)
@@ -76,7 +83,7 @@ func main() {
 	}
 
 	fmt.Println(" overlay network  - connections - setup ")
-	time.Sleep(3 * time.Second)
+	time.Sleep(10 * time.Second)
 	// Sync with master - wait for the START signal
 	syncer := lib.NewSyncSlave(*syncAddr, *master, ids)
 	select {
@@ -94,6 +101,7 @@ func main() {
 
 	// Start all aggregators and run a timeout on the signature generation time
 	var wg sync.WaitGroup
+	var report = make(chan int, len(aggregators))
 	for i := range aggregators {
 		wg.Add(1)
 		go func(j int) {
@@ -109,8 +117,8 @@ func main() {
 				case sig = <-agg.FinalMultiSignature():
 					if sig.BitSet.Cardinality() >= runConf.Threshold {
 						enough = true
+						report <- int(id)
 						wg.Done()
-						fmt.Printf(" --- NODE  %d FINISHED ---\n", id)
 						break
 					}
 				case <-time.After(config.GetMaxTimeout()):
@@ -125,7 +133,17 @@ func main() {
 			}
 		}(i)
 	}
+
+	go func() {
+		total := len(aggregators)
+		curr := 1
+		for i := range report {
+			fmt.Printf(" --- NODE  %d  - %d/%d FINISHED ---\n", i, curr, total)
+			curr++
+		}
+	}()
 	wg.Wait()
+	close(report)
 	fmt.Println("signature valid & finished- sending state to sync master")
 
 	// Sync with master - wait to close our node
@@ -165,12 +183,17 @@ func (i *arrayFlags) Set(value string) error {
 
 // ReadRegistry extracts a list of P2PIdentity and the relevant Aggregators from the
 // registry directly - alleviating the need for keeping a second list.
-func ReadRegistry(ctx context.Context, uri string, parser lib.NodeParser, c lib.Constructor, ids []int) (h.Registry, []*Aggregator) {
+func ReadRegistry(ctx context.Context, uri string, parser lib.NodeParser, c lib.Constructor, ids []int, r NewRouter) (h.Registry, []*Aggregator) {
 	records, err := parser.Read(uri)
 	if err != nil {
 		panic(err)
 	}
 	total := len(records)
+
+	pubsub.GossipSubHistoryLength = total
+	pubsub.GossipSubHistoryGossip = total
+	pubsub.GossipSubHeartbeatInterval = 500 * time.Millisecond
+
 	var aggregators = make([]*Aggregator, 0, len(ids))
 	var registry = P2PRegistry(make([]*P2PIdentity, total))
 	for _, rec := range records {
@@ -185,7 +208,7 @@ func ReadRegistry(ctx context.Context, uri string, parser lib.NodeParser, c lib.
 		}
 
 		if isIncluded(ids, id) {
-			p2pNode, err := NewP2PNode(ctx, node)
+			p2pNode, err := NewP2PNode(ctx, node, r)
 			if err != nil {
 				fmt.Println(err)
 				panic(err)
@@ -231,4 +254,23 @@ func extractConnector(r *lib.RunConfig) (Connector, int) {
 	}
 	return con, count
 
+}
+
+func extractRouter(r *lib.RunConfig) NewRouter {
+	str, exists := r.Extra["Router"]
+	if !exists {
+		str = "flood"
+	}
+
+	var n NewRouter
+	switch strings.ToLower(str) {
+	case "flood":
+		fmt.Println("using flood router")
+		n = pubsub.NewFloodSub
+	case "gossip":
+		n = pubsub.NewGossipSub
+	default:
+		n = pubsub.NewGossipSub
+	}
+	return n
 }

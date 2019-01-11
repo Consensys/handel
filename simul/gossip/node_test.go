@@ -12,6 +12,7 @@ import (
 	"github.com/ConsenSys/handel"
 	"github.com/ConsenSys/handel/bn256"
 	"github.com/ConsenSys/handel/simul/lib"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,7 +23,8 @@ func TestAggregator(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	ids, nodes := FakeSetup(ctx, n, connector, nbOutgoing)
+	r := pubsub.NewFloodSub
+	ids, nodes := FakeSetup(ctx, n, nbOutgoing, connector, r)
 	registry := P2PRegistry(ids)
 	cons := bn256.NewConstructor()
 	aggregators := make([]*Aggregator, n)
@@ -53,7 +55,8 @@ func TestGossipMeshy(t *testing.T) {
 	defer cancel()
 	connector := NewNeighborConnector()
 	//connector := NewRandomConnector()
-	_, nodes := FakeSetup(ctx, n, connector, nbOutgoing)
+	r := pubsub.NewGossipSub
+	_, nodes := FakeSetup(ctx, n, nbOutgoing, connector, r)
 
 	time.Sleep(1 * time.Second)
 
@@ -73,7 +76,7 @@ func TestGossipMeshy(t *testing.T) {
 
 }
 
-func FakeSetup(ctx context.Context, n int, c Connector, max int) ([]*P2PIdentity, []*P2PNode) {
+func FakeSetup(ctx context.Context, n int, max int, c Connector, r NewRouter) ([]*P2PIdentity, []*P2PNode) {
 	base := 2000
 	addresses := make([]string, n)
 	for i := 0; i < n; i++ {
@@ -92,7 +95,7 @@ func FakeSetup(ctx context.Context, n int, c Connector, max int) ([]*P2PIdentity
 		if err != nil {
 			panic(err)
 		}
-		p2pNodes[i], err = NewP2PNode(ctx, node)
+		p2pNodes[i], err = NewP2PNode(ctx, node, r)
 		if err != nil {
 			panic(err)
 		}

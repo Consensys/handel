@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math/rand"
 )
 
@@ -21,11 +22,16 @@ func NewNeighborConnector() Connector {
 func (*neighbor) Connect(node *P2PNode, ids []*P2PIdentity, max int) error {
 	nodeID := int(node.handelID)
 	baseID := nodeID
-	chosen := 0
 	n := len(ids)
-	for chosen < max {
+	firstLoop := false
+	for chosen := 0; chosen < max; chosen++ {
 		if baseID == n {
+			if firstLoop {
+				fmt.Println("neighbor connection is looping!")
+				panic("aie")
+			}
 			baseID = 0
+			firstLoop = true
 		}
 		if baseID == nodeID {
 			baseID++
@@ -35,9 +41,7 @@ func (*neighbor) Connect(node *P2PNode, ids []*P2PIdentity, max int) error {
 			return err
 		}
 		//fmt.Printf("node %d connected to %d\n", nodeID, baseID)
-		chosen++
 		baseID++
-		continue
 	}
 	return nil
 }
