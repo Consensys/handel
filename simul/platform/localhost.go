@@ -31,7 +31,7 @@ func (l *localPlatform) Configure(c *lib.Config) error {
 	l.binPath = "/tmp/local.bin"
 	l.confPath = "/tmp/local.conf"
 	// Compile binaries
-	pack := "github.com/ConsenSys/handel/simul/node"
+	pack := c.GetBinaryPath()
 	cmd := NewCommand("go", "build", "-o", l.binPath, pack)
 	if err := cmd.Run(); err != nil {
 		fmt.Println("command output -> " + cmd.ReadAll())

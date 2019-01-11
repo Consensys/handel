@@ -14,8 +14,6 @@ import (
 	"github.com/ConsenSys/handel/simul/monitor"
 )
 
-var beaconBytes = []byte{0x01, 0x02, 0x03}
-
 // BeaconTimeout represents how much time do we wait to receive the beacon
 const BeaconTimeout = 2 * time.Minute
 

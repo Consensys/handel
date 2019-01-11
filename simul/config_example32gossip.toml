@@ -1,0 +1,18 @@
+Network = "udp"
+Curve = "bn256"
+Encoding = "gob"
+MonitorPort = 10000
+MaxTimeout = "2m" 
+Retrials = 1
+Simulation = "p2p"
+
+[[Runs]]
+    Nodes = 50
+    Threshold = 50
+    Processes = 5
+    [Runs.Extra]
+        Router = "gossip"
+        Connector = "neighbor"
+        Count = "10"
+
+

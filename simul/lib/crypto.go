@@ -49,28 +49,39 @@ type Generator interface {
 	KeyPair(io.Reader) (handel.SecretKey, handel.PublicKey)
 }
 
-type handelConstructor struct {
+// SimulConstructor is a constructor that wraps around a handel.Constructor and
+// add useful methods for the simulation (private key generation, etc)
+type SimulConstructor struct {
 	c handel.Constructor
 }
 
 // NewSimulConstructor returns a simulation Constructor
 func NewSimulConstructor(h handel.Constructor) Constructor {
-	return &handelConstructor{h}
+	return &SimulConstructor{h}
 }
 
-func (h *handelConstructor) PublicKey() PublicKey {
+// PublicKey implements the Constructor interface
+func (h *SimulConstructor) PublicKey() PublicKey {
 	return h.c.PublicKey().(PublicKey)
 }
-func (h *handelConstructor) SecretKey() SecretKey {
+
+// SecretKey implements the Constructor interface
+func (h *SimulConstructor) SecretKey() SecretKey {
 	return h.c.(SecretConstructor).SecretKey().(SecretKey)
 }
-func (h *handelConstructor) Signature() handel.Signature {
+
+// Signature implements the Constructor interface
+func (h *SimulConstructor) Signature() handel.Signature {
 	return h.c.Signature()
 }
-func (h *handelConstructor) Handel() handel.Constructor {
+
+// Handel implements the Constructor interface
+func (h *SimulConstructor) Handel() handel.Constructor {
 	return h.c
 }
-func (h *handelConstructor) KeyPair(r io.Reader) (SecretKey, PublicKey) {
+
+// KeyPair implements the Constructor interface
+func (h *SimulConstructor) KeyPair(r io.Reader) (SecretKey, PublicKey) {
 	sec, pub := h.c.(Generator).KeyPair(r)
 	return sec.(SecretKey), pub.(PublicKey)
 }

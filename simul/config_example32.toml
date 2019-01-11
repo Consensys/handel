@@ -4,20 +4,11 @@ Encoding = "gob"
 MonitorPort = 10000
 MaxTimeout = "2m" 
 Retrials = 1
+Simulation = "handel"
 
 [[Runs]]
-    Nodes = 32
-    Threshold = 25
-    Failing = 7
-
-[[Runs]]
-    Nodes = 49
-    Threshold = 49
-    Failing = 0
-
-[[Runs]]
-    Nodes = 64
-    Threshold = 56
-    Failing = 8
+    Nodes = 50
+    Threshold = 50
+    Processes = 5
 
 
