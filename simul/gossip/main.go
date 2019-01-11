@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"strconv"
@@ -42,6 +43,10 @@ func main() {
 	//
 	// SETUP PHASE
 	//
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	if *monitorAddr != "" {
 		isMonitoring = true
 		if err := monitor.ConnectSink(*monitorAddr); err != nil {
@@ -58,7 +63,7 @@ func main() {
 
 	cons := config.NewConstructor()
 	parser := lib.NewCSVParser()
-	registry, aggregators := ReadRegistry(*registryFile, parser, cons, ids)
+	registry, aggregators := ReadRegistry(ctx, *registryFile, parser, cons, ids)
 	list := registry.(*P2PRegistry)
 	// connect the nodes - create the overlay
 	connector, count := extractConnector(&runConf)
@@ -158,7 +163,7 @@ func (i *arrayFlags) Set(value string) error {
 
 // ReadRegistry extracts a list of P2PIdentity and the relevant Aggregators from the
 // registry directly - alleviating the need for keeping a second list.
-func ReadRegistry(uri string, parser lib.NodeParser, c lib.Constructor, ids []int) (h.Registry, []*Aggregator) {
+func ReadRegistry(ctx context.Context, uri string, parser lib.NodeParser, c lib.Constructor, ids []int) (h.Registry, []*Aggregator) {
 	records, err := parser.Read(uri)
 	if err != nil {
 		panic(err)
@@ -179,7 +184,7 @@ func ReadRegistry(uri string, parser lib.NodeParser, c lib.Constructor, ids []in
 
 		if isIncluded(ids, id) {
 			fmt.Println("creating node ", node)
-			p2pNode, err := NewP2PNode(node)
+			p2pNode, err := NewP2PNode(ctx, node)
 			if err != nil {
 				fmt.Println(err)
 				panic(err)

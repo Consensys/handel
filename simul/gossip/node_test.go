@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"strconv"
@@ -18,7 +19,10 @@ func TestAggregator(t *testing.T) {
 	n := 50
 	nbOutgoing := 3
 	connector := NewNeighborConnector()
-	ids, nodes := FakeSetup(n, connector, nbOutgoing)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	ids, nodes := FakeSetup(ctx, n, connector, nbOutgoing)
 	registry := P2PRegistry(ids)
 	cons := bn256.NewConstructor()
 	aggregators := make([]*Aggregator, n)
@@ -45,9 +49,11 @@ func TestAggregator(t *testing.T) {
 func TestGossipMeshy(t *testing.T) {
 	n := 50
 	nbOutgoing := 3
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	connector := NewNeighborConnector()
 	//connector := NewRandomConnector()
-	_, nodes := FakeSetup(n, connector, nbOutgoing)
+	_, nodes := FakeSetup(ctx, n, connector, nbOutgoing)
 
 	time.Sleep(1 * time.Second)
 
@@ -67,7 +73,7 @@ func TestGossipMeshy(t *testing.T) {
 
 }
 
-func FakeSetup(n int, c Connector, max int) ([]*P2PIdentity, []*P2PNode) {
+func FakeSetup(ctx context.Context, n int, c Connector, max int) ([]*P2PIdentity, []*P2PNode) {
 	base := 2000
 	addresses := make([]string, n)
 	for i := 0; i < n; i++ {
@@ -86,7 +92,7 @@ func FakeSetup(n int, c Connector, max int) ([]*P2PIdentity, []*P2PNode) {
 		if err != nil {
 			panic(err)
 		}
-		p2pNodes[i], err = NewP2PNode(node)
+		p2pNodes[i], err = NewP2PNode(ctx, node)
 		if err != nil {
 			panic(err)
 		}
