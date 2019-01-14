@@ -9,4 +9,4 @@ Retrials = 1
     Nodes = 5
     Threshold = 3
     Failing = 2
-    Processes = 2
+    Processes = 1

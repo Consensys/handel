@@ -84,55 +84,35 @@ func copyFile(sftpClient *sftp.Client, file string) error {
 }
 
 //Run runs command on a remote host using ssh and waits for output
-func (sshCMD *sshController) Run(command string) (io.Reader, error) {
+func (sshCMD *sshController) Run(command string, pw *io.PipeWriter) error {
 	session, err := sshCMD.client.NewSession()
 	if err != nil {
-		return nil, err
+		return err
 	}
+	defer session.Close()
 
 	// +++ We need to be careful here:
 	// From the doc:
 	// If the StdoutPipe reader is
 	// not serviced fast enough it may eventually cause the
 	// remote command to block.
-	outPipe, err := session.StdoutPipe()
-	if err != nil {
-		return nil, err
+	if pw != nil {
+		outPipe, err := session.StdoutPipe()
+		if err != nil {
+			return err
+		}
+		errPipe, err := session.StderrPipe()
+		if err != nil {
+			return err
+		}
+		pipe := io.MultiReader(outPipe, errPipe)
+		go func() {
+			io.Copy(pw, pipe)
+		}()
 	}
-	errPipe, err := session.StderrPipe()
-	if err != nil {
-		return nil, err
-	}
-	pipe := io.MultiReader(outPipe, errPipe)
-	if err != nil {
-		return nil, err
-	}
-	// +++Seems like even after closing ssh-session we can recive data (it works)
-	// From the doc:
-	// Close signals end of channel use. No data may be sent after this call.
-	defer session.Close()
-
 	err = session.Run(command)
 	if err != nil {
 		fmt.Println("SSH Run error ", command, sshCMD.sshHost, err)
-		return nil, err
-	}
-	return pipe, nil
-}
-
-//Start starts command on a remote host using ssh
-func (sshCMD *sshController) Start(command string) error {
-	session, err := sshCMD.client.NewSession()
-
-	if err != nil {
-		return err
-	}
-
-	defer session.Close()
-
-	err = session.Start(command)
-	if err != nil {
-		fmt.Println("Error ", err)
 		return err
 	}
 	return nil
