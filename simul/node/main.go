@@ -50,7 +50,7 @@ func main() {
 	// too much when overloading
 	config := lib.LoadConfig(*configFile)
 	runConf := config.Runs[*run]
-
+	fmt.Printf(" -- RUNCONFIG THRESHOLD %d\n", runConf.GetHandelConfig().Contributions)
 	cons := config.NewConstructor()
 	parser := lib.NewCSVParser()
 	nodeList, err := lib.ReadAll(*registryFile, parser, cons)
@@ -112,7 +112,8 @@ func main() {
 					if sig.BitSet.Cardinality() >= runConf.Threshold {
 						enough = true
 						wg.Done()
-						fmt.Printf(" --- NODE  %d FINISHED ---\n", id)
+						fmt.Printf(" --- NODE  %d FINISHED %d/%d---\n", id,
+							sig.Cardinality(), runConf.Threshold)
 						break
 					}
 				case <-time.After(config.GetMaxTimeout()):

@@ -248,12 +248,22 @@ func (c *Config) GetBinaryPath() string {
 	}
 }
 
+// GetThreshold returns the threshold to use for this run config - if 0 it
+// returns the number of nodes
+func (r *RunConfig) GetThreshold() int {
+	if r.Threshold == 0 {
+		return r.Nodes
+	}
+	return r.Threshold
+}
+
 // GetHandelConfig returns the config to pass down to handel instances
 // Returns the default if not set
 func (r *RunConfig) GetHandelConfig() *handel.Config {
 	ch := &handel.Config{}
 	if r.Handel == nil {
-		return handel.DefaultConfig(r.Nodes)
+		ch = handel.DefaultConfig(r.Nodes)
+		ch.Contributions = r.Threshold
 	}
 	period, err := time.ParseDuration(r.Handel.Period)
 	if err != nil {
@@ -262,6 +272,7 @@ func (r *RunConfig) GetHandelConfig() *handel.Config {
 	ch.UpdatePeriod = period
 	ch.UpdateCount = r.Handel.UpdateCount
 	ch.NodeCount = r.Handel.NodeCount
+	ch.Contributions = r.GetThreshold()
 	return ch
 }
 
