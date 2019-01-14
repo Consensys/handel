@@ -14,8 +14,6 @@ import (
 	"github.com/ConsenSys/handel/simul/monitor"
 )
 
-var beaconBytes = []byte{0x01, 0x02, 0x03}
-
 // BeaconTimeout represents how much time do we wait to receive the beacon
 const BeaconTimeout = 2 * time.Minute
 
@@ -102,6 +100,8 @@ func main() {
 			handel := handels[j]
 			id := ids[j]
 			signatureGen := monitor.NewTimeMeasure("sigen")
+			netMeasure := monitor.NewCounterMeasure("net", handel.Network())
+			storeMeasure := monitor.NewCounterMeasure("store", handel.Store())
 			go handel.Start()
 			// Wait for final signatures !
 			enough := false
@@ -120,6 +120,8 @@ func main() {
 				}
 			}
 			signatureGen.Record()
+			netMeasure.Record()
+			storeMeasure.Record()
 			fmt.Println("reached good enough multi-signature!")
 
 			if err := h.VerifyMultiSignature(lib.Message, &sig, registry, cons.Handel()); err != nil {
