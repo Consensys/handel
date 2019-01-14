@@ -50,7 +50,6 @@ func main() {
 	// too much when overloading
 	config := lib.LoadConfig(*configFile)
 	runConf := config.Runs[*run]
-	fmt.Printf(" -- RUNCONFIG THRESHOLD %d\n", runConf.GetHandelConfig().Contributions)
 	cons := config.NewConstructor()
 	parser := lib.NewCSVParser()
 	nodeList, err := lib.ReadAll(*registryFile, parser, cons)
