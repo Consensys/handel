@@ -1,4 +1,4 @@
-package main
+package p2p
 
 import (
 	"context"
@@ -9,11 +9,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ConsenSys/handel"
 	h "github.com/ConsenSys/handel"
 	"github.com/ConsenSys/handel/simul/lib"
 	"github.com/ConsenSys/handel/simul/monitor"
 	golog "github.com/ipfs/go-log"
-	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	gologging "github.com/whyrusleeping/go-logging"
 )
 
@@ -39,7 +39,8 @@ func init() {
 
 var isMonitoring bool
 
-func main() {
+// Run starts the simulation
+func Run(a Adaptor) {
 
 	if true {
 		golog.SetAllLoggers(gologging.INFO)
@@ -69,13 +70,17 @@ func main() {
 
 	cons := config.NewConstructor()
 	parser := lib.NewCSVParser()
-	registry, aggregators := ReadRegistry(ctx, *registryFile, parser, cons, ids,
-		extractRouter(&runConf))
-	list := registry.(*P2PRegistry)
+	// read CSV records
+	records, err := parser.Read(*registryFile)
+	requireNil(err)
+	// transform into lib.Node
+	libNodes, err := toLibNodes(cons, records)
+	registry, p2pNodes := a.Make(ctx, libNodes, ids, runConf.Extra)
+	aggregators := MakeAggregators(cons, libNodes, p2pNodes, registry)
 	// connect the nodes - create the overlay
 	connector, count := extractConnector(&runConf)
 	for _, agg := range aggregators {
-		err := connector.Connect(agg.P2PNode, []*P2PIdentity(*list), count)
+		err := connector.Connect(agg, registry, count)
 		if err != nil {
 			fmt.Println("err : ", err)
 			panic(err)
@@ -106,7 +111,7 @@ func main() {
 		wg.Add(1)
 		go func(j int) {
 			agg := aggregators[j]
-			id := agg.handelID
+			id := agg.Identity().ID()
 			signatureGen := monitor.NewTimeMeasure("sigen")
 			go agg.Start()
 			// Wait for final signatures !
@@ -181,46 +186,24 @@ func (i *arrayFlags) Set(value string) error {
 	return nil
 }
 
-// ReadRegistry extracts a list of P2PIdentity and the relevant Aggregators from the
-// registry directly - alleviating the need for keeping a second list.
-func ReadRegistry(ctx context.Context, uri string, parser lib.NodeParser, c lib.Constructor, ids []int, r NewRouter) (h.Registry, []*Aggregator) {
-	records, err := parser.Read(uri)
-	if err != nil {
-		panic(err)
-	}
-	total := len(records)
-
-	pubsub.GossipSubHistoryLength = total
-	pubsub.GossipSubHistoryGossip = total
-	pubsub.GossipSubHeartbeatInterval = 500 * time.Millisecond
-
-	var aggregators = make([]*Aggregator, 0, len(ids))
-	var registry = P2PRegistry(make([]*P2PIdentity, total))
-	for _, rec := range records {
-		node, err := rec.ToNode(c)
+// MakeAggregators returns
+func MakeAggregators(c lib.Constructor, ln []*lib.Node, nodes []Node, reg handel.Registry) []*Aggregator {
+	var aggs = make([]*Aggregator, len(nodes))
+	for i, node := range nodes {
+		sig, err := ln[i].SecretKey.Sign(lib.Message, nil)
 		if err != nil {
+			fmt.Println(err)
 			panic(err)
 		}
-		id := int(node.ID())
-		registry[id], err = NewP2PIdentity(node.Identity)
-		if err != nil {
-			panic(err)
-		}
-
-		if isIncluded(ids, id) {
-			p2pNode, err := NewP2PNode(ctx, node, r)
-			if err != nil {
-				fmt.Println(err)
-				panic(err)
-			}
-			agg := NewAggregator(p2pNode, &registry, c.Handel(), total)
-			aggregators = append(aggregators, agg)
-		}
+		agg := NewAggregator(node, reg, c.Handel(), sig)
+		aggs[i] = agg
 	}
-	return &registry, aggregators
+	return aggs
+
 }
 
-func isIncluded(arr []int, v int) bool {
+// IsIncluded returns true if the index is contained in the array
+func IsIncluded(arr []int, v int) bool {
 	for _, a := range arr {
 		if v == a {
 			return true
@@ -256,21 +239,21 @@ func extractConnector(r *lib.RunConfig) (Connector, int) {
 
 }
 
-func extractRouter(r *lib.RunConfig) NewRouter {
-	str, exists := r.Extra["Router"]
-	if !exists {
-		str = "flood"
+func toLibNodes(c lib.Constructor, nr []*lib.NodeRecord) ([]*lib.Node, error) {
+	n := len(nr)
+	nodes := make([]*lib.Node, n)
+	var err error
+	for i, record := range nr {
+		nodes[i], err = record.ToNode(c)
+		if err != nil {
+			return nil, err
+		}
 	}
+	return nodes, nil
+}
 
-	var n NewRouter
-	switch strings.ToLower(str) {
-	case "flood":
-		fmt.Println("using flood router")
-		n = pubsub.NewFloodSub
-	case "gossip":
-		n = pubsub.NewGossipSub
-	default:
-		n = pubsub.NewGossipSub
+func requireNil(err error) {
+	if err != nil {
+		panic(err)
 	}
-	return n
 }

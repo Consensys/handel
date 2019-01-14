@@ -1,14 +1,17 @@
-package main
+package p2p
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
+
+	"github.com/ConsenSys/handel"
 )
 
 // Connector holds the logic to connect a node to a set of IDs on the overlay
 // network
 type Connector interface {
-	Connect(node *P2PNode, ids []*P2PIdentity, max int) error
+	Connect(node Node, ids handel.Registry, max int) error
 }
 
 type neighbor struct{}
@@ -19,10 +22,11 @@ func NewNeighborConnector() Connector {
 	return &neighbor{}
 }
 
-func (*neighbor) Connect(node *P2PNode, ids []*P2PIdentity, max int) error {
-	nodeID := int(node.handelID)
+func (*neighbor) Connect(node Node, reg handel.Registry, max int) error {
+
+	nodeID := int(node.Identity().ID())
 	baseID := nodeID
-	n := len(ids)
+	n := reg.Size()
 	firstLoop := false
 	for chosen := 0; chosen < max; chosen++ {
 		if baseID == n {
@@ -37,7 +41,11 @@ func (*neighbor) Connect(node *P2PNode, ids []*P2PIdentity, max int) error {
 			baseID++
 			continue
 		}
-		if err := node.Connect(ids[baseID]); err != nil {
+		id, ok := reg.Identity(baseID)
+		if !ok {
+			return errors.New("h-- identity not found")
+		}
+		if err := node.Connect(id); err != nil {
 			return err
 		}
 		//fmt.Printf("node %d connected to %d\n", nodeID, baseID)
@@ -51,13 +59,16 @@ type random struct{}
 // NewRandomConnector returns a Connector that connects nodes randomly
 func NewRandomConnector() Connector { return &random{} }
 
-func (*random) Connect(node *P2PNode, ids []*P2PIdentity, max int) error {
-	n := len(ids)
-	own := node.handelID
+func (*random) Connect(node Node, reg handel.Registry, max int) error {
+	n := reg.Size()
+	own := node.Identity().ID()
 	//fmt.Printf("- node %d connects to...", node.handelID)
 	for chosen := 0; chosen < max; chosen++ {
-		identity := ids[rand.Intn(n)]
-		if identity.Identity.ID() == own {
+		identity, ok := reg.Identity(rand.Intn(n))
+		if !ok {
+			return errors.New("invalid index")
+		}
+		if identity.ID() == own {
 			chosen--
 			continue
 		}
