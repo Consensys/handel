@@ -154,8 +154,8 @@ type CounterMeasure struct {
 	baseMap map[string]float64
 }
 
-// NewCounterMeasure returns an CounterMeasure fresh. The base value are set
-// to the current value of counter.Rx() and counter.Tx()
+// NewCounterMeasure returns an CounterMeasure fresh. The base value are set to
+// the values returned by counter.Values().
 func NewCounterMeasure(name string, counter Counter) *CounterMeasure {
 	return &CounterMeasure{
 		name:    name,

@@ -1,9 +1,9 @@
 package platform
 
 import (
-	"flag"
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -12,10 +12,7 @@ import (
 	"github.com/ConsenSys/handel/simul/monitor"
 )
 
-var processes = flag.Int("proc", 0, "number of processes to run locally")
-
 type localPlatform struct {
-	proc     int
 	c        *lib.Config
 	regPath  string
 	binPath  string
@@ -26,18 +23,15 @@ type localPlatform struct {
 }
 
 // NewLocalhost returns a Platform that is executing binaries on localhost
-func NewLocalhost() Platform { return &localPlatform{proc: *processes} }
+func NewLocalhost() Platform { return &localPlatform{} }
 
 func (l *localPlatform) Configure(c *lib.Config) error {
-	if l.proc == 0 {
-		l.proc = c.MaxNodes()
-	}
 	l.c = c
 	l.regPath = "/tmp/local.csv"
 	l.binPath = "/tmp/local.bin"
 	l.confPath = "/tmp/local.conf"
 	// Compile binaries
-	pack := "github.com/ConsenSys/handel/simul/node"
+	pack := c.GetBinaryPath()
 	cmd := NewCommand("go", "build", "-o", l.binPath, pack)
 	if err := cmd.Run(); err != nil {
 		fmt.Println("command output -> " + cmd.ReadAll())
@@ -58,7 +52,7 @@ func (l *localPlatform) Configure(c *lib.Config) error {
 }
 
 func (l *localPlatform) Cleanup() error {
-	os.RemoveAll(l.regPath)
+	//os.RemoveAll(l.regPath)
 	l.Lock()
 	defer l.Unlock()
 
@@ -82,14 +76,18 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 	// 1. Generate & write the registry file
 	cons := l.c.NewConstructor()
 	parser := lib.NewCSVParser()
-	procInfos, addresses := genProcInfo(r.Nodes, l.proc)
+	allocator := l.c.NewAllocator()
+
+	procInfos, addresses := genProcInfo(r.Nodes, r.Processes)
 	nodes := lib.GenerateNodes(cons, addresses)
 	lib.WriteAll(nodes, parser, l.regPath)
 	fmt.Println("[+] Registry file written (", r.Nodes, " nodes)")
+	// ids of the active nodes
+	actives := allocator.Allocate(r.Nodes, r.Failing)
 
 	// 2. Run the sync master
 	masterAddr := lib.FindFreeUDPAddress()
-	master := lib.NewSyncMaster(masterAddr, r.Nodes)
+	master := lib.NewSyncMaster(masterAddr, len(actives), r.Nodes)
 	fmt.Println("[+] Master synchronization daemon launched")
 
 	// 3. Run binaries
@@ -107,7 +105,10 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 		copy(args, sameArgs)
 		proc := procInfos[i]
 		for _, id := range proc.ids {
-			args = append(args, []string{"-id", strconv.Itoa(id)}...)
+			idx := sort.Search(len(actives), func(i int) bool { return actives[i] >= id })
+			if idx < len(actives) && actives[idx] == id {
+				args = append(args, []string{"-id", strconv.Itoa(id)}...)
+			}
 		}
 		args = append(args, []string{"-sync", proc.syncAddr,
 			"-run", strconv.Itoa(idx)}...)
@@ -117,7 +118,7 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 		go func(j int) {
 			fmt.Printf("[+] Starting node %d.\n", j)
 			if err := commands[j].Start(); err != nil {
-				fmt.Printf("node %d: %s\n",
+				fmt.Printf("PROC %d: %s\n",
 					j, commands[j].ReadAll())
 				errCh <- j
 				return
@@ -125,12 +126,12 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 
 			go func() {
 				for str := range commands[j].LineOutput() {
-					fmt.Printf("NODE %d: %s\n", j, str)
+					fmt.Printf("PROC %d: %s\n", j, str)
 				}
 			}()
 			time.Sleep(200 * time.Millisecond)
 			if err := commands[j].Wait(); err != nil {
-				fmt.Printf("node %d: %s\n", j, commands[j].ReadAll())
+				fmt.Printf("PROC %d: %s\n", j, commands[j].ReadAll())
 
 				errCh <- j
 			}
@@ -187,6 +188,7 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 	stats.WriteValues(l.csvFile)
 	fmt.Printf("[+] Closing down monitor & writing stats to\n\t%s\n", l.c.GetResultsFile())
 
+	fmt.Println("REGPATH = ", l.regPath)
 	/*for i, command := range commands {*/
 	//if str := command.Stdout(); str != "" {
 	//fmt.Printf(" ----- node %d output -----\n\t%s\n ----------------\n", i, str)
@@ -208,7 +210,7 @@ func (p *procInfo) String() string {
 func genProcInfo(nHandels, nProc int) ([]procInfo, []string) {
 	infos := make([]procInfo, nProc)
 	globalHandels := make([]string, 0, nHandels)
-	handelPerProc, rem := divmod(nHandels, nProc)
+	handelPerProc, rem := lib.Divmod(nHandels, nProc)
 	base := 3000
 	baseSync := 25000
 	baseID := 0
@@ -238,12 +240,6 @@ func genProcInfo(nHandels, nProc int) ([]procInfo, []string) {
 		panic("aie aie aie")
 	}
 	return infos, globalHandels
-}
-
-func divmod(numerator, denominator int) (quotient, remainder int) {
-	quotient = numerator / denominator // integer division, decimals are truncated
-	remainder = numerator % denominator
-	return
 }
 
 // this generates n * 2 addresses: one for handel, one for the sync

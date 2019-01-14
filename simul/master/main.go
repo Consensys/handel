@@ -13,7 +13,8 @@ import (
 	"github.com/ConsenSys/handel/simul/monitor"
 )
 
-var nbOfNodes = flag.Int("nbOfNodes", 0, "number of slave nodes")
+var nbOfNodes = flag.Int("nbOfNodes", 0, "total number of slave nodes")
+var nbOffline = flag.Int("nbOffline", 0, "number of offline nodes")
 var nbOfInstances = flag.Int("nbOfInstances", 0, "number of slave instances")
 
 var timeOut = flag.Int("timeOut", 0, "timeout in minutes")
@@ -35,7 +36,8 @@ func init() {
 }
 func main() {
 	flag.Parse()
-	master := lib.NewSyncMaster(*masterAddr, *nbOfNodes)
+	active := *nbOfNodes - *nbOffline
+	master := lib.NewSyncMaster(*masterAddr, active, *nbOfNodes)
 	fmt.Println("Master: listen on", *masterAddr)
 
 	os.MkdirAll(resultsDir, 0777)
@@ -47,7 +49,7 @@ func main() {
 	}
 	defer csvFile.Close()
 
-	stats := DefaultStats(*run, *nbOfNodes, *threshold, *nbOfInstances, *network)
+	stats := defaultStats(*run, *nbOfNodes, *threshold, *nbOfInstances, *network)
 	mon := monitor.NewMonitor(10000, stats)
 	go mon.Listen()
 
@@ -78,7 +80,7 @@ func main() {
 	mon.Stop()
 }
 
-func DefaultStats(run, nodes, threshold, nbOfInstances int, network string) *monitor.Stats {
+func defaultStats(run, nodes, threshold, nbOfInstances int, network string) *monitor.Stats {
 	return monitor.NewStats(map[string]string{
 		"run":            strconv.Itoa(run),
 		"totalNbOfNodes": strconv.Itoa(nodes),

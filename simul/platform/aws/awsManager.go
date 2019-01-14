@@ -19,7 +19,9 @@ type Instance struct {
 	// EC2 Instance TAG
 	Tag string
 
-	Nodes []NodeAndSync
+	Nodes []*lib.Node
+
+	Sync string
 }
 
 //Manager manages group of EC2 instances
@@ -57,23 +59,55 @@ func GenRemoteAddress(ip string, port int) string {
 	return addr
 }
 
-func UpdateInstances(instances []*Instance, nbOfNodesPerInstance int, cons lib.Constructor) {
-	for idx, inst := range instances {
-		UpdateInstance(idx, inst, nbOfNodesPerInstance, cons)
+type info struct {
+	id     int
+	active bool
+}
+
+// UpdateInstances bla
+func UpdateInstances(actives []int, total int, instances []*Instance, cons lib.Constructor) {
+	nodesPerInstance := make([][]info, len(instances))
+	instID := 0
+	for id := 0; id < total; id++ {
+		var active bool
+		if isContained(actives, id) {
+			active = true
+		}
+		info := info{id, active}
+		nodesPerInstance[instID] = append(nodesPerInstance[instID], info)
+		instID++
+		if instID >= len(instances) {
+			instID = 0
+		}
+	}
+
+	for i, inst := range instances {
+		UpdateInstance(nodesPerInstance[i], inst, cons)
 	}
 }
 
-func UpdateInstance(idx int, instances *Instance, nbOfNodesPerInstance int, cons lib.Constructor) {
-	var ls = []NodeAndSync{}
-	for i := 0; i < nbOfNodesPerInstance; i++ {
-		addr1 := GenRemoteAddress(*instances.PublicIP, base+i)
-		addr2 := GenRemoteAddress(*instances.PublicIP, base+nbOfNodesPerInstance+i)
-		node := lib.GenerateNode(cons, nbOfNodesPerInstance*idx+i, addr1)
-		nodeAndSync := NodeAndSync{node, addr2}
-
-		ls = append(ls, nodeAndSync)
+func isContained(arr []int, v int) bool {
+	for _, v2 := range arr {
+		if v2 == v {
+			return true
+		}
 	}
+	return false
+}
+
+// UpdateInstance bla
+func UpdateInstance(nodes []info, instances *Instance, cons lib.Constructor) {
+	var ls []*lib.Node
+	for i, n := range nodes {
+		addr1 := GenRemoteAddress(*instances.PublicIP, base+i)
+		node := lib.GenerateNode(cons, n.id, addr1)
+		node.Active = n.active
+		ls = append(ls, node)
+	}
+
+	syncAaddr := GenRemoteAddress(*instances.PublicIP, base+len(nodes)+1)
 	instances.Nodes = ls
+	instances.Sync = syncAaddr
 }
 
 // WaitUntilAllInstancesRunning blocks until all instances are

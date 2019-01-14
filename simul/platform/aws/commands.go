@@ -66,8 +66,8 @@ func (c MasterCommands) ShareRegistryFile() map[int]string {
 }
 
 // Start starts master executable
-func (c MasterCommands) Start(masterAddr string, nbOfNodes, nbOfInstances, timeOut int, run int, threshold int, network string, resFile string, monitorPort int) string {
-	return "nohup " + c.MasterBinPath + " -masterAddr " + masterAddr + " -nbOfNodes " + strconv.Itoa(nbOfNodes) + " -nbOfInstances " + strconv.Itoa(nbOfInstances) + " -timeOut " + strconv.Itoa(timeOut) + " -run " + strconv.Itoa(run) + " -threshold " + strconv.Itoa(threshold) + " -network " + network + " -resultFile " + resFile + " -monitorPort " + strconv.Itoa(monitorPort) + " &> " + logFile + "_" + strconv.Itoa(run)
+func (c MasterCommands) Start(masterAddr string, nbOfNodes, nbOffline, nbOfInstances, timeOut int, run int, threshold int, network string, resFile string, monitorPort int) string {
+	return "nohup " + c.MasterBinPath + " -masterAddr " + masterAddr + " -nbOfNodes " + strconv.Itoa(nbOfNodes) + " -nbOffline " + strconv.Itoa(nbOffline) + " -nbOfInstances " + strconv.Itoa(nbOfInstances) + " -timeOut " + strconv.Itoa(timeOut) + " -run " + strconv.Itoa(run) + " -threshold " + strconv.Itoa(threshold) + " -network " + network + " -resultFile " + resFile + " -monitorPort " + strconv.Itoa(monitorPort) + " &> " + logFile + "_" + strconv.Itoa(run)
 }
 
 // Configure copies files form the shared directory to slave local storage
@@ -89,8 +89,8 @@ func (c SlaveCommands) CopyRegistryFileFromSharedDirToLocalStorage() map[int]str
 }
 
 // Start starts executable
-func (c SlaveCommands) Start(masterAddr, sync string, monitorAddr string, id, run int, log string) string {
-	return "nohup " + c.SlaveBinPath + " -config " + c.ConfPath + " -registry " + c.RegPath + " -monitor " + monitorAddr + " -master " + masterAddr + " -id " + strconv.Itoa(id) + " -sync " + sync + " -run " + strconv.Itoa(run) + " &> " + log + " &"
+func (c SlaveCommands) Start(masterAddr, sync string, monitorAddr, ids string, run int) string {
+	return /*"nohup " + */ c.SlaveBinPath + " -config " + c.ConfPath + " -registry " + c.RegPath + " -monitor " + monitorAddr + " -master " + masterAddr + ids + " -sync " + sync + " -run " + strconv.Itoa(run)
 }
 
 func cmdMapToString(cmds map[int]string) string {

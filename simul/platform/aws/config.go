@@ -7,7 +7,6 @@ import (
 type Config struct {
 	PemFile       string
 	Regions       []string
-	NbOfInstances int
 	MasterTimeOut int
 	SSHUser       string
 	TargetSystem  string

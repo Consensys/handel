@@ -1,12 +1,8 @@
 package handel
 
 import (
-	cryptoRand "crypto/rand"
-	"encoding/binary"
 	"errors"
 	"math"
-	"math/rand"
-	mathRand "math/rand"
 )
 
 // Partitioner is a generic interface holding the logic used to partition the
@@ -334,58 +330,4 @@ func (c *binomialPartitioner) combine(sigs []*sigPair, nbs func(int) BitSet) *si
 			BitSet:    finalBitSet,
 		},
 	}
-}
-
-// randomBinPartitioner is a Partitioner similar to binTreePartition with
-// randomization.  Basically the only impacted method is `PickNextAt`: it now
-// returns nodes in a candidate set in a random order.
-type randomBinPartitioner struct {
-	*binomialPartitioner
-	r       *mathRand.Rand
-	genesis [8]byte
-	seeds   map[int]int64
-}
-
-// NewRandomBinPartitioner returns a randomBinPartitioner initialized with the
-// given seed. If the seed is nil, it reads from Golang's cryptographically secure
-// random source with `crypto.Read`.
-func NewRandomBinPartitioner(id int32, reg Registry, seed []byte) Partitioner {
-	b := NewBinPartitioner(id, reg)
-	if seed == nil {
-		seed = make([]byte, 8)
-		cryptoRand.Read(seed)
-	}
-	var source [8]byte
-	copy(source[:], seed)
-	rnd := mathRand.New(&cryptoSource{})
-	return &randomBinPartitioner{
-		binomialPartitioner: b.(*binomialPartitioner),
-		r:                   rnd,
-		genesis:             source,
-		seeds:               computeSeeds(b.MaxLevel(), rnd),
-	}
-}
-
-
-func computeSeeds(levels int, r *rand.Rand) map[int]int64 {
-	m := make(map[int]int64)
-	for i := 0; i <= levels; i++ {
-		m[i] = r.Int63()
-	}
-	return m
-}
-
-// random permutation based on /dev/urandom
-// taken from
-// https://stackoverflow.com/questions/40965044/using-crypto-rand
-// -for-generating-permutations-with-rand-perm
-type cryptoSource [8]byte
-
-func (s *cryptoSource) Int63() int64 {
-	cryptoRand.Read(s[:])
-	return int64(binary.BigEndian.Uint64(s[:]) & (1<<63 - 1))
-}
-
-func (s *cryptoSource) Seed(seed int64) {
-	panic("seed")
 }
