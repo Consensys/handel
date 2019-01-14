@@ -85,10 +85,11 @@ type evaluatorProcessing struct {
 	out       chan sigPair
 	todos     []*sigPair
 	evaluator SigEvaluator
+	log       Logger
 }
 
 // TODO handel argument only for logging
-func newEvaluatorProcessing(part Partitioner, c Constructor, msg []byte, e SigEvaluator, h *Handel) signatureProcessing {
+func newEvaluatorProcessing(part Partitioner, c Constructor, msg []byte, e SigEvaluator, log Logger) signatureProcessing {
 	m := sync.Mutex{}
 
 	ev := &evaluatorProcessing{
@@ -100,7 +101,7 @@ func newEvaluatorProcessing(part Partitioner, c Constructor, msg []byte, e SigEv
 		out:       make(chan sigPair, 1000),
 		todos:     make([]*sigPair, 0),
 		evaluator: e,
-		h:         h,
+		log:       log,
 	}
 	return ev
 }
@@ -123,7 +124,7 @@ func (f *evaluatorProcessing) Add(sp *sigPair) {
 
 	f.todos = append(f.todos, sp)
 	if f.h != nil && false {
-		f.h.logf("added %s", sp)
+		f.log.Debug("process_add", sp)
 	}
 	f.cond.Signal()
 }
@@ -135,12 +136,9 @@ func (f *evaluatorProcessing) readTodos() (bool, *sigPair) {
 	defer f.cond.L.Unlock()
 	for len(f.todos) == 0 {
 		if f.h != nil && false {
-			f.h.logf("waiting, todos is empty")
+			f.log.Debug("empty_queue")
 		}
 		f.cond.Wait()
-	}
-	if f.h != nil && false {
-		f.h.logf("readTodos %v", f.todos)
 	}
 
 	// We need to iterate on our list. We put in
@@ -190,7 +188,7 @@ func (f *evaluatorProcessing) processLoop() {
 		}
 		sigCount++
 		if sigCount%100 == 0 {
-			logf("Processed %d signatures", sigCount)
+			f.log.Info("processed_sig", sigCount)
 		}
 	}
 }
@@ -210,7 +208,7 @@ func (f *evaluatorProcessing) processStep() bool {
 func (f *evaluatorProcessing) verifyAndPublish(sp *sigPair) {
 	err := verifySignature(sp, f.msg, f.part, f.cons)
 	if err != nil {
-		logf("fifo: verifying err: %s", err)
+		f.log.Warn("verify", err)
 	} else {
 		f.out <- *sp
 	}

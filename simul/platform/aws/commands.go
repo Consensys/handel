@@ -3,6 +3,7 @@ package aws
 import (
 	"strconv"
 	"strings"
+	//"github.com/ConsenSys/handel/simul/platform/aws"
 )
 
 // Commands represents AWS platform specyfic commands.
@@ -24,6 +25,8 @@ type MasterCommands struct {
 //SlaveCommands commands invoked on a slave node
 type SlaveCommands struct {
 	Commands
+	SameBinary   bool
+	SyncBasePort int
 }
 
 const logFile = "log"
@@ -89,14 +92,19 @@ func (c SlaveCommands) CopyRegistryFileFromSharedDirToLocalStorage() map[int]str
 }
 
 // Start starts executable
-func (c SlaveCommands) Start(masterAddr, sync string, monitorAddr, ids string, run int) string {
-	return /*"nohup " + */ c.SlaveBinPath + " -config " + c.ConfPath + " -registry " + c.RegPath + " -monitor " + monitorAddr + " -master " + masterAddr + ids + " -sync " + sync + " -run " + strconv.Itoa(run)
+func (c SlaveCommands) start(masterAddr, sync string, monitorAddr, ids string, run int) string {
+	return c.SlaveBinPath + " -config " + c.ConfPath + " -registry " + c.RegPath + " -monitor " + monitorAddr + " -master " + masterAddr + ids + " -sync " + sync + " -run " + strconv.Itoa(run)
 }
 
-func cmdMapToString(cmds map[int]string) string {
-	c := make([]string, 0, len(cmds))
-	for idx := 0; idx < len(cmds); idx++ {
-		c = append(c, cmds[idx])
+func (c SlaveCommands) Start(masterAddr, monitorAddr string, inst Instance, run int) string {
+	startBuilder := newCmdbuilder(c.SameBinary, c.SyncBasePort)
+
+	idsAndSyncLS := startBuilder.startSlave(inst)
+	var strCmds []string
+	for _, l := range idsAndSyncLS {
+		ids := strings.Join(l.ids, " ")
+		start := c.start(masterAddr, l.sync, monitorAddr, ids, run)
+		strCmds = append(strCmds, start)
 	}
-	return strings.Join(c, " && ")
+	return strings.Join(strCmds, " & ")
 }

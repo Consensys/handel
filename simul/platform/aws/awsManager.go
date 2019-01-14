@@ -20,8 +20,6 @@ type Instance struct {
 	Tag string
 
 	Nodes []*lib.Node
-
-	Sync string
 }
 
 //Manager manages group of EC2 instances
@@ -104,10 +102,7 @@ func UpdateInstance(nodes []info, instances *Instance, cons lib.Constructor) {
 		node.Active = n.active
 		ls = append(ls, node)
 	}
-
-	syncAaddr := GenRemoteAddress(*instances.PublicIP, base+len(nodes)+1)
 	instances.Nodes = ls
-	instances.Sync = syncAaddr
 }
 
 // WaitUntilAllInstancesRunning blocks until all instances are

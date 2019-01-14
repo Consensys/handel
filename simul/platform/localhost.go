@@ -132,7 +132,6 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 			time.Sleep(200 * time.Millisecond)
 			if err := commands[j].Wait(); err != nil {
 				fmt.Printf("PROC %d: %s\n", j, commands[j].ReadAll())
-
 				errCh <- j
 			}
 			doneCh <- j
@@ -174,7 +173,7 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 			panic("global timeout reached")
 		}
 		if nOk+nErr >= len(procInfos) {
-			fmt.Printf("nOk = %d, nErr = %d\n", nOk, nErr)
+			fmt.Printf("[+] nOk = %d, nErr = %d\n", nOk, nErr)
 			break
 		}
 	}
