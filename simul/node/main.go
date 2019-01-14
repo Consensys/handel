@@ -72,7 +72,7 @@ func main() {
 			panic(err)
 		}
 		// Setup report handel
-		handel := h.NewHandel(network, registry, node.Identity, cons.Handel(), lib.Message, signature)
+		handel := h.NewHandel(network, registry, node.Identity, cons.Handel(), lib.Message, signature, runConf.GetHandelConfig())
 		reporter := h.NewReportHandel(handel)
 		handels = append(handels, reporter)
 	}

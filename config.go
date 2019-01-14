@@ -9,14 +9,12 @@ import (
 
 // Config holds the different parameters used to configure Handel.
 type Config struct {
-	// ContributionsPerc is the percentage of contributions a multi-signature
+	// Contributions is the minimum number of contributions a multi-signature
 	// must contain to be considered as valid. Handel will only output
 	// multi-signature containing more than this threshold of contributions.
 	// It must be typically above 50% of the number of Handel nodes. If not
-	// specified, 50% is used by default. This percentage is used to decide when
-	// a multi-signature can be passed up to higher levels as well, not only for
-	// the final level.
-	ContributionsPerc int
+	// specified, 50% of the number of signers is used by default.
+	Contributions int
 
 	// UpdatePeriod indicates at which frequency a Handel nodes sends updates
 	// about its state to other Handel nodes.
@@ -60,8 +58,9 @@ type Config struct {
 
 // DefaultConfig returns a default configuration for Handel.
 func DefaultConfig(size int) *Config {
+	contributions := PercentageToContributions(DefaultContributionsPerc, size)
 	return &Config{
-		ContributionsPerc:    DefaultContributionsPerc,
+		Contributions:        contributions,
 		NodeCount:            DefaultCandidateCount,
 		UpdatePeriod:         DefaultUpdatePeriod,
 		UpdateCount:          DefaultUpdateCount,
@@ -109,18 +108,18 @@ func DefaultTimeoutStrategy(h *Handel, levels []int) TimeoutStrategy {
 	return NewDefaultLinearTimeout(h, levels)
 }
 
-// ContributionsThreshold returns the threshold of contributions required in a
-// multi-signature to be considered valid and be passed up to the application
-// using Handel. Basically multiplying the total number of node times the
-// contributions percentage.
-func (c *Config) ContributionsThreshold(n int) int {
-	return int(math.Ceil(float64(n) * float64(c.ContributionsPerc) / 100.0))
+// PercentageToContributions returns the exact number of contributions needed
+// out of n contributions, from the given percentage. Useful when considering
+// large scale signatures as in Handel, e.g. 51%, 75%...
+func PercentageToContributions(perc, n int) int {
+	return int(math.Ceil(float64(n) * float64(perc) / 100.0))
 }
 
 func mergeWithDefault(c *Config, size int) *Config {
 	c2 := *c
-	if c.ContributionsPerc == 0 {
-		c2.ContributionsPerc = DefaultContributionsPerc
+	if c.Contributions == 0 {
+		n := PercentageToContributions(DefaultContributionsPerc, size)
+		c2.Contributions = n
 	}
 	if c.NodeCount == 0 {
 		c2.NodeCount = DefaultCandidateCount

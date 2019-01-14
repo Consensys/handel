@@ -79,8 +79,22 @@ type RunConfig struct {
 	Failing int
 	// Number of processes for this run
 	Processes int
+	// Handel items configurable  - will be merged with defaults
+	Handel *HandelConfig
 	// extra for particular information for specific platform for examples
 	Extra map[string]string
+}
+
+// HandelConfig is a small config that will be converted to handel.Config during
+// the simulation
+type HandelConfig struct {
+	// Period of the periodic update loop
+	Period string
+	// Number of node do we contact for each periodic update
+	UpdateCount int
+	// Number of node do we contact when starting level + when finishing level
+	// XXX - maybe remove in the futur ! -
+	NodeCount int
 }
 
 // LoadConfig looks up the given file to unmarshal a TOML encoded Config.
@@ -232,6 +246,23 @@ func (c *Config) GetBinaryPath() string {
 	default:
 		return filepath.Join(base, "node")
 	}
+}
+
+// GetHandelConfig returns the config to pass down to handel instances
+// Returns the default if not set
+func (r *RunConfig) GetHandelConfig() *handel.Config {
+	ch := &handel.Config{}
+	if r.Handel == nil {
+		return handel.DefaultConfig(r.Nodes)
+	}
+	period, err := time.ParseDuration(r.Handel.Period)
+	if err != nil {
+		panic(err)
+	}
+	ch.UpdatePeriod = period
+	ch.UpdateCount = r.Handel.UpdateCount
+	ch.NodeCount = r.Handel.NodeCount
+	return ch
 }
 
 // Duration is an alias for time.Duration
