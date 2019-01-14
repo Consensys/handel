@@ -40,10 +40,11 @@ func start() {
 
 	parser := lib.NewCSVParser()
 	cons := lib.NewEmptyConstructor()
-	registry, node, err := lib.ReadAll(*regPath, int(localPeerID), parser, cons)
+	nodeList, err := lib.ReadAll(*regPath, parser, cons)
 	if err != nil {
 		panic(err)
 	}
+	node := nodeList.Node(int(localPeerID))
 
 	enc := network.NewGOBEncoding()
 	var net h.Network
@@ -54,6 +55,7 @@ func start() {
 		panic(err)
 	}
 
+	registry := nodeList.Registry()
 	listener := exampleListener{net, registry, localPeerID}
 	net.RegisterListener(listener)
 

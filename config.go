@@ -1,20 +1,20 @@
 package handel
 
 import (
+	"crypto/rand"
+	"io"
 	"math"
 	"time"
 )
 
 // Config holds the different parameters used to configure Handel.
 type Config struct {
-	// ContributionsPerc is the percentage of contributions a multi-signature
+	// Contributions is the minimum number of contributions a multi-signature
 	// must contain to be considered as valid. Handel will only output
 	// multi-signature containing more than this threshold of contributions.
 	// It must be typically above 50% of the number of Handel nodes. If not
-	// specified, 50% is used by default. This percentage is used to decide when
-	// a multi-signature can be passed up to higher levels as well, not only for
-	// the final level.
-	ContributionsPerc int
+	// specified, DefaultContributionsPerc of the number of signers is used by default.
+	Contributions int
 
 	// UpdatePeriod indicates at which frequency a Handel nodes sends updates
 	// about its state to other Handel nodes.
@@ -48,12 +48,21 @@ type Config struct {
 
 	// Logger to use for logging handel actions
 	Logger Logger
+	// Rand provides the source of entropy for shuffling the list of nodes that
+	// Handel must contact at each level. If not set, golang's crypto/rand is
+	// used.
+	Rand io.Reader
+
+	// DisableShuffling is a debugging flag to not shuffle any list of nodes - it
+	// is much easier to detect pattern in bugs in this manner
+	DisableShuffling bool
 }
 
 // DefaultConfig returns a default configuration for Handel.
 func DefaultConfig(size int) *Config {
+	contributions := PercentageToContributions(DefaultContributionsPerc, size)
 	return &Config{
-		ContributionsPerc:    DefaultContributionsPerc,
+		Contributions:        contributions,
 		NodeCount:            DefaultCandidateCount,
 		UpdatePeriod:         DefaultUpdatePeriod,
 		UpdateCount:          DefaultUpdateCount,
@@ -62,6 +71,7 @@ func DefaultConfig(size int) *Config {
 		NewEvaluatorStrategy: DefaultEvaluatorStrategy,
 		NewTimeoutStrategy:   DefaultTimeoutStrategy,
 		Logger:               DefaultLogger,
+		Rand:                 rand.Reader,
 	}
 }
 
@@ -84,9 +94,9 @@ const DefaultUpdateCount = 1
 var DefaultBitSet = func(bitlength int) BitSet { return NewWilffBitset(bitlength) }
 
 // DefaultPartitioner returns the default implementation of the Partitioner used
-// by Handel, i.e. RandomBinPartitioner.
+// by Handel, i.e. BinPartitioner.
 var DefaultPartitioner = func(id int32, reg Registry) Partitioner {
-	return NewRandomBinPartitioner(id, reg, nil)
+	return NewBinPartitioner(id, reg)
 }
 
 // DefaultEvaluatorStrategy returns an evaluator based on the store's own
@@ -101,18 +111,18 @@ func DefaultTimeoutStrategy(h *Handel, levels []int) TimeoutStrategy {
 	return NewDefaultLinearTimeout(h, levels)
 }
 
-// ContributionsThreshold returns the threshold of contributions required in a
-// multi-signature to be considered valid and be passed up to the application
-// using Handel. Basically multiplying the total number of node times the
-// contributions percentage.
-func (c *Config) ContributionsThreshold(n int) int {
-	return int(math.Ceil(float64(n) * float64(c.ContributionsPerc) / 100.0))
+// PercentageToContributions returns the exact number of contributions needed
+// out of n contributions, from the given percentage. Useful when considering
+// large scale signatures as in Handel, e.g. 51%, 75%...
+func PercentageToContributions(perc, n int) int {
+	return int(math.Ceil(float64(n) * float64(perc) / 100.0))
 }
 
 func mergeWithDefault(c *Config, size int) *Config {
 	c2 := *c
-	if c.ContributionsPerc == 0 {
-		c2.ContributionsPerc = DefaultContributionsPerc
+	if c.Contributions == 0 {
+		n := PercentageToContributions(DefaultContributionsPerc, size)
+		c2.Contributions = n
 	}
 	if c.NodeCount == 0 {
 		c2.NodeCount = DefaultCandidateCount
@@ -137,6 +147,12 @@ func mergeWithDefault(c *Config, size int) *Config {
 	}
 	if c.Logger == nil {
 		c2.Logger = DefaultLogger
+	}
+	if c.Rand == nil {
+		c2.Rand = rand.Reader
+	}
+	if c.DisableShuffling {
+		c2.DisableShuffling = true
 	}
 	return &c2
 }

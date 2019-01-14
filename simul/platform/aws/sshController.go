@@ -1,7 +1,6 @@
 package aws
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"net"
@@ -85,39 +84,35 @@ func copyFile(sftpClient *sftp.Client, file string) error {
 }
 
 //Run runs command on a remote host using ssh and waits for output
-func (sshCMD *sshController) Run(command string) (string, error) {
-	//fmt.Println(">>>> Runnning >>>> ", command)
-	var stdoutBuf bytes.Buffer
+func (sshCMD *sshController) Run(command string, pw *io.PipeWriter) error {
 	session, err := sshCMD.client.NewSession()
-
-	session.Stdout = &stdoutBuf
-	if err != nil {
-		return "", err
-	}
-
-	defer session.Close()
-
-	err = session.Run(command)
-	if err != nil {
-		fmt.Println("SSH Run error ", command, sshCMD.sshHost, err)
-		return "", err
-	}
-	return stdoutBuf.String(), nil
-}
-
-//Start starts command on a remote host using ssh
-func (sshCMD *sshController) Start(command string) error {
-	session, err := sshCMD.client.NewSession()
-
 	if err != nil {
 		return err
 	}
-
 	defer session.Close()
 
-	err = session.Start(command)
+	// +++ We need to be careful here:
+	// From the doc:
+	// If the StdoutPipe reader is
+	// not serviced fast enough it may eventually cause the
+	// remote command to block.
+	if pw != nil {
+		outPipe, err := session.StdoutPipe()
+		if err != nil {
+			return err
+		}
+		errPipe, err := session.StderrPipe()
+		if err != nil {
+			return err
+		}
+		pipe := io.MultiReader(outPipe, errPipe)
+		go func() {
+			io.Copy(pw, pipe)
+		}()
+	}
+	err = session.Run(command)
 	if err != nil {
-		fmt.Println("Error ", err)
+		fmt.Println("SSH Run error ", command, sshCMD.sshHost, err)
 		return err
 	}
 	return nil

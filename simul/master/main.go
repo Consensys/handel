@@ -11,10 +11,12 @@ import (
 
 	"github.com/ConsenSys/handel/simul/lib"
 	"github.com/ConsenSys/handel/simul/monitor"
-	"github.com/ConsenSys/handel/simul/platform"
 )
 
-var nbOfNodes = flag.Int("nbOfNodes", 0, "number of slave nodes")
+var nbOfNodes = flag.Int("nbOfNodes", 0, "total number of slave nodes")
+var nbOffline = flag.Int("nbOffline", 0, "number of offline nodes")
+var nbOfInstances = flag.Int("nbOfInstances", 0, "number of slave instances")
+
 var timeOut = flag.Int("timeOut", 0, "timeout in minutes")
 var masterAddr = flag.String("masterAddr", "", "master address")
 var network = flag.String("network", "", "network type")
@@ -34,18 +36,20 @@ func init() {
 }
 func main() {
 	flag.Parse()
-	master := lib.NewSyncMaster(*masterAddr, *nbOfNodes)
+	active := *nbOfNodes - *nbOffline
+	master := lib.NewSyncMaster(*masterAddr, active, *nbOfNodes)
 	fmt.Println("Master: listen on", *masterAddr)
 
 	os.MkdirAll(resultsDir, 0777)
 	csvName := filepath.Join(resultsDir, *resultFile)
-	csvFile, err := os.Create(csvName)
+	//	csvFile, err := os.Create(csvName)
+	csvFile, err := os.OpenFile(csvName, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0777)
 	if err != nil {
 		panic(err)
 	}
 	defer csvFile.Close()
 
-	stats := platform.DefaultStats(*run, *nbOfNodes, *threshold, *network)
+	stats := defaultStats(*run, *nbOfNodes, *threshold, *nbOfInstances, *network)
 	mon := monitor.NewMonitor(10000, stats)
 	go mon.Listen()
 
@@ -69,13 +73,19 @@ func main() {
 		panic(msg)
 	}
 
-	stats.WriteHeader(csvFile)
+	if *run == 0 {
+		stats.WriteHeader(csvFile)
+	}
 	stats.WriteValues(csvFile)
 	mon.Stop()
 }
 
-func defaultStats(nbOfNodes int) *monitor.Stats {
+func defaultStats(run, nodes, threshold, nbOfInstances int, network string) *monitor.Stats {
 	return monitor.NewStats(map[string]string{
-		"nodes": strconv.Itoa(nbOfNodes),
+		"run":            strconv.Itoa(run),
+		"totalNbOfNodes": strconv.Itoa(nodes),
+		"nbOfInstances":  strconv.Itoa(nbOfInstances),
+		"threshold":      strconv.Itoa(threshold),
+		"network":        network,
 	}, nil)
 }

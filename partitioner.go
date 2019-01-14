@@ -1,12 +1,8 @@
 package handel
 
 import (
-	cryptoRand "crypto/rand"
-	"encoding/binary"
 	"errors"
 	"math"
-	"math/rand"
-	mathRand "math/rand"
 )
 
 // Partitioner is a generic interface holding the logic used to partition the
@@ -27,10 +23,7 @@ type Partitioner interface {
 	// IdentitiesAt returns the list of Identity that composes the whole level in
 	// this partition scheme.
 	IdentitiesAt(level int) ([]Identity, error)
-	// PickNextAt returns up to *count* Identity situated at this level. If all
-	// identities have been picked already, or if no identities are found at
-	// this level, it returns false.
-	PickNextAt(level, count int) ([]Identity, bool)
+
 	// Combine takes a list of signature paired with their level and returns all
 	// signatures correctly combined according to the partition strategy.
 	// All signatures must be valid signatures. The return value can be nil if no
@@ -198,63 +191,6 @@ func (c *binomialPartitioner) rangeLevelInverse(level int) (min int, max int, er
 
 }
 
-// PickNext returns a set of un-picked identities at the given level, up to
-// *count* elements. If no identities could have been picked, it returns false.
-func (c *binomialPartitioner) PickNextAt2(level, count int) ([]Identity, bool) {
-	lmin, lmax, err := c.rangeLevel(level)
-	if err != nil {
-		panic(err)
-	}
-
-	minPicked, ok := c.picked[level]
-	if !ok {
-		minPicked = lmin
-	}
-	if minPicked >= lmax {
-		return nil, false
-	}
-
-	last := min(minPicked+count, lmax)
-
-	ids, ok := c.reg.Identities(minPicked, last)
-	if !ok {
-		panic("No identifies left")
-	}
-
-	c.picked[level] = last
-	return ids, true
-}
-
-// PickNext returns a set of un-picked identities at the given level, up to
-// *count* elements. If no identities could have been picked, it returns false.
-func (c *binomialPartitioner) PickNextAt(level, count int) ([]Identity, bool) {
-	if level <= 0 {
-		panic("Wrong level number")
-	}
-
-	min, max, err := c.rangeLevel(level)
-	if err != nil {
-		return nil, false
-	}
-
-	minPicked, ok := c.picked[level]
-	if !ok {
-		minPicked = min
-	}
-
-	length := max - minPicked
-	if length > count {
-		max = minPicked + count
-	}
-
-	ids, ok := c.reg.Identities(minPicked, max)
-	if !ok || length == 0 {
-		return nil, false
-	}
-
-	c.picked[level] = max
-	return ids, true
-}
 
 func (c *binomialPartitioner) Size(level int) int {
 	min, max, err := c.rangeLevel(level)
@@ -394,113 +330,4 @@ func (c *binomialPartitioner) combine(sigs []*sigPair, nbs func(int) BitSet) *si
 			BitSet:    finalBitSet,
 		},
 	}
-}
-
-// randomBinPartitioner is a Partitioner similar to binTreePartition with
-// randomization.  Basically the only impacted method is `PickNextAt`: it now
-// returns nodes in a candidate set in a random order.
-type randomBinPartitioner struct {
-	*binomialPartitioner
-	r       *mathRand.Rand
-	genesis [8]byte
-	seeds   map[int]int64
-}
-
-// NewRandomBinPartitioner returns a randomBinPartitioner initialized with the
-// given seed. If the seed is nil, it reads from Golang's cryptographically secure
-// random source with `crypto.Read`.
-func NewRandomBinPartitioner(id int32, reg Registry, seed []byte) Partitioner {
-	b := NewBinPartitioner(id, reg)
-	if seed == nil {
-		seed = make([]byte, 8)
-		cryptoRand.Read(seed)
-	}
-	var source [8]byte
-	copy(source[:], seed)
-	rnd := mathRand.New(&cryptoSource{})
-	return &randomBinPartitioner{
-		binomialPartitioner: b.(*binomialPartitioner),
-		r:                   rnd,
-		genesis:             source,
-		seeds:               computeSeeds(b.MaxLevel(), rnd),
-	}
-}
-
-// PickNextAt implements the partitioner interface but returns randomized slice
-// of identities. It keeps track of the last seen id in the randomized list.
-func (r *randomBinPartitioner) PickNextAt(level, count int) ([]Identity, bool) {
-	if level <= 0 {
-		panic("Wrong level number")
-	}
-
-	min, max, err := r.rangeLevel(level)
-	if err != nil {
-		if err == errEmptyLevel {
-			return nil, false
-		}
-		panic(err)
-	}
-
-	cardinality := max - min
-
-	// the picked map is used differently than in binTreePartitioner -
-	// the int stored indicates the minimum index in the permutation of that
-	// level we should start picking identities again.
-	minPicked, ok := r.picked[level]
-	if !ok {
-		minPicked = 0
-	}
-	if minPicked == max {
-		return nil, false
-	}
-
-	seed, ok := r.seeds[level]
-	if !ok {
-		panic("random bin. tree: seed not found - internal error")
-	}
-
-	upTo := minPicked + count
-	if upTo > cardinality {
-		upTo = cardinality
-	}
-
-	rnd := mathRand.New(mathRand.NewSource(seed))
-	perm := rnd.Perm(cardinality)
-	ids := make([]Identity, 0, count)
-	for i := minPicked; i < upTo; i++ {
-		// take the randomized index of the sublist
-		randomPermIndex := perm[i]
-		// compute the global index of the Identity we want
-		globalIndex := min + randomPermIndex
-		randomID, ok := r.reg.Identity(globalIndex)
-		if !ok {
-			continue
-		}
-		ids = append(ids, randomID)
-	}
-	r.picked[level] = upTo
-	return ids, true
-}
-
-func computeSeeds(levels int, r *rand.Rand) map[int]int64 {
-	m := make(map[int]int64)
-	for i := 0; i <= levels; i++ {
-		m[i] = r.Int63()
-	}
-	return m
-}
-
-// random permutation based on /dev/urandom
-// taken from
-// https://stackoverflow.com/questions/40965044/using-crypto-rand
-// -for-generating-permutations-with-rand-perm
-type cryptoSource [8]byte
-
-func (s *cryptoSource) Int63() int64 {
-	cryptoRand.Read(s[:])
-	return int64(binary.BigEndian.Uint64(s[:]) & (1<<63 - 1))
-}
-
-func (s *cryptoSource) Seed(seed int64) {
-	panic("seed")
 }

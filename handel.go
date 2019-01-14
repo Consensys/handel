@@ -1,8 +1,11 @@
 package handel
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -58,12 +61,19 @@ func newLevel(id int, nodes []Identity) *level {
 }
 
 // Create a map of all the levels for this registry.
-func createLevels(r Registry, partitioner Partitioner) map[int]*level {
+func createLevels(c *Config, r Registry, partitioner Partitioner) map[int]*level {
 	lvls := make(map[int]*level)
 	var firstActive bool
 	for _, level := range partitioner.Levels() {
-		nodes, _ := partitioner.IdentitiesAt(level)
+		nodes2, _ := partitioner.IdentitiesAt(level)
+		nodes := nodes2
+		if !c.DisableShuffling {
+			nodes = make([]Identity, len(nodes2))
+			copy(nodes, nodes2)
+			shuffle(nodes, c.Rand)
+		}
 		lvls[level] = newLevel(level, nodes)
+		//fmt.Println(lvls[level].String())
 		if !firstActive {
 			lvls[level].setStarted()
 			firstActive = true
@@ -122,6 +132,17 @@ func (l *level) updateSigToSend(sig *MultiSignature) bool {
 	return false
 }
 
+func (l *level) String() string {
+	var b bytes.Buffer
+	fmt.Fprintf(&b, "level %d:", l.id)
+	var nodes []string
+	for _, n := range l.nodes {
+		nodes = append(nodes, strconv.Itoa(int(n.ID())))
+	}
+	fmt.Fprintf(&b, "\t%s\n", strings.Join(nodes, ", "))
+	return b.String()
+}
+
 // HStats contain minimal stats about handel
 type HStats struct {
 	msgSentCt int
@@ -168,6 +189,8 @@ type Handel struct {
 	ticker *time.Ticker
 	// all the levels
 	levels map[int]*level
+	// ids of the level in order as returned by the partitioner
+	ids []int
 	// Start time of Handel. Used to calculate the timeouts
 	startTime time.Time
 	// the timeout strategy used by handel
@@ -209,21 +232,22 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 		sig:         s,
 		out:         make(chan MultiSignature, 10000),
 		ticker:      time.NewTicker(config.UpdatePeriod),
-		levels:      createLevels(r, part),
 		log:         config.Logger.With("id", id.ID()),
+		levels:      createLevels(config, r, part),
+		ids:         part.Levels(),
 	}
 	h.actors = []actor{
 		actorFunc(h.checkCompletedLevel),
 		actorFunc(h.checkFinalSignature),
 	}
 
-	h.threshold = h.c.ContributionsThreshold(h.reg.Size())
+	h.threshold = h.c.Contributions
 	h.store = newReplaceStore(part, h.c.NewBitSet, c)
 	h.store.Store(0, mySig) // Our own sig is at level 0.
 	evaluator := h.c.NewEvaluatorStrategy(h.store, h)
 	h.proc = newEvaluatorProcessing(part, c, msg, evaluator, h.log)
 	h.net.RegisterListener(h)
-	h.timeout = h.c.NewTimeoutStrategy(h, part.Levels())
+	h.timeout = h.c.NewTimeoutStrategy(h, h.ids)
 	return h
 }
 
@@ -239,7 +263,7 @@ func (h *Handel) NewPacket(p *Packet) {
 	}
 	ms, err := h.parsePacket(p)
 	if err != nil {
-		h.logf("invalid packet: %s", err)
+		h.log.Warn("invalid_packet", err)
 		return
 	}
 
@@ -299,11 +323,16 @@ func (h *Handel) StartLevel(level int) {
 	h.Lock()
 	defer h.Unlock()
 	lvl := h.getLevel(byte(level))
+	h.unsafeStartLevel(lvl)
+}
+
+func (h *Handel) unsafeStartLevel(lvl *level) {
 	if lvl.started() {
 		return
 	}
 	lvl.setStarted()
 	h.sendUpdate(lvl, h.c.NodeCount)
+
 }
 
 // Send our best signature set for this level, to 'count' nodes. The level must
@@ -387,7 +416,7 @@ func (h *Handel) getLevel(levelID byte) *level {
 	l := int(levelID)
 	lvl, exists := h.levels[l]
 	if !exists {
-		msg := fmt.Sprintf("inexistant level %d in list %v", l, h.Partitioner.Levels())
+		msg := fmt.Sprintf("inexistant level %d in list %v", l, h.ids)
 		panic(msg)
 	}
 	return lvl
@@ -399,15 +428,29 @@ func (h *Handel) getLevel(levelID byte) *level {
 func (h *Handel) checkCompletedLevel(s *sigPair) {
 	// The receiving phase: have we completed this level?
 	lvl := h.getLevel(s.level)
+	if lvl.rcvCompleted {
+		return
+	}
+
 	sp, _ := h.store.Best(s.level)
 	if sp.Cardinality() == len(lvl.nodes) {
+		h.log.Debug("level_complete", s.level)
 		lvl.rcvCompleted = true
+		// find and start the next level if it exists
+		for _, id := range h.ids {
+			if id < int(s.level+1) {
+				continue
+			}
+			lvl := h.getLevel(byte(id))
+			h.unsafeStartLevel(lvl)
+			break
+		}
 	}
 
 	// The sending phase: for all upper levels we may have completed the level.
 	// We try to update all levels upwards & send an update if it's the case
 	for id, lvl := range h.levels {
-		if int(s.level+1) < id {
+		if id < int(s.level+1) {
 			continue
 		}
 		ms := h.store.Combined(byte(id) - 1)
@@ -422,7 +465,7 @@ func (h *Handel) sendTo(lvl int, ms *MultiSignature, ids []Identity) {
 
 	buff, err := ms.MarshalBinary()
 	if err != nil {
-		h.logf("error marshalling multi-signature: %s", err)
+		h.log.Error("multi-signature", err)
 		return
 	}
 
@@ -449,22 +492,19 @@ func (h *Handel) parsePacket(p *Packet) (*MultiSignature, error) {
 		return nil, errors.New("packet's origin out of range")
 	}
 
-	_, exists := h.levels[int(p.Level)]
+	lvl, exists := h.levels[int(p.Level)]
 
 	if !exists {
-		return nil, fmt.Errorf("invalid packet's level %d over %v - %v", p.Level, h.Partitioner.Levels(), h.levels)
+		return nil, fmt.Errorf("invalid packet's level %d", p.Level)
 	}
 
 	ms := new(MultiSignature)
 	err := ms.Unmarshal(p.MultiSig, h.cons.Signature(), h.c.NewBitSet)
+	if err != nil {
+		return nil, err
+	}
+	if ms.BitLength() != len(lvl.nodes) {
+		return nil, errors.New("invalid bitset's size for given level")
+	}
 	return ms, err
-}
-
-func (h *Handel) logf(str string, args ...interface{}) {
-	now := time.Now()
-	timeSpent := fmt.Sprintf("%02d:%02d:%02d", now.Hour(),
-		now.Minute(),
-		now.Second())
-	idArg := []interface{}{timeSpent, h.id.ID()}
-	logf("%s: handel %d: "+str, append(idArg, args...)...)
 }

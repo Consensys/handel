@@ -49,10 +49,16 @@ type Config struct {
 	// which encoding should we use on the network
 	// valid value: "gob" (default)
 	Encoding string
+	// which allocator to use when experimenting failing nodes
+	// valid value: "linear" (default)
+	Allocator string
 	// which is the port to send measurements to
 	MonitorPort int
 	// Debug forwards the debug output if set to != 0
 	Debug int
+	// which simulation are we running -
+	// valid values: "handel" (default) or "gossip"
+	Simulation string
 	// Maximum time to wait for the whole thing to finish
 	// string because of ugly format of TOML encoding ---
 	MaxTimeout string
@@ -64,17 +70,6 @@ type Config struct {
 	Runs []RunConfig
 }
 
-// MaxNodes returns the maximum number of nodes to test
-func (c *Config) MaxNodes() int {
-	max := 0
-	for _, rc := range c.Runs {
-		if max < rc.Nodes {
-			max = rc.Nodes
-		}
-	}
-	return max
-}
-
 // RunConfig is the config holding parameters for a specific run. A platform can
 // start multiple runs sequentially with different parameters each.
 type RunConfig struct {
@@ -82,10 +77,26 @@ type RunConfig struct {
 	Nodes int
 	// threshold of signatures to wait for
 	Threshold int
+	// Number of failing nodes
+	Failing int
+	// Number of processes for this run
+	Processes int
+	// Handel items configurable  - will be merged with defaults
+	Handel *HandelConfig
 	// extra for particular information for specific platform for examples
-	Extra interface{}
-	// XXX NOT USED YET
-	//Failing   int
+	Extra map[string]string
+}
+
+// HandelConfig is a small config that will be converted to handel.Config during
+// the simulation
+type HandelConfig struct {
+	// Period of the periodic update loop
+	Period string
+	// Number of node do we contact for each periodic update
+	UpdateCount int
+	// Number of node do we contact when starting level + when finishing level
+	// XXX - maybe remove in the futur ! -
+	NodeCount int
 }
 
 // LoadConfig looks up the given file to unmarshal a TOML encoded Config.
@@ -97,6 +108,9 @@ func LoadConfig(path string) *Config {
 	}
 	if c.MonitorPort == 0 {
 		c.MonitorPort = monitor.DefaultSinkPort
+	}
+	if c.Simulation == "" {
+		c.Simulation = "handel"
 	}
 	c.configPath = path
 	return c
@@ -122,9 +136,19 @@ func (c *Config) Logger() handel.Logger {
 	} else {
 		logger = handel.NewKitLogger(level.AllowInfo())
 	}
-
 	//return logger.With("ts", log.DefaultTimestamp)
 	return logger.With("ts", log.TimestampFormat(time.Now, time.StampMilli))
+}
+
+// MaxNodes returns the maximum number of nodes to test
+func (c *Config) MaxNodes() int {
+	max := 0
+	for _, rc := range c.Runs {
+		if max < rc.Nodes-rc.Failing {
+			max = rc.Nodes - rc.Failing
+		}
+	}
+	return max
 }
 
 // NewNetwork returns the network implementation designated by this config for this
@@ -177,9 +201,20 @@ func (c *Config) NewConstructor() Constructor {
 	}
 	switch c.Curve {
 	case "bn256":
-		return &handelConstructor{bn256.NewConstructor()}
+		return &SimulConstructor{bn256.NewConstructor()}
 	default:
 		panic("not implemented yet")
+	}
+}
+
+// NewAllocator returns the allocation determined by the "Allocator" string field
+// of the config.
+func (c *Config) NewAllocator() Allocator {
+	switch c.Allocator {
+	case "linear":
+		return new(linearAllocator)
+	default:
+		return new(linearAllocator)
 	}
 }
 
@@ -214,6 +249,47 @@ func (c *Config) GetResultsDir() string {
 	return resultsDir
 }
 
+// GetBinaryPath returns the binary to compile
+func (c *Config) GetBinaryPath() string {
+	base := "github.com/ConsenSys/handel/simul/"
+	switch strings.ToLower(c.Simulation) {
+	case "p2p":
+		return filepath.Join(base, "p2p")
+	case "handel":
+		fallthrough
+	default:
+		return filepath.Join(base, "node")
+	}
+}
+
+// GetThreshold returns the threshold to use for this run config - if 0 it
+// returns the number of nodes
+func (r *RunConfig) GetThreshold() int {
+	if r.Threshold == 0 {
+		return r.Nodes
+	}
+	return r.Threshold
+}
+
+// GetHandelConfig returns the config to pass down to handel instances
+// Returns the default if not set
+func (r *RunConfig) GetHandelConfig() *handel.Config {
+	ch := &handel.Config{}
+	if r.Handel == nil {
+		ch = handel.DefaultConfig(r.Nodes)
+		ch.Contributions = r.Threshold
+	}
+	period, err := time.ParseDuration(r.Handel.Period)
+	if err != nil {
+		panic(err)
+	}
+	ch.UpdatePeriod = period
+	ch.UpdateCount = r.Handel.UpdateCount
+	ch.NodeCount = r.Handel.NodeCount
+	ch.Contributions = r.GetThreshold()
+	return ch
+}
+
 // Duration is an alias for time.Duration
 type Duration time.Duration
 
@@ -230,4 +306,11 @@ func (d *Duration) UnmarshalText(text []byte) error {
 func (d *Duration) MarshalText() ([]byte, error) {
 	str := time.Duration(*d).String()
 	return []byte(str), nil
+}
+
+// Divmod returns the integer results and remainder of the division
+func Divmod(numerator, denominator int) (quotient, remainder int) {
+	quotient = numerator / denominator // integer division, decimals are truncated
+	remainder = numerator % denominator
+	return
 }

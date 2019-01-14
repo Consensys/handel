@@ -19,26 +19,44 @@ type NodeParser interface {
 	Write(uri string, records []*NodeRecord) error
 }
 
+// NodeList is a type that contains all informations on all nodes, and that
+// implements the Registry interface. It is useful for binaries that retrieves
+// multiple node information - not only the Identity.
+type NodeList []*Node
+
+// Registry returns a handel.Registry interface
+func (n *NodeList) Registry() h.Registry {
+	ids := make([]h.Identity, len(*n))
+	for i := 0; i < len(ids); i++ {
+		ids[i] = (*n)[i].Identity
+	}
+	return h.NewArrayRegistry(ids)
+}
+
+// Node returns the Node structure at the given index
+func (n *NodeList) Node(i int) *Node {
+	if i < 0 || i > len(*n) {
+		panic("that should not happen")
+	}
+	return (*n)[i]
+}
+
 // ReadAll reads the whole set of nodes from the given parser to the given URI.
-// It returns the registry and the node corresponding to the ID given.
-func ReadAll(uri string, id int, parser NodeParser, c Constructor) (h.Registry, *Node, error) {
-	var ids []h.Identity
-	var ownNode *Node
+// It returns the node list which can be used as a Registry as well
+func ReadAll(uri string, parser NodeParser, c Constructor) (NodeList, error) {
 	records, err := parser.Read(uri)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
+	var nodes = make([]*Node, len(records))
 	for _, rec := range records {
 		node, err := rec.ToNode(c)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
-		if rec.ID == int32(id) {
-			ownNode = node
-		}
-		ids = append(ids, node.Identity)
+		nodes[int(node.ID())] = node
 	}
-	return h.NewArrayRegistry(ids), ownNode, nil
+	return nodes, nil
 }
 
 type csvParser struct{}
@@ -80,7 +98,6 @@ func (c *csvParser) Read(uri string) ([]*NodeRecord, error) {
 		nodeRecord := &NodeRecord{ID: id, Addr: addr, Private: priv, Public: pub}
 		nodes = append(nodes, nodeRecord)
 	}
-	return nodes, nil
 }
 
 func (c *csvParser) Write(uri string, records []*NodeRecord) error {

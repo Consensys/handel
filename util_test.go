@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func FakeRegistry(size int) Registry {
@@ -183,8 +186,7 @@ func FakeSetup(n int) (Registry, []*Handel) {
 	cons := new(fakeCons)
 	handels := make([]*Handel, n)
 	newPartitioner := func(id int32, reg Registry) Partitioner {
-		return NewRandomBinPartitioner(id, reg, nil)
-		//return NewBinPartitioner(id, reg)
+		return NewBinPartitioner(id, reg)
 	}
 	conf := &Config{NewPartitioner: newPartitioner}
 	for i := 0; i < n; i++ {
@@ -209,4 +211,28 @@ func CloseHandels(hs []*Handel) {
 	for _, h := range hs {
 		h.Stop()
 	}
+}
+
+func TestUtilShuffle(t *testing.T) {
+
+	n := 10
+	reg1 := FakeRegistry(n).(*arrayRegistry)
+	ids1 := reg1.ids
+	ids2 := make([]Identity, len(ids1))
+	ids3 := make([]Identity, len(ids1))
+	copy(ids2, ids1)
+	require.Equal(t, ids1, ids2)
+	copy(ids3, ids1)
+	require.Equal(t, ids1, ids3)
+
+	var seed, seed2, seed3 bytes.Buffer
+	seed.Write([]byte("Hello World BLOU BLOU BLOU BLOU BLOU BLOU"))
+	seed2.Write([]byte("Hello World BLOU BLOU BLOU BLOU BLOU BLOU"))
+	seed3.Write([]byte("Plouk Plak BLOU BLOU BLOU BLOU BLOU BLOU"))
+
+	shuffle(ids1, &seed)
+	shuffle(ids2, &seed2)
+	require.Equal(t, ids1, ids2)
+	shuffle(ids3, &seed3)
+	require.NotEqual(t, ids1, ids3)
 }

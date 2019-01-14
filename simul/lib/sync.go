@@ -25,17 +25,19 @@ import (
 // field, as to re-use the UDP code already present.
 type SyncMaster struct {
 	sync.Mutex
-	addr    string
-	exp     int
-	n       *udp.Network
-	readys  map[int]*syncMessage
-	done    bool
-	waitAll chan bool
+	addr      string
+	exp       int
+	total     int
+	n         *udp.Network
+	readys    map[int]bool
+	addresses map[string]bool
+	done      bool
+	waitAll   chan bool
 }
 
 // NewSyncMaster returns an SyncMaster that listens on the given address,
 // for a expected number of READY messages.
-func NewSyncMaster(addr string, expected int) *SyncMaster {
+func NewSyncMaster(addr string, expected, total int) *SyncMaster {
 	n, err := udp.NewNetwork(addr, network.NewGOBEncoding())
 	if err != nil {
 		panic(err)
@@ -44,8 +46,10 @@ func NewSyncMaster(addr string, expected int) *SyncMaster {
 	n.RegisterListener(s)
 	s.exp = expected
 	s.n = n
+	s.total = total
 	s.addr = addr
-	s.readys = make(map[int]*syncMessage)
+	s.readys = make(map[int]bool)
+	s.addresses = make(map[string]bool)
 	s.waitAll = make(chan bool, 1)
 	return s
 }
@@ -61,7 +65,8 @@ func (s *SyncMaster) Reset() {
 	s.Lock()
 	defer s.Unlock()
 	s.done = false
-	s.readys = make(map[int]*syncMessage)
+	s.readys = make(map[int]bool)
+	s.addresses = make(map[string]bool)
 	s.waitAll = make(chan bool, 1)
 }
 
@@ -69,6 +74,10 @@ func (s *SyncMaster) Reset() {
 func (s *SyncMaster) NewPacket(p *handel.Packet) {
 	s.Lock()
 	defer s.Unlock()
+	if s.done {
+		return
+	}
+
 	msg := new(syncMessage)
 	if err := msg.FromBytes(p.MultiSig); err != nil {
 		panic(err)
@@ -83,18 +92,21 @@ func (s *SyncMaster) NewPacket(p *handel.Packet) {
 }
 
 func (s *SyncMaster) handleReady(incoming *syncMessage) {
-	_, stored := s.readys[incoming.ID]
+	for _, id := range incoming.IDs {
+		_, stored := s.readys[id]
+		if !stored {
+			s.readys[id] = true
+		}
+	}
+	_, stored := s.addresses[incoming.Address]
 	if !stored {
-		s.readys[incoming.ID] = incoming
+		s.addresses[incoming.Address] = true
 	}
-
-	if s.done {
-		return
-	}
-
+	fmt.Print(s.String())
 	if len(s.readys) < s.exp {
 		return
 	}
+
 	s.done = true
 	// send the messagesssss
 	msg := &syncMessage{State: START}
@@ -103,9 +115,9 @@ func (s *SyncMaster) handleReady(incoming *syncMessage) {
 		panic(err)
 	}
 	packet := &handel.Packet{MultiSig: buff}
-	ids := make([]handel.Identity, 0, s.exp)
-	for i, msg := range s.readys {
-		id := handel.NewStaticIdentity(int32(i), msg.Address, nil)
+	ids := make([]handel.Identity, 0, len(s.addresses))
+	for address := range s.addresses {
+		id := handel.NewStaticIdentity(0, address, nil)
 		ids = append(ids, id)
 	}
 	go func() {
@@ -117,7 +129,7 @@ func (s *SyncMaster) handleReady(incoming *syncMessage) {
 func (s *SyncMaster) String() string {
 	var b bytes.Buffer
 	fmt.Fprintf(&b, "Sync Master received %d/%d status\n", len(s.readys), s.exp)
-	for id := 0; id < s.exp; id++ {
+	for id := 0; id < s.total; id++ {
 		_, ok := s.readys[id]
 		if !ok {
 			fmt.Fprintf(&b, "\t- %d -absent-", id)
@@ -126,7 +138,7 @@ func (s *SyncMaster) String() string {
 			//_, port, _ := net.SplitHostPort(msg.Address)
 			fmt.Fprintf(&b, "\t- %d +finished+", id)
 		}
-		if (id+1)%5 == 0 {
+		if (id+1)%4 == 0 {
 			fmt.Fprintf(&b, "\n")
 		}
 	}
@@ -147,21 +159,21 @@ type SyncSlave struct {
 	own    string
 	master string
 	net    *udp.Network
-	id     int
+	ids    []int
 	waitCh chan bool
 	done   bool
 }
 
 // NewSyncSlave returns a Sync to use as a node in the system to synchronize
 // with the master
-func NewSyncSlave(own, master string, id int) *SyncSlave {
+func NewSyncSlave(own, master string, ids []int) *SyncSlave {
 	n, err := udp.NewNetwork(own, network.NewGOBEncoding())
 	if err != nil {
 		panic(err)
 	}
 	slave := new(SyncSlave)
 	n.RegisterListener(slave)
-	slave.id = id
+	slave.ids = ids
 	slave.net = n
 	slave.own = own
 	slave.master = master
@@ -171,7 +183,7 @@ func NewSyncSlave(own, master string, id int) *SyncSlave {
 }
 
 func (s *SyncSlave) sendReadyState() {
-	msg := &syncMessage{State: READY, ID: s.id, Address: s.own}
+	msg := &syncMessage{State: READY, IDs: s.ids, Address: s.own}
 	buff, err := msg.ToBytes()
 	if err != nil {
 		panic(err)
@@ -232,7 +244,7 @@ const (
 type syncMessage struct {
 	State   int    // READY - START
 	Address string // address of the slave
-	ID      int    // ID of the slave - useful for debugging
+	IDs     []int  // ID of the slave - useful for debugging
 }
 
 func (s *syncMessage) ToBytes() ([]byte, error) {
