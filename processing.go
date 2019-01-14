@@ -122,8 +122,8 @@ func (f *evaluatorProcessing) Add(sp *sigPair) {
 	defer f.cond.L.Unlock()
 
 	f.todos = append(f.todos, sp)
-	if f.h != nil && false {
-		f.h.logf("added %s", sp)
+	if f.h != nil  {
+		// f.h.logf("added %s", sp)
 	}
 	f.cond.Signal()
 }
@@ -134,13 +134,13 @@ func (f *evaluatorProcessing) readTodos() (bool, *sigPair) {
 	f.cond.L.Lock()
 	defer f.cond.L.Unlock()
 	for len(f.todos) == 0 {
-		if f.h != nil && false {
-			f.h.logf("waiting, todos is empty")
+		if f.h != nil {
+			// f.h.logf("waiting, todos is empty")
 		}
 		f.cond.Wait()
 	}
-	if f.h != nil && false {
-		f.h.logf("readTodos %v", f.todos)
+	if f.h != nil {
+		// f.h.logf("readTodos %v", f.todos)
 	}
 
 	// We need to iterate on our list. We put in

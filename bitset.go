@@ -7,6 +7,7 @@ import (
 )
 
 // BitSet is a bitset !
+// This class is a wrapper around WilffBitSet
 type BitSet interface {
 	// BitLength returns the fixed size of this BitSet
 	BitLength() int

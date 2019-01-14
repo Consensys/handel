@@ -60,10 +60,10 @@ func newLevel(id int, nodes []Identity) *level {
 	return l
 }
 
-// Create a map of all the levels for this registry.
-func createLevels(c *Config, r Registry, partitioner Partitioner) map[int]*level {
+// Create a map of all the levels for this node. The levels
+//  are fully initialized.
+func createLevels(c *Config, partitioner Partitioner) map[int]*level {
 	lvls := make(map[int]*level)
-	var firstActive bool
 	for _, level := range partitioner.Levels() {
 		nodes2, _ := partitioner.IdentitiesAt(level)
 		nodes := nodes2
@@ -73,11 +73,6 @@ func createLevels(c *Config, r Registry, partitioner Partitioner) map[int]*level
 			shuffle(nodes, c.Rand)
 		}
 		lvls[level] = newLevel(level, nodes)
-		//fmt.Println(lvls[level].String())
-		if !firstActive {
-			lvls[level].setStarted()
-			firstActive = true
-		}
 	}
 
 	return lvls
@@ -208,9 +203,9 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 
 	var config *Config
 	if len(conf) > 0 && conf[0] != nil {
-		config = mergeWithDefault(conf[0], r.Size())
+		config = mergeWithDefault(conf[0])
 	} else {
-		config = DefaultConfig(r.Size())
+		config = DefaultConfig()
 	}
 
 	part := config.NewPartitioner(id.ID(), r)
@@ -230,7 +225,7 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 		sig:         s,
 		out:         make(chan MultiSignature, 10000),
 		ticker:      time.NewTicker(config.UpdatePeriod),
-		levels:      createLevels(config, r, part),
+		levels:      createLevels(config, part),
 		ids:         part.Levels(),
 	}
 	h.actors = []actor{
@@ -332,7 +327,6 @@ func (h *Handel) unsafeStartLevel(lvl *level) {
 	}
 	lvl.setStarted()
 	h.sendUpdate(lvl, h.c.NodeCount)
-
 }
 
 // Send our best signature set for this level, to 'count' nodes. The level must
