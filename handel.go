@@ -238,7 +238,8 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 		actorFunc(h.checkFinalSignature),
 	}
 
-	h.threshold = h.c.ContributionsThreshold(h.reg.Size())
+	h.threshold = h.c.Contributions
+	fmt.Printf(" -- handel contributions %d / %d\n", h.threshold, r.Size())
 	h.store = newReplaceStore(part, h.c.NewBitSet, c)
 	h.store.Store(0, mySig) // Our own sig is at level 0.
 	evaluator := h.c.NewEvaluatorStrategy(h.store, h)
