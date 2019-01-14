@@ -17,6 +17,8 @@ import (
 	"github.com/ConsenSys/handel/network/quic"
 	"github.com/ConsenSys/handel/network/udp"
 	"github.com/ConsenSys/handel/simul/monitor"
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 )
 
 var resultsDir string
@@ -124,6 +126,18 @@ func (c *Config) WriteTo(path string) error {
 
 	enc := toml.NewEncoder(file)
 	return enc.Encode(c)
+}
+
+// Logger returns the logger set to the right verbosity with timestamp added
+func (c *Config) Logger() handel.Logger {
+	var logger handel.Logger
+	if c.Debug != 0 {
+		logger = handel.NewKitLogger(level.AllowDebug())
+	} else {
+		logger = handel.NewKitLogger(level.AllowInfo())
+	}
+	//return logger.With("ts", log.DefaultTimestamp)
+	return logger.With("ts", log.TimestampFormat(time.Now, time.StampMilli))
 }
 
 // MaxNodes returns the maximum number of nodes to test

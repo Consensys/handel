@@ -62,7 +62,10 @@ func (s *fixedIdentity) PublicKey() PublicKey {
 }
 
 func (s *fixedIdentity) String() string {
-	return fmt.Sprintf("{id: %d,addr: %s}", s.id, s.addr)
+	if s.addr == "" {
+		return fmt.Sprintf("{id:%d}", s.id)
+	}
+	return fmt.Sprintf("{id: %d - %s}", s.id, s.addr)
 }
 
 // arrayRegistry is a Registry that uses a fixed size array as backend

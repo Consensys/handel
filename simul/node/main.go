@@ -49,6 +49,7 @@ func main() {
 	// XXX maybe try with a database-backed registry if loading file in memory is
 	// too much when overloading
 	config := lib.LoadConfig(*configFile)
+	logger := config.Logger()
 	runConf := config.Runs[*run]
 	cons := config.NewConstructor()
 	parser := lib.NewCSVParser()
@@ -61,7 +62,6 @@ func main() {
 	// instantiate handel for all specified ids in the flags
 	var handels []*h.ReportHandel
 	for _, id := range ids {
-		fmt.Println(nodeList)
 		node := nodeList.Node(id)
 		network := config.NewNetwork(node.Identity)
 
@@ -70,7 +70,9 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		// Setup report handel
+		// Setup report handel and the id of the logger
+		config := runConf.GetHandelConfig()
+		config.Logger = logger
 		handel := h.NewHandel(network, registry, node.Identity, cons.Handel(), lib.Message, signature, runConf.GetHandelConfig())
 		reporter := h.NewReportHandel(handel)
 		handels = append(handels, reporter)
@@ -80,16 +82,11 @@ func main() {
 	syncer := lib.NewSyncSlave(*syncAddr, *master, ids)
 	select {
 	case <-syncer.WaitMaster():
-		now := time.Now()
-		formatted := fmt.Sprintf("%02d:%02d:%02d:%03d", now.Hour(),
-			now.Minute(),
-			now.Second(),
-			now.Nanosecond())
-
-		fmt.Printf("\n%s [+] %s synced - starting\n", formatted, ids.String())
+		logger.Debug("sync", "finished", "nodes", ids.String())
 	case <-time.After(BeaconTimeout):
 		panic("Haven't received beacon in time!")
 	}
+	logger.Debug("nodes", ids.String(), "sync", "finished")
 
 	// Start all handels and run a timeout on the signature generation time
 	var wg sync.WaitGroup
@@ -111,8 +108,8 @@ func main() {
 					if sig.BitSet.Cardinality() >= runConf.Threshold {
 						enough = true
 						wg.Done()
-						fmt.Printf(" --- NODE  %d FINISHED %d/%d---\n", id,
-							sig.Cardinality(), runConf.Threshold)
+						logger.Info("FINISHED", id, "sig", fmt.Sprintf("%d/%d",
+							sig.Cardinality(), runConf.Threshold))
 						break
 					}
 				case <-time.After(config.GetMaxTimeout()):
@@ -122,7 +119,7 @@ func main() {
 			signatureGen.Record()
 			netMeasure.Record()
 			storeMeasure.Record()
-			fmt.Println("reached good enough multi-signature!")
+			logger.Debug("node", id, "sigen", "finished")
 
 			if err := h.VerifyMultiSignature(lib.Message, &sig, registry, cons.Handel()); err != nil {
 				panic("signature invalid !!")
@@ -130,19 +127,13 @@ func main() {
 		}(i)
 	}
 	wg.Wait()
-	fmt.Println("signature valid & finished- sending state to sync master")
+	logger.Info("simul", "finished")
 
 	// Sync with master - wait to close our node
 	syncer.Reset()
 	select {
 	case <-syncer.WaitMaster():
-		now := time.Now()
-		formatted := fmt.Sprintf("%02d:%02d:%02d:%03d", now.Hour(),
-			now.Minute(),
-			now.Second(),
-			now.Nanosecond())
-
-		fmt.Printf("\n%s [+] %s synced - closing shop\n", formatted, ids.String())
+		logger.Debug("sync", "finished", "nodes", ids.String())
 	case <-time.After(BeaconTimeout):
 		panic("Haven't received beacon in time!")
 	}

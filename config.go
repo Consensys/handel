@@ -46,6 +46,8 @@ type Config struct {
 	// round. By default, it uses the linear timeout strategy.
 	NewTimeoutStrategy func(h *Handel, levels []int) TimeoutStrategy
 
+	// Logger to use for logging handel actions
+	Logger Logger
 	// Rand provides the source of entropy for shuffling the list of nodes that
 	// Handel must contact at each level. If not set, golang's crypto/rand is
 	// used.
@@ -68,6 +70,7 @@ func DefaultConfig(size int) *Config {
 		NewPartitioner:       DefaultPartitioner,
 		NewEvaluatorStrategy: DefaultEvaluatorStrategy,
 		NewTimeoutStrategy:   DefaultTimeoutStrategy,
+		Logger:               DefaultLogger,
 		Rand:                 rand.Reader,
 	}
 }
@@ -141,6 +144,9 @@ func mergeWithDefault(c *Config, size int) *Config {
 	}
 	if c.NewTimeoutStrategy == nil {
 		c2.NewTimeoutStrategy = DefaultTimeoutStrategy
+	}
+	if c.Logger == nil {
+		c2.Logger = DefaultLogger
 	}
 	if c.Rand == nil {
 		c2.Rand = rand.Reader
