@@ -11,6 +11,7 @@ import (
 
 func TestHandel(t *testing.T) {
 	n := 101
+	config := h.DefaultConfig(n)
 	msg := []byte("Peaches and Cream")
 	secretKeys := make([]h.SecretKey, n)
 	pubKeys := make([]h.PublicKey, n)
@@ -21,7 +22,7 @@ func TestHandel(t *testing.T) {
 		secretKeys[i] = sec
 		pubKeys[i] = pub
 	}
-	test := h.NewTest(secretKeys, pubKeys, cons, msg)
+	test := h.NewTest(secretKeys, pubKeys, cons, msg, config)
 	//test.SetOfflineNodes(15, 25, 8)
 	//test.SetThreshold(n - 4)
 	test.Start()
