@@ -6,17 +6,17 @@ import (
 	"github.com/willf/bitset"
 )
 
-// BitSet is a bitset !
+// A bitset. Today used to wrap WilffBitSet.
 type BitSet interface {
 	// BitLength returns the fixed size of this BitSet
 	BitLength() int
 	// Cardinality returns the number of '1''s set
 	Cardinality() int
 	// Set the bit at the given index to 1 or 0 depending on the given boolean.
-	// If the index is out of bound, implementations MUST not change the bitset.
+	// A set out of bounds is an error, implementations should panic in such a case.
 	Set(int, bool)
-	// Get returns the status of the i-th bit in this bitset. Implementations
-	// must return false if the index is out of bounds.
+	// Get returns the status of the i-th bit in this bitset.
+	// A get out of bounds is an error, implementations should panic in such a case.
 	Get(int) bool
 	// Slice returns a BitSet that only contains the bits between the given
 	// range, to excluded. If the range given is invalid, it returns the same
@@ -36,8 +36,11 @@ type BitSet interface {
 	None() bool
 	// Any returns true if any bit is set, false otherwise
 	Any() bool
+	// Or between this bitset and another, returns a new bitset.
 	Or(b2 BitSet) BitSet
+	// And between this bitset and another, returns a new bitset.
 	And(b2 BitSet) BitSet
+	// Xor between this bitset and another, returns a new bitset.
 	Xor(b2 BitSet) BitSet
 }
 
@@ -117,8 +120,6 @@ func (w *WilffBitSet) Xor(b2 BitSet) BitSet {
 	return newWilffBitset(w.b.SymmetricDifference(b2.(*WilffBitSet).b))
 }
 
-
-// Slice implements the BitSet interface
 func (w *WilffBitSet) Slice(from, to int) BitSet {
 	if !w.inBound(from) || to < from || to > w.l {
 		return w

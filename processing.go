@@ -123,9 +123,6 @@ func (f *evaluatorProcessing) Add(sp *sigPair) {
 	defer f.cond.L.Unlock()
 
 	f.todos = append(f.todos, sp)
-	if f.h != nil && false {
-		f.log.Debug("process_add", sp)
-	}
 	f.cond.Signal()
 }
 
@@ -135,9 +132,6 @@ func (f *evaluatorProcessing) readTodos() (bool, *sigPair) {
 	f.cond.L.Lock()
 	defer f.cond.L.Unlock()
 	for len(f.todos) == 0 {
-		if f.h != nil && false {
-			f.log.Debug("empty_queue")
-		}
 		f.cond.Wait()
 	}
 

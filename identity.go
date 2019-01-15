@@ -7,7 +7,7 @@ import (
 	mathRand "math/rand"
 )
 
-// Identity holds the public informations of a Handel node
+// Identity holds the public information of a Handel node
 type Identity interface {
 	// Address must be understandable by the Network implementation
 	Address() string
