@@ -108,7 +108,7 @@ func (a *Aggregator) handleIncoming() {
 		a.accSig = a.accSig.Combine(ms.Signature)
 		a.accBs.Set(int(packet.Origin), true)
 		a.rcvd++
-		//fmt.Println(a.Node.Identity().ID(), " got sig from", packet.Origin, " -> ", a.rcvd, "/", a.total)
+		fmt.Println(a.Node.Identity().ID(), " got sig from", packet.Origin, " -> ", a.rcvd, "/", a.total)
 		// are we done ?
 		if a.rcvd >= a.threshold {
 			//fmt.Println("looping out")

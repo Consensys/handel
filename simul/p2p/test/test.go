@@ -30,6 +30,7 @@ func Aggregators(t *testing.T, n, thr int, a p2p.Adaptor, opts p2p.Opts) {
 		go func(a *p2p.Aggregator) {
 			go a.Start()
 			sig := <-a.FinalMultiSignature()
+			require.True(t, sig.Cardinality() >= thr)
 			err := handel.VerifyMultiSignature(lib.Message, sig, reg, cons.Handel())
 			require.NoError(t, err)
 			wg.Done()

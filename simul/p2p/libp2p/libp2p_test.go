@@ -12,7 +12,7 @@ import (
 func TestP2P(t *testing.T) {
 	n := 20
 	thr := 15
-	var opts = map[string]string{"Connector": "neighbor"}
+	var opts = map[string]string{"Connector": "neighbor", "Count": "5"}
 	maker := p2p.AdaptorFunc(MakeP2P)
 	maker = p2p.WithConnector(maker)
 	maker = p2p.WithPostFunc(maker, func(handel.Registry, []p2p.Node) {
