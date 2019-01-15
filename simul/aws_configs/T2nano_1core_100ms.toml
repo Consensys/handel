@@ -1,0 +1,117 @@
+Network = "udp"
+Curve = "bn256"
+Encoding = "gob"
+MonitorPort = 10000
+MaxTimeout = "2m"
+Retrials = 1
+
+[[Runs]]
+    Nodes = 16
+    Threshold = 16
+    Failing = 0
+    Processes = 16
+    [Runs.Handel]
+        Period = "100ms"
+        UpdateCount = 1
+        NodeCount = 10
+
+[[Runs]]
+    Nodes = 24
+    Threshold = 24
+    Failing = 0
+    Processes = 16
+    [Runs.Handel]
+        Period = "100ms"
+        UpdateCount = 1
+        NodeCount = 10
+
+[[Runs]]
+    Nodes = 32
+    Threshold = 32
+    Failing = 0
+    Processes = 16
+    [Runs.Handel]
+        Period = "100ms"
+        UpdateCount = 1
+        NodeCount = 10
+
+[[Runs]]
+    Nodes = 40
+    Threshold = 40
+    Failing = 0
+    Processes = 16
+    [Runs.Handel]
+        Period = "100ms"
+        UpdateCount = 1
+        NodeCount = 10
+
+[[Runs]]
+    Nodes = 48
+    Threshold = 48
+    Failing = 0
+    Processes = 16
+    [Runs.Handel]
+        Period = "100ms"
+        UpdateCount = 1
+        NodeCount = 10
+
+[[Runs]]
+    Nodes = 56
+    Threshold = 56
+    Failing = 0
+    Processes = 16
+    [Runs.Handel]
+        Period = "100ms"
+        UpdateCount = 1
+        NodeCount = 10
+
+[[Runs]]
+    Nodes = 64
+    Threshold = 64
+    Failing = 0
+    Processes = 16
+    [Runs.Handel]
+        Period = "100ms"
+        UpdateCount = 1
+        NodeCount = 10
+
+
+[[Runs]]
+    Nodes = 128
+    Threshold = 128
+    Failing = 0
+    Processes = 16
+    [Runs.Handel]
+        Period = "100ms"
+        UpdateCount = 1
+        NodeCount = 10
+
+[[Runs]]
+    Nodes = 200
+    Threshold = 200
+    Failing = 0
+    Processes = 16
+    [Runs.Handel]
+        Period = "100ms"
+        UpdateCount = 1
+        NodeCount = 10
+
+[[Runs]]
+    Nodes = 256
+    Threshold = 256
+    Failing = 0
+    Processes = 16
+    [Runs.Handel]
+        Period = "100ms"
+        UpdateCount = 1
+        NodeCount = 10
+
+[[Runs]]
+    Nodes = 512
+    Threshold = 512
+    Failing = 0
+    Processes = 16
+    [Runs.Handel]
+        Period = "100ms"
+        UpdateCount = 1
+        NodeCount = 10

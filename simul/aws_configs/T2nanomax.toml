@@ -1,0 +1,47 @@
+Network = "udp"
+Curve = "bn256"
+Encoding = "gob"
+MonitorPort = 10000
+MaxTimeout = "2m"
+Retrials = 1
+
+[[Runs]]
+    Nodes = 1024
+    Threshold = 100
+    Failing = 0
+    Processes = 16
+    [Runs.Handel]
+        Period = "20ms"
+        UpdateCount = 1
+        NodeCount = 10
+
+[[Runs]]
+    Nodes = 2000
+    Threshold = 100
+    Failing = 0
+    Processes = 16
+    [Runs.Handel]
+        Period = "20ms"
+        UpdateCount = 1
+        NodeCount = 10
+
+
+[[Runs]]
+    Nodes = 1024
+    Threshold = 50
+    Failing = 0
+    Processes = 16
+    [Runs.Handel]
+        Period = "100ms"
+        UpdateCount = 1
+        NodeCount = 10
+
+[[Runs]]
+    Nodes = 2000
+    Threshold = 50
+    Failing = 0
+    Processes = 16
+    [Runs.Handel]
+        Period = "100ms"
+        UpdateCount = 1
+        NodeCount = 10

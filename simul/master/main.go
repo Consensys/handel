@@ -13,15 +13,13 @@ import (
 	"github.com/ConsenSys/handel/simul/monitor"
 )
 
-var nbOfNodes = flag.Int("nbOfNodes", 0, "total number of slave nodes")
-var nbOffline = flag.Int("nbOffline", 0, "number of offline nodes")
-var nbOfInstances = flag.Int("nbOfInstances", 0, "number of slave instances")
+var configFile = flag.String("config", "", "config file created for the exp.")
 
 var timeOut = flag.Int("timeOut", 0, "timeout in minutes")
 var masterAddr = flag.String("masterAddr", "", "master address")
 var network = flag.String("network", "", "network type")
 var run = flag.Int("run", 0, "run index")
-var threshold = flag.Int("threshold", 0, "min threshold of contributions")
+
 var resultFile = flag.String("resultFile", "", "result file")
 var monitorPort = flag.Int("monitorPort", 0, "monitor port")
 
@@ -36,8 +34,15 @@ func init() {
 }
 func main() {
 	flag.Parse()
-	active := *nbOfNodes - *nbOffline
-	master := lib.NewSyncMaster(*masterAddr, active, *nbOfNodes)
+	config := lib.LoadConfig(*configFile)
+	runConf := config.Runs[*run]
+	nbOfNodes := runConf.Nodes
+	nbOffline := runConf.Failing
+	nbOfInstances := runConf.Processes
+	threshold := runConf.Threshold
+	period := runConf.Handel.Period
+	active := nbOfNodes - nbOffline
+	master := lib.NewSyncMaster(*masterAddr, active, nbOfNodes)
 	fmt.Println("Master: listen on", *masterAddr)
 
 	os.MkdirAll(resultsDir, 0777)
@@ -49,7 +54,7 @@ func main() {
 	}
 	defer csvFile.Close()
 
-	stats := defaultStats(*run, *nbOfNodes, *threshold, *nbOfInstances, *network)
+	stats := defaultStats(*run, nbOfNodes, threshold, nbOfInstances, *network, period)
 	mon := monitor.NewMonitor(10000, stats)
 	go mon.Listen()
 
@@ -80,12 +85,13 @@ func main() {
 	mon.Stop()
 }
 
-func defaultStats(run, nodes, threshold, nbOfInstances int, network string) *monitor.Stats {
+func defaultStats(run, nodes, threshold, nbOfInstances int, network, period string) *monitor.Stats {
 	return monitor.NewStats(map[string]string{
 		"run":            strconv.Itoa(run),
 		"totalNbOfNodes": strconv.Itoa(nodes),
 		"nbOfInstances":  strconv.Itoa(nbOfInstances),
 		"threshold":      strconv.Itoa(threshold),
 		"network":        network,
+		"period":         period,
 	}, nil)
 }
