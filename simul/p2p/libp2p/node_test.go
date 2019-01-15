@@ -17,16 +17,16 @@ import (
 )
 
 func TestGossipMeshy(t *testing.T) {
-	n := 50
-	nbOutgoing := 3
+	n := 20
+	nbOutgoing := 5
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	connector := p2p.NewNeighborConnector()
-	//connector := NewRandomConnector()
+	//connector := p2p.NewNeighborConnector()
+	connector := p2p.NewRandomConnector()
 	r := pubsub.NewGossipSub
 	_, nodes := FakeSetup(ctx, n, nbOutgoing, connector, r)
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(2 * time.Second)
 
 	// broadcast
 	for i := 0; i < 50; i++ {
@@ -39,7 +39,7 @@ func TestGossipMeshy(t *testing.T) {
 			case p := <-n.Next():
 				require.Equal(t, packet.Origin, p.Origin)
 				fmt.Println("received from ", j)
-			case <-time.After(1 * time.Second):
+			case <-time.After(2 * time.Second):
 				t.FailNow()
 			}
 		}
