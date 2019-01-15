@@ -6,7 +6,7 @@ import (
 	"github.com/willf/bitset"
 )
 
-// A bitset. Today used to wrap WilffBitSet.
+// A bitset. Today used to wrap wilff's bitset library.
 type BitSet interface {
 	// BitLength returns the fixed size of this BitSet
 	BitLength() int
@@ -18,10 +18,6 @@ type BitSet interface {
 	// Get returns the status of the i-th bit in this bitset.
 	// A get out of bounds is an error, implementations should panic in such a case.
 	Get(int) bool
-	// Slice returns a BitSet that only contains the bits between the given
-	// range, to excluded. If the range given is invalid, it returns the same
-	// bitset.
-	Slice(from, to int) BitSet
 	// MarshalBinary returns the binary representation of the BitSet.
 	MarshalBinary() ([]byte, error)
 	// UnmarshalBinary fills the bitset from the given buffer.
@@ -118,18 +114,6 @@ func (w *WilffBitSet) And(b2 BitSet) BitSet {
 
 func (w *WilffBitSet) Xor(b2 BitSet) BitSet {
 	return newWilffBitset(w.b.SymmetricDifference(b2.(*WilffBitSet).b))
-}
-
-func (w *WilffBitSet) Slice(from, to int) BitSet {
-	if !w.inBound(from) || to < from || to > w.l {
-		return w
-	}
-	newLength := to - from
-	w2 := NewWilffBitset(newLength)
-	for i := 0; i < newLength; i++ {
-		w2.Set(i, w2.Get(i+from))
-	}
-	return w2
 }
 
 func (w *WilffBitSet) inBound(idx int) bool {
