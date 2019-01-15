@@ -317,7 +317,7 @@ func TestHandelParsePacket(t *testing.T) {
 		msg:         msg,
 		Partitioner: NewBinPartitioner(1, registry),
 	}
-	h.levels = createLevels(h.c, registry, h.Partitioner)
+	h.levels = createLevels(h.c, h.Partitioner)
 	type packetTest struct {
 		*Packet
 		Error bool
@@ -381,8 +381,8 @@ func TestHandelCreateLevel(t *testing.T) {
 	c := DefaultConfig(n)
 	c.DisableShuffling = true
 
-	mapping1 := createLevels(c, registry, part)
-	mapping2 := createLevels(c, registry, part)
+	mapping1 := createLevels(c, part)
+	mapping2 := createLevels(c, part)
 	require.Equal(t, mapping1, mapping2)
 
 	seed := make([]byte, 512)
@@ -393,17 +393,17 @@ func TestHandelCreateLevel(t *testing.T) {
 	var r bytes.Buffer
 	r.Write(seed)
 	c.Rand = &r
-	mapping3 := createLevels(c, registry, part)
+	mapping3 := createLevels(c, part)
 	require.NotEqual(t, mapping3, mapping2)
 
 	var r2 bytes.Buffer
 	r2.Write(seed)
 	c.Rand = &r2
-	mapping4 := createLevels(c, registry, part)
+	mapping4 := createLevels(c, part)
 	require.Equal(t, mapping3, mapping4)
 
 	c = DefaultConfig(n)
-	mapping5 := createLevels(c, registry, part)
+	mapping5 := createLevels(c, part)
 	require.NotEqual(t, mapping5, mapping4)
 	require.NotEqual(t, mapping5, mapping1)
 

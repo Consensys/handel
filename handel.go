@@ -61,7 +61,7 @@ func newLevel(id int, nodes []Identity) *level {
 }
 
 // Create a map of all the levels for this registry.
-func createLevels(c *Config, r Registry, partitioner Partitioner) map[int]*level {
+func createLevels(c *Config,partitioner Partitioner) map[int]*level {
 	lvls := make(map[int]*level)
 	var firstActive bool
 	for _, level := range partitioner.Levels() {
@@ -233,7 +233,7 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 		out:         make(chan MultiSignature, 10000),
 		ticker:      time.NewTicker(config.UpdatePeriod),
 		log:         config.Logger.With("id", id.ID()),
-		levels:      createLevels(config, r, part),
+		levels:      createLevels(config, part),
 		ids:         part.Levels(),
 	}
 	h.actors = []actor{

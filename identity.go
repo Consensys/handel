@@ -7,9 +7,6 @@ import (
 	mathRand "math/rand"
 )
 
-// IDSIZE of the ID used in Handel. This is fixed at the moment.
-const IDSIZE = 32
-
 // Identity holds the public informations of a Handel node
 type Identity interface {
 	// Address must be understandable by the Network implementation
