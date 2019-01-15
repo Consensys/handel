@@ -49,7 +49,7 @@ func testBitSets(t *testing.T, tests []bitsetTest) {
 
 }
 
-func testBitSetWilffMarshalling(t *testing.T) {
+func TestBitSetWilffMarshalling(t *testing.T) {
 	b := NewWilffBitset(10).(*WilffBitSet)
 	b.Set(1, true)
 	b.Set(4, true)

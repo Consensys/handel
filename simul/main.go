@@ -19,11 +19,16 @@ var platformFlag = flag.String("platform", "", "name of the platform to run on")
 var runTimeout = flag.Duration("run-timeout", 2*time.Minute, "timeout of a given run")
 
 var awsConfigPath = flag.String("awsConfig", "", "TOML encoded config file AWS specyfic config")
+var debug = flag.Bool("debug", false, "debug flag")
 
 func main() {
 	flag.Parse()
 
 	c := lib.LoadConfig(*configFlag)
+	if c.Debug == 0 && *debug {
+		// cmd line override config
+		c.Debug = 1
+	}
 	plat := platform.NewPlatform(*platformFlag, *awsConfigPath)
 	if err := plat.Configure(c); err != nil {
 		panic(err)
@@ -39,7 +44,7 @@ func main() {
 		startRun(c, run, plat, timeout)
 	}
 
-	fmt.Println("Simulation finished")
+	fmt.Println("[+] simulation finished")
 }
 
 func startRun(c *lib.Config, run int, p platform.Platform, t time.Duration) {

@@ -17,6 +17,8 @@ import (
 	"github.com/ConsenSys/handel/network/quic"
 	"github.com/ConsenSys/handel/network/udp"
 	"github.com/ConsenSys/handel/simul/monitor"
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 )
 
 var resultsDir string
@@ -79,8 +81,22 @@ type RunConfig struct {
 	Failing int
 	// Number of processes for this run
 	Processes int
+	// Handel items configurable  - will be merged with defaults
+	Handel *HandelConfig
 	// extra for particular information for specific platform for examples
 	Extra map[string]string
+}
+
+// HandelConfig is a small config that will be converted to handel.Config during
+// the simulation
+type HandelConfig struct {
+	// Period of the periodic update loop
+	Period string
+	// Number of node do we contact for each periodic update
+	UpdateCount int
+	// Number of node do we contact when starting level + when finishing level
+	// XXX - maybe remove in the futur ! -
+	NodeCount int
 }
 
 // LoadConfig looks up the given file to unmarshal a TOML encoded Config.
@@ -112,6 +128,18 @@ func (c *Config) WriteTo(path string) error {
 	return enc.Encode(c)
 }
 
+// Logger returns the logger set to the right verbosity with timestamp added
+func (c *Config) Logger() handel.Logger {
+	var logger handel.Logger
+	if c.Debug != 0 {
+		logger = handel.NewKitLogger(level.AllowDebug())
+	} else {
+		logger = handel.NewKitLogger(level.AllowInfo())
+	}
+	//return logger.With("ts", log.DefaultTimestamp)
+	return logger.With("ts", log.TimestampFormat(time.Now, time.StampMilli))
+}
+
 // MaxNodes returns the maximum number of nodes to test
 func (c *Config) MaxNodes() int {
 	max := 0
@@ -129,11 +157,11 @@ func (c *Config) NewNetwork(id handel.Identity) handel.Network {
 	if c.Network == "" {
 		c.Network = "udp"
 	}
-	net, err := c.selectNetwork(id)
+	netw, err := c.selectNetwork(id)
 	if err != nil {
 		panic(err)
 	}
-	return net
+	return netw
 }
 
 func (c *Config) selectNetwork(id handel.Identity) (handel.Network, error) {
@@ -232,6 +260,34 @@ func (c *Config) GetBinaryPath() string {
 	default:
 		return filepath.Join(base, "node")
 	}
+}
+
+// GetThreshold returns the threshold to use for this run config - if 0 it
+// returns the number of nodes
+func (r *RunConfig) GetThreshold() int {
+	if r.Threshold == 0 {
+		return r.Nodes
+	}
+	return r.Threshold
+}
+
+// GetHandelConfig returns the config to pass down to handel instances
+// Returns the default if not set
+func (r *RunConfig) GetHandelConfig() *handel.Config {
+	ch := &handel.Config{}
+	if r.Handel == nil {
+		ch = handel.DefaultConfig(r.Nodes)
+		ch.Contributions = r.Threshold
+	}
+	period, err := time.ParseDuration(r.Handel.Period)
+	if err != nil {
+		panic(err)
+	}
+	ch.UpdatePeriod = period
+	ch.UpdateCount = r.Handel.UpdateCount
+	ch.NodeCount = r.Handel.NodeCount
+	ch.Contributions = r.GetThreshold()
+	return ch
 }
 
 // Duration is an alias for time.Duration

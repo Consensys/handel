@@ -7,10 +7,7 @@ import (
 	mathRand "math/rand"
 )
 
-// IDSIZE of the ID used in Handel. This is fixed at the moment.
-const IDSIZE = 32
-
-// Identity holds the public informations of a Handel node
+// Identity holds the public information of a Handel node
 type Identity interface {
 	// Address must be understandable by the Network implementation
 	Address() string
@@ -62,7 +59,10 @@ func (s *fixedIdentity) PublicKey() PublicKey {
 }
 
 func (s *fixedIdentity) String() string {
-	return fmt.Sprintf("{id: %d,addr: %s}", s.id, s.addr)
+	if s.addr == "" {
+		return fmt.Sprintf("{id:%d}", s.id)
+	}
+	return fmt.Sprintf("{id: %d - %s}", s.id, s.addr)
 }
 
 // arrayRegistry is a Registry that uses a fixed size array as backend

@@ -16,9 +16,11 @@ type Partitioner interface {
 	// Returns the size of the set of Identity at this level
 	Size(level int) int
 
-	// Levels returns the list of level ids Handel must run on. It does not
-	// return the level 0 since that represents the personal contributions of
+	// Levels returns the list of level ids Handel must run on.
+	// It does not return the level 0 since that represents the personal contributions of
 	// the Handel node itself.
+	// If the levels is empty (it happens when the number of nodes is not a power of two),
+	//  it is not included in the returned list
 	Levels() []int
 	// IdentitiesAt returns the list of Identity that composes the whole level in
 	// this partition scheme.

@@ -37,6 +37,12 @@ type level struct {
 	//  a better signature for this level
 	sendPeersCt int
 
+	// The size of the signature we send at this level. It's not symmetric if
+	//  we don't have a power of two for the numbers of nodes: we may have a number of
+	//  signatures to send greater (or smaller!) than the number of peers we have
+	//  at this level
+	sendExpectedFullSize int
+
 	// Size of the current sig we're sending. This allows to check if we have a
 	//  better signature.
 	sendSigSize int
@@ -44,26 +50,28 @@ type level struct {
 
 // newLevel returns a fresh new level at the given id (number) for these given
 // nodes to contact.
-func newLevel(id int, nodes []Identity) *level {
+func newLevel(id int, nodes []Identity, sendExpectedFullSize int) *level {
 	if id <= 0 {
 		panic("bad value for level id")
 	}
 	l := &level{
 		id:           id,
 		nodes:        nodes,
-		sendStarted:  id == 1, // We can start the level 1 immediately: it's only our sig.
+		sendStarted:  false,
 		rcvCompleted: false,
 		sendPos:      0,
 		sendPeersCt:  0,
+		sendExpectedFullSize: sendExpectedFullSize,
 		sendSigSize:  0,
 	}
 	return l
 }
 
 // Create a map of all the levels for this registry.
-func createLevels(c *Config, r Registry, partitioner Partitioner) map[int]*level {
+func createLevels(c *Config,partitioner Partitioner) map[int]*level {
 	lvls := make(map[int]*level)
 	var firstActive bool
+	sendExpectedFullSize := 1
 	for _, level := range partitioner.Levels() {
 		nodes2, _ := partitioner.IdentitiesAt(level)
 		nodes := nodes2
@@ -72,8 +80,8 @@ func createLevels(c *Config, r Registry, partitioner Partitioner) map[int]*level
 			copy(nodes, nodes2)
 			shuffle(nodes, c.Rand)
 		}
-		lvls[level] = newLevel(level, nodes)
-		//fmt.Println(lvls[level].String())
+		lvls[level] = newLevel(level, nodes, sendExpectedFullSize)
+		sendExpectedFullSize += len(nodes)
 		if !firstActive {
 			lvls[level].setStarted()
 			firstActive = true
@@ -123,7 +131,7 @@ func (l *level) updateSigToSend(sig *MultiSignature) bool {
 	l.sendSigSize = sig.Cardinality()
 	l.sendPeersCt = 0
 
-	if l.sendSigSize == len(l.nodes) {
+	if l.sendSigSize == l.sendExpectedFullSize {
 		// If we have all the signatures to send
 		// we can start the level without waiting for the timeout
 		l.setStarted()
@@ -195,6 +203,9 @@ type Handel struct {
 	startTime time.Time
 	// the timeout strategy used by handel
 	timeout TimeoutStrategy
+
+	// the logger used by this Handel - always contains the ID
+	log Logger
 }
 
 // NewHandel returns a Handle interface that uses the given network and
@@ -218,7 +229,6 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 	firstBs.Set(0, true)
 	mySig := &MultiSignature{BitSet: firstBs, Signature: s}
 
-	fmt.Println(" -- handel ", id.ID(), " --")
 	h := &Handel{
 		c:           config,
 		net:         n,
@@ -230,7 +240,8 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 		sig:         s,
 		out:         make(chan MultiSignature, 10000),
 		ticker:      time.NewTicker(config.UpdatePeriod),
-		levels:      createLevels(config, r, part),
+		log:         config.Logger.With("id", id.ID()),
+		levels:      createLevels(config, part),
 		ids:         part.Levels(),
 	}
 	h.actors = []actor{
@@ -238,11 +249,11 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 		actorFunc(h.checkFinalSignature),
 	}
 
-	h.threshold = h.c.ContributionsThreshold(h.reg.Size())
+	h.threshold = h.c.Contributions
 	h.store = newReplaceStore(part, h.c.NewBitSet, c)
 	h.store.Store(0, mySig) // Our own sig is at level 0.
 	evaluator := h.c.NewEvaluatorStrategy(h.store, h)
-	h.proc = newEvaluatorProcessing(part, c, msg, evaluator, h)
+	h.proc = newEvaluatorProcessing(part, c, msg, evaluator, h.log)
 	h.net.RegisterListener(h)
 	h.timeout = h.c.NewTimeoutStrategy(h, h.ids)
 	return h
@@ -260,16 +271,13 @@ func (h *Handel) NewPacket(p *Packet) {
 	}
 	ms, err := h.parsePacket(p)
 	if err != nil {
-		h.logf("invalid packet: %s", err)
+		h.log.Warn("invalid_packet", err)
 		return
 	}
 
 	// sends it to processing
 	if !h.getLevel(p.Level).rcvCompleted {
-		msg := fmt.Sprintf("packet received from %d for level %d", p.Origin, p.Level)
-		h.logf(msg)
-
-		//h.logf("%s - done ", msg)
+		h.log.Debug("rcvd_from", p.Origin, "rcvd_level", p.Level)
 		h.proc.Add(&sigPair{origin: p.Origin, level: p.Level, ms: ms})
 	}
 }
@@ -396,7 +404,7 @@ func (h *Handel) checkFinalSignature(s *sigPair) {
 			return
 		}
 		h.best = ms
-		h.logf("final signature output !")
+		h.log.Info("new_sig", fmt.Sprintf("%d/%d/%d", ms.Cardinality(), h.threshold, h.reg.Size()))
 		h.out <- *h.best
 	}
 
@@ -434,17 +442,8 @@ func (h *Handel) checkCompletedLevel(s *sigPair) {
 
 	sp, _ := h.store.Best(s.level)
 	if sp.Cardinality() == len(lvl.nodes) {
-		h.logf("level %d completed!", s.level)
+		h.log.Debug("level_complete", s.level)
 		lvl.rcvCompleted = true
-		// find and start the next level if it exists
-		for _, id := range h.ids {
-			if id < int(s.level+1) {
-				continue
-			}
-			lvl := h.getLevel(byte(id))
-			h.unsafeStartLevel(lvl)
-			break
-		}
 	}
 
 	// The sending phase: for all upper levels we may have completed the level.
@@ -465,7 +464,7 @@ func (h *Handel) sendTo(lvl int, ms *MultiSignature, ids []Identity) {
 
 	buff, err := ms.MarshalBinary()
 	if err != nil {
-		h.logf("error marshalling multi-signature: %s", err)
+		h.log.Error("multi-signature", err)
 		return
 	}
 
@@ -475,8 +474,7 @@ func (h *Handel) sendTo(lvl int, ms *MultiSignature, ids []Identity) {
 		MultiSig: buff,
 	}
 
-	msg := fmt.Sprintf("packet sent of level %d to %v", p.Level, ids)
-	h.logf(msg)
+	h.log.Debug("sent_level", p.Level, "sent_nodes", fmt.Sprintf("%s", ids))
 	h.net.Send(ids, p)
 }
 
@@ -496,8 +494,7 @@ func (h *Handel) parsePacket(p *Packet) (*MultiSignature, error) {
 	lvl, exists := h.levels[int(p.Level)]
 
 	if !exists {
-		msg := fmt.Sprintf("invalid packet's level %d over %v - %v", p.Level, h.ids, h.levels)
-		return nil, errors.New(msg)
+		return nil, fmt.Errorf("invalid packet's level %d", p.Level)
 	}
 
 	ms := new(MultiSignature)
@@ -509,14 +506,4 @@ func (h *Handel) parsePacket(p *Packet) (*MultiSignature, error) {
 		return nil, errors.New("invalid bitset's size for given level")
 	}
 	return ms, err
-}
-
-func (h *Handel) logf(str string, args ...interface{}) {
-	now := time.Now()
-	timeSpent := fmt.Sprintf("%02d:%02d:%02d:%03d", now.Hour(),
-		now.Minute(),
-		now.Second(),
-		now.Nanosecond())
-	idArg := []interface{}{timeSpent, h.id.ID()}
-	logf("%s: handel %d: "+str, append(idArg, args...)...)
 }

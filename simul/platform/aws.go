@@ -4,9 +4,9 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -63,7 +63,7 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 
 	CMDS := aws.NewCommands("/tmp/masterAWS", "/tmp/nodeAWS", "/tmp/aws.conf", "/tmp/aws.csv")
 	a.masterCMDS = aws.MasterCommands{Commands: CMDS}
-	a.slaveCMDS = aws.SlaveCommands{Commands: CMDS}
+	a.slaveCMDS = aws.SlaveCommands{Commands: CMDS, SameBinary: true, SyncBasePort: 6000}
 	a.network = c.Network
 	a.resFile = c.GetCSVFile()
 	a.monitorPort = c.MonitorPort
@@ -121,7 +121,7 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 	fmt.Println("[+] Configuring Master")
 	for idx := 0; idx < len(configure); idx++ {
 		fmt.Println("       Exec:", idx, configure[idx])
-		_, err := master.Run(configure[idx])
+		err := master.Run(configure[idx], nil)
 		if err != nil {
 			return err
 		}
@@ -166,7 +166,7 @@ func configureSlave(slaveNodeController aws.NodeController, slaveCmds map[int]st
 	defer slaveNodeController.Close()
 
 	for idx := 0; idx < len(slaveCmds); idx++ {
-		_, err := slaveNodeController.Run(slaveCmds[idx])
+		err := slaveNodeController.Run(slaveCmds[idx], nil)
 		if err != nil {
 			return err
 		}
@@ -176,11 +176,11 @@ func configureSlave(slaveNodeController aws.NodeController, slaveCmds map[int]st
 
 func (a *awsPlatform) Cleanup() error {
 	return a.aws.StopInstances()
-	//return nil
+	//	return nil
 }
 
 func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
-
+	fmt.Println("Start run", idx)
 	//Create master controller
 	master, err := a.connectToMaster()
 	if err != nil {
@@ -200,7 +200,7 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 	fmt.Println("[+] Master handel node:")
 	for i := 0; i < len(shareRegistryFile); i++ {
 		fmt.Println("       Exec:", i, shareRegistryFile[i])
-		_, err := master.Run(shareRegistryFile[i])
+		err := master.Run(shareRegistryFile[i], nil)
 		if err != nil {
 			panic(err)
 		}
@@ -208,27 +208,24 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 
 	masterStart := a.masterCMDS.Start(
 		a.masterAddr,
-		r.Nodes,
-		r.Failing,
-		r.Processes,
 		a.awsConfig.MasterTimeOut,
 		idx,
-		r.Threshold,
 		a.network,
 		a.resFile,
-		a.monitorPort)
+		a.monitorPort,
+	)
 
 	fmt.Println("       Exec:", len(shareRegistryFile)+1, masterStart)
 	done := make(chan bool)
 	go func() {
-		_, err = master.Run(masterStart)
+		err = master.Run(masterStart, nil)
 		if err != nil {
 			panic(err)
 		}
 
 		done <- true
 	}()
-	//*** Starte slaves
+	//*** Start slaves
 	var wg sync.WaitGroup
 	for _, n := range slaveNodes {
 		wg.Add(1)
@@ -248,47 +245,38 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 func (a *awsPlatform) startSlave(inst aws.Instance, idx int) {
 	cpyFiles := a.slaveCMDS.CopyRegistryFileFromSharedDirToLocalStorage()
 	slaveController, err := aws.NewSSHNodeController(*inst.PublicIP, a.pemBytes, a.awsConfig.SSHUser)
-
 	if err != nil {
 		panic(err)
 	}
+
 	if err := slaveController.Init(); err != nil {
 		panic(err)
 	}
 
 	for i := 0; i < len(cpyFiles); i++ {
-		_, err := slaveController.Run(cpyFiles[i])
-		if err != nil {
+		if err := slaveController.Run(cpyFiles[i], nil); err != nil {
 			panic(err)
 		}
 	}
 
-	idArgs := []string{}
-
-	for _, n := range inst.Nodes {
-		if !n.Active {
-			continue
+	cmd := a.slaveCMDS.Start(a.masterAddr, a.monitorAddr, inst, idx)
+	fmt.Println("Start Slave", cmd)
+	pr, pw := io.Pipe()
+	go func() {
+		scanner := bufio.NewScanner(pr)
+		for {
+			if !scanner.Scan() {
+				if err := scanner.Err(); err != nil {
+					panic(err)
+				}
+				break
+			}
+			fmt.Println(scanner.Text())
 		}
-		id := " -id " + strconv.Itoa(int(n.ID()))
-		idArgs = append(idArgs, id)
-	}
-
-	ids := strings.Join(idArgs, "")
-	startSlave := a.slaveCMDS.Start(a.masterAddr, inst.Sync, a.monitorAddr, ids, idx)
-	fmt.Println("Start Slave", startSlave)
-	out, err := slaveController.Run(startSlave)
+	}()
+	err = slaveController.Run(cmd, pw)
 	if err != nil {
 		panic(err)
-	}
-	scanner := bufio.NewScanner(out)
-	for {
-		if !scanner.Scan() {
-			if err := scanner.Err(); err != nil {
-				panic(err)
-			}
-			break
-		}
-		fmt.Println(scanner.Text())
 	}
 	slaveController.Close()
 }

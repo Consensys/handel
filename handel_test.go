@@ -22,10 +22,22 @@ type handelTest struct {
 
 func TestHandelTestNetworkSimple(t *testing.T) {
 	var tests = []handelTest{
-		{4, nil, 0, false},
+		{5, nil, 0, false},
 	}
 	testHandelTestNetwork(t, tests)
 }
+
+func TestHandelTestNetworkSNonPowerOfTwo(t *testing.T) {
+	off := func(ids ...int32) []int32 {
+		return ids
+	}
+
+	var tests = []handelTest{
+		{5, off(0), 4, false},
+	}
+	testHandelTestNetwork(t, tests)
+}
+
 
 func TestHandelTestNetworkFull(t *testing.T) {
 	off := func(ids ...int32) []int32 {
@@ -69,6 +81,13 @@ func testHandelTestNetwork(t *testing.T, tests []handelTest) {
 	for i, scenario := range tests {
 		t.Logf(" -- test %d --", i)
 		n := scenario.n
+		config := DefaultConfig(n)
+		// When there is no offine nodes we should not rely on the timeouts
+		//  for this reason we use a very long one, so the tests will fail with a timeout
+		//  if there is a bug.
+		if len(scenario.offlines) == 0 {
+			config.NewTimeoutStrategy = NewInfiniteTimeout
+		}
 		secrets := make([]SecretKey, n)
 		pubs := make([]PublicKey, n)
 		cons := new(fakeCons)
@@ -76,15 +95,12 @@ func testHandelTestNetwork(t *testing.T, tests []handelTest) {
 			secrets[i] = new(fakeSecret)
 			pubs[i] = &fakePublic{true}
 		}
-		test := NewTest(secrets, pubs, cons, msg)
+		test := NewTest(secrets, pubs, cons, msg, config)
 		if scenario.thr != 0 {
 			test.SetOfflineNodes(scenario.offlines...)
 			test.SetThreshold(scenario.thr)
 		}
-		localTest := test
 		test.Start()
-		defer localTest.Stop()
-
 		select {
 		case <-test.WaitCompleteSuccess():
 			// all good
@@ -95,6 +111,7 @@ func testHandelTestNetwork(t *testing.T, tests []handelTest) {
 			}
 			t.FailNow()
 		}
+		test.Stop()
 	}
 }
 
@@ -317,7 +334,7 @@ func TestHandelParsePacket(t *testing.T) {
 		msg:         msg,
 		Partitioner: NewBinPartitioner(1, registry),
 	}
-	h.levels = createLevels(h.c, registry, h.Partitioner)
+	h.levels = createLevels(h.c, h.Partitioner)
 	type packetTest struct {
 		*Packet
 		Error bool
@@ -381,8 +398,8 @@ func TestHandelCreateLevel(t *testing.T) {
 	c := DefaultConfig(n)
 	c.DisableShuffling = true
 
-	mapping1 := createLevels(c, registry, part)
-	mapping2 := createLevels(c, registry, part)
+	mapping1 := createLevels(c, part)
+	mapping2 := createLevels(c, part)
 	require.Equal(t, mapping1, mapping2)
 
 	seed := make([]byte, 512)
@@ -393,18 +410,17 @@ func TestHandelCreateLevel(t *testing.T) {
 	var r bytes.Buffer
 	r.Write(seed)
 	c.Rand = &r
-	mapping3 := createLevels(c, registry, part)
+	mapping3 := createLevels(c, part)
 	require.NotEqual(t, mapping3, mapping2)
 
 	var r2 bytes.Buffer
 	r2.Write(seed)
 	c.Rand = &r2
-	mapping4 := createLevels(c, registry, part)
+	mapping4 := createLevels(c, part)
 	require.Equal(t, mapping3, mapping4)
 
 	c = DefaultConfig(n)
-	mapping5 := createLevels(c, registry, part)
+	mapping5 := createLevels(c, part)
 	require.NotEqual(t, mapping5, mapping4)
 	require.NotEqual(t, mapping5, mapping1)
-
 }
