@@ -6,7 +6,7 @@ import (
 	"github.com/willf/bitset"
 )
 
-// A bitset. Today used to wrap wilff's bitset library.
+// BitSet interface, today implemented with a wrapper on wilff's bitset library.
 type BitSet interface {
 	// BitLength returns the fixed size of this BitSet
 	BitLength() int
@@ -104,14 +104,18 @@ func (w *WilffBitSet) Combine(b2 BitSet) BitSet {
 	return w
 }
 
+
+// Or implements the BitSet interface
 func (w *WilffBitSet) Or(b2 BitSet) BitSet {
 	return newWilffBitset(w.b.Union(b2.(*WilffBitSet).b))
 }
 
+// And implements the BitSet interface
 func (w *WilffBitSet) And(b2 BitSet) BitSet {
 	return newWilffBitset(w.b.Intersection(b2.(*WilffBitSet).b))
 }
 
+// Xor implements the BitSet interface
 func (w *WilffBitSet) Xor(b2 BitSet) BitSet {
 	return newWilffBitset(w.b.SymmetricDifference(b2.(*WilffBitSet).b))
 }
@@ -155,14 +159,17 @@ func (w *WilffBitSet) String() string {
 	return w.b.String()
 }
 
+// All implements the BitSet interface
 func (w *WilffBitSet) All() bool {
 	return w.b.All()
 }
 
+// None implements the BitSet interface
 func (w *WilffBitSet) None() bool {
 	return w.b.None()
 }
 
+// Any implements the BitSet interface
 func (w *WilffBitSet) Any() bool {
 	return w.b.Any()
 }
