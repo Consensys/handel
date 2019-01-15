@@ -11,21 +11,21 @@ import (
 )
 
 func csvContent() [][]string {
-	csv := [][]string{
+	csvf := [][]string{
 		{"0", "127.0.0.1:3000", "aed142", "aed142"},
 		{"1", "127.0.0.1:3001", "aed142", "aed142"},
 		{"2", "127.0.0.1:3002", "aed142", "aed142"},
 	}
-	return csv
+	return csvf
 }
 
 func csvCorrupted() [][]string {
-	csv := [][]string{
+	csvf := [][]string{
 		{"0", "127.0.0.1:3000", "", ""},
 		{"x", "127.0.0.1:3001", "", ""},
 		{"2", "127.0.0.1:3002", "", ""},
 	}
-	return csv
+	return csvf
 }
 
 func writeCSV(records [][]string) string {

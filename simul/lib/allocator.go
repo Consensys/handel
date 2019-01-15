@@ -6,7 +6,7 @@ package lib
 // etc.
 type Allocator interface {
 	// Allocate returns the list of IDs of node that must be online during the
-	// experiements. IDs not returned in the slice should not be setup.
+	// experiments. IDs not returned in the slice should not be setup.
 	Allocate(total, offline int) []int
 }
 

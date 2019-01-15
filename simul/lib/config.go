@@ -157,11 +157,11 @@ func (c *Config) NewNetwork(id handel.Identity) handel.Network {
 	if c.Network == "" {
 		c.Network = "udp"
 	}
-	net, err := c.selectNetwork(id)
+	netw, err := c.selectNetwork(id)
 	if err != nil {
 		panic(err)
 	}
-	return net
+	return netw
 }
 
 func (c *Config) selectNetwork(id handel.Identity) (handel.Network, error) {
