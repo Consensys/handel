@@ -176,6 +176,11 @@ func (p *P2PNode) Next() chan handel.Packet {
 	return p.ch
 }
 
+// SecretKey implements the Node interface
+func (p *P2PNode) SecretKey() lib.SecretKey {
+	return p.priv.SecretKey
+}
+
 func (p *P2PNode) readNexts() {
 	for {
 		pbMsg, err := p.s.Next(context.Background())

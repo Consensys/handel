@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"strings"
 
 	"github.com/ConsenSys/handel"
 )
@@ -80,4 +81,26 @@ func (*random) Connect(node Node, reg handel.Registry, max int) error {
 	}
 	//fmt.Printf("\n")
 	return nil
+}
+
+func ExtractConnector(opts Opts) (Connector, int) {
+	c, exists := opts.String("Connector")
+	if !exists {
+		c = "neighbor"
+	}
+	count, exists := opts.Int("Count")
+	if !exists {
+		count = MaxCount
+	}
+	var con Connector
+	switch strings.ToLower(c) {
+	case "neighbor":
+		con = NewNeighborConnector()
+		fmt.Println(" selecting NEIGHBOR connector with ", count)
+	case "random":
+		con = NewRandomConnector()
+		fmt.Println(" selecting RANDOM connector with ", count)
+	}
+	return con, count
+
 }

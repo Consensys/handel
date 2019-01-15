@@ -76,19 +76,8 @@ func Run(a Adaptor) {
 	// transform into lib.Node
 	libNodes, err := toLibNodes(cons, records)
 	registry, p2pNodes := a.Make(ctx, libNodes, ids, runConf.Extra)
-	aggregators := MakeAggregators(cons, libNodes, p2pNodes, registry)
-	// connect the nodes - create the overlay
-	connector, count := extractConnector(&runConf)
-	for _, agg := range aggregators {
-		err := connector.Connect(agg, registry, count)
-		if err != nil {
-			fmt.Println("err : ", err)
-			panic(err)
-		}
-	}
+	aggregators := MakeAggregators(cons, p2pNodes, registry, runConf.GetThreshold())
 
-	fmt.Println(" overlay network  - connections - setup ")
-	time.Sleep(10 * time.Second)
 	// Sync with master - wait for the START signal
 	syncer := lib.NewSyncSlave(*syncAddr, *master, ids)
 	select {
@@ -112,6 +101,7 @@ func Run(a Adaptor) {
 		go func(j int) {
 			agg := aggregators[j]
 			id := agg.Identity().ID()
+			//fmt.Println(" --- LAUNCHING agg j = ", j, " vs pk = ", agg.Identity().PublicKey().String())
 			signatureGen := monitor.NewTimeMeasure("sigen")
 			go agg.Start()
 			// Wait for final signatures !
@@ -121,6 +111,7 @@ func Run(a Adaptor) {
 				select {
 				case sig = <-agg.FinalMultiSignature():
 					if sig.BitSet.Cardinality() >= runConf.Threshold {
+						//fmt.Printf(" --- NODE %d outputted signature of %d / %d contributions\n", id, sig.BitSet.Cardinality(), runConf.Threshold)
 						enough = true
 						report <- int(id)
 						wg.Done()
@@ -131,8 +122,6 @@ func Run(a Adaptor) {
 				}
 			}
 			signatureGen.Record()
-			fmt.Println("reached good enough multi-signature!")
-
 			if err := h.VerifyMultiSignature(lib.Message, sig, registry, cons.Handel()); err != nil {
 				panic("signature invalid !!")
 			}
@@ -143,7 +132,7 @@ func Run(a Adaptor) {
 		total := len(aggregators)
 		curr := 1
 		for i := range report {
-			fmt.Printf(" --- NODE  %d  - %d/%d FINISHED ---\n", i, curr, total)
+			fmt.Printf(" --- NODE  %d FINISHED - in process: %d/%d ---\n", i, curr, total)
 			curr++
 		}
 	}()
@@ -187,16 +176,17 @@ func (i *arrayFlags) Set(value string) error {
 }
 
 // MakeAggregators returns
-func MakeAggregators(c lib.Constructor, ln []*lib.Node, nodes []Node, reg handel.Registry) []*Aggregator {
-	var aggs = make([]*Aggregator, len(nodes))
-	for i, node := range nodes {
-		sig, err := ln[i].SecretKey.Sign(lib.Message, nil)
+func MakeAggregators(c lib.Constructor, nodes []Node, reg handel.Registry, threshold int) []*Aggregator {
+	var aggs = make([]*Aggregator, 0, len(nodes))
+	for _, node := range nodes {
+		//i := int(node.Identity().ID())
+		sig, err := node.SecretKey().Sign(lib.Message, nil)
 		if err != nil {
 			fmt.Println(err)
 			panic(err)
 		}
-		agg := NewAggregator(node, reg, c.Handel(), sig)
-		aggs[i] = agg
+		agg := NewAggregator(node, reg, c.Handel(), sig, threshold)
+		aggs = append(aggs, agg)
 	}
 	return aggs
 
@@ -212,43 +202,19 @@ func IsIncluded(arr []int, v int) bool {
 	return false
 }
 
-func extractConnector(r *lib.RunConfig) (Connector, int) {
-	c, exists := r.Extra["Connector"]
-	if !exists {
-		c = "neighbor"
-	}
-	countStr, exists := r.Extra["Count"]
-	count := MaxCount
-	if exists {
-		var err error
-		count, err = strconv.Atoi(countStr)
-		if err != nil {
-			panic(err)
-		}
-	}
-	var con Connector
-	switch strings.ToLower(c) {
-	case "neighbor":
-		con = NewNeighborConnector()
-		fmt.Println(" selecting NEIGHBOR connector with ", count)
-	case "random":
-		con = NewRandomConnector()
-		fmt.Println(" selecting RANDOM connector with ", count)
-	}
-	return con, count
-
-}
-
 func toLibNodes(c lib.Constructor, nr []*lib.NodeRecord) ([]*lib.Node, error) {
 	n := len(nr)
 	nodes := make([]*lib.Node, n)
 	var err error
+	fmt.Printf("toLibNodes: ")
 	for i, record := range nr {
 		nodes[i], err = record.ToNode(c)
+		fmt.Printf("%d: %v - ", i, nodes[i])
 		if err != nil {
 			return nil, err
 		}
 	}
+	fmt.Printf("\n")
 	return nodes, nil
 }
 

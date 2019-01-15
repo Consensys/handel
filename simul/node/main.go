@@ -57,7 +57,9 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	registry := nodeList.Registry()
+	//registry := nodeList.Registry()
+
+	registry := &nodeList
 
 	// instantiate handel for all specified ids in the flags
 	var handels []*h.ReportHandel

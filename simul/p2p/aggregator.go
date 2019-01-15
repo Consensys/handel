@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 
 	"github.com/ConsenSys/handel"
@@ -11,6 +12,7 @@ import (
 // Node is an interface to be used by an Aggregator
 type Node interface {
 	Identity() handel.Identity
+	SecretKey() lib.SecretKey
 	Diffuse(*handel.Packet)
 	Connect(handel.Identity) error
 	Next() chan handel.Packet
@@ -20,33 +22,35 @@ type Node interface {
 // gossiped until it gets the final one
 type Aggregator struct {
 	Node
-	sig    handel.Signature
-	total  int
-	rcvd   int
-	out    chan *handel.MultiSignature
-	r      handel.Registry
-	accSig handel.Signature
-	accBs  handel.BitSet
-	c      handel.Constructor
-	acc    chan []byte
-	done   chan bool
+	sig       handel.Signature
+	total     int
+	threshold int
+	rcvd      int
+	out       chan *handel.MultiSignature
+	r         handel.Registry
+	accSig    handel.Signature
+	accBs     handel.BitSet
+	c         handel.Constructor
+	acc       chan []byte
+	done      chan bool
 }
 
 // NewAggregator returns an aggregator from the P2PNode
-func NewAggregator(n Node, r handel.Registry, c handel.Constructor, sig handel.Signature) *Aggregator {
+func NewAggregator(n Node, r handel.Registry, c handel.Constructor, sig handel.Signature, threshold int) *Aggregator {
 	total := r.Size()
 	return &Aggregator{
-		Node:   n,
-		sig:    sig,
-		r:      r,
-		rcvd:   0,
-		c:      c,
-		total:  total,
-		accBs:  handel.NewWilffBitset(total),
-		accSig: c.Signature(),
-		out:    make(chan *handel.MultiSignature, 1),
-		acc:    make(chan []byte, total),
-		done:   make(chan bool, 1),
+		Node:      n,
+		sig:       sig,
+		r:         r,
+		rcvd:      0,
+		c:         c,
+		total:     total,
+		threshold: threshold,
+		accBs:     handel.NewWilffBitset(total),
+		accSig:    c.Signature(),
+		out:       make(chan *handel.MultiSignature, 1),
+		acc:       make(chan []byte, total),
+		done:      make(chan bool, 1),
 	}
 }
 
@@ -69,8 +73,8 @@ func (a *Aggregator) Start() {
 		MultiSig: msBuff,
 	}
 
+	fmt.Printf("%d gossips signature %s\n", a.Node.Identity().ID(), hex.EncodeToString(msBuff[len(msBuff)-1-16:len(msBuff)-1]))
 	a.Diffuse(packet)
-	//fmt.Println(a.P2PNode.handelID, " gossiped his signature")
 	go a.handleIncoming()
 }
 
@@ -96,15 +100,17 @@ func (a *Aggregator) handleIncoming() {
 		}
 		err = id.PublicKey().VerifySignature(lib.Message, ms.Signature)
 		if err != nil {
-			panic(err)
+			fmt.Printf("INVALID: %d verified signature from %d : %s\n", a.Node.Identity().ID(),
+				packet.Origin, hex.EncodeToString(packet.MultiSig[0:16]))
+			continue
 		}
 		// add it to the accumulator
 		a.accSig = a.accSig.Combine(ms.Signature)
 		a.accBs.Set(int(packet.Origin), true)
 		a.rcvd++
-		fmt.Println(a.Node.Identity().ID(), " got sig from", packet.Origin, " -> ", a.rcvd, "/", a.total)
+		//fmt.Println(a.Node.Identity().ID(), " got sig from", packet.Origin, " -> ", a.rcvd, "/", a.total)
 		// are we done ?
-		if a.rcvd == a.total {
+		if a.rcvd >= a.threshold {
 			//fmt.Println("looping out")
 			a.out <- &handel.MultiSignature{
 				Signature: a.accSig,
