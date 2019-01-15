@@ -138,7 +138,7 @@ func (f *evaluatorProcessing) readTodos() (bool, *sigPair) {
 	// We need to iterate on our list. We put in
 	//   'newTodos' the signatures not selected in this round
 	//   but possibly interesting next time
-	newTodos := make([]*sigPair, 0)
+	var newTodos []*sigPair
 	var best *sigPair
 	bestMark := 0
 	for _, pair := range f.todos {
