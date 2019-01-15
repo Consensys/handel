@@ -16,7 +16,7 @@ import (
 
 var configFlag = flag.String("config", "", "TOML encoded config file")
 var platformFlag = flag.String("platform", "", "name of the platform to run on")
-var runTimeout = flag.Duration("run-timeout", 2*time.Minute, "timeout of a given run")
+var runTimeout = flag.Duration("run-timeout", 4*time.Minute, "timeout of a given run")
 
 var awsConfigPath = flag.String("awsConfig", "", "TOML encoded config file AWS specyfic config")
 

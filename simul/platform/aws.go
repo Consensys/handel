@@ -175,12 +175,12 @@ func configureSlave(slaveNodeController aws.NodeController, slaveCmds map[int]st
 }
 
 func (a *awsPlatform) Cleanup() error {
-	return a.aws.StopInstances()
-	//return nil
+	//	return a.aws.StopInstances()
+	return nil
 }
 
 func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
-
+	fmt.Println("Start run", idx)
 	//Create master controller
 	master, err := a.connectToMaster()
 	if err != nil {
@@ -208,15 +208,12 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 
 	masterStart := a.masterCMDS.Start(
 		a.masterAddr,
-		r.Nodes,
-		r.Failing,
-		r.Processes,
 		a.awsConfig.MasterTimeOut,
 		idx,
-		r.Threshold,
 		a.network,
 		a.resFile,
-		a.monitorPort)
+		a.monitorPort,
+	)
 
 	fmt.Println("       Exec:", len(shareRegistryFile)+1, masterStart)
 	done := make(chan bool)
