@@ -1,46 +1,56 @@
-package main
+package p2p
 
 import (
+	"context"
+	"encoding/hex"
 	"fmt"
 
 	"github.com/ConsenSys/handel"
 	"github.com/ConsenSys/handel/simul/lib"
 )
 
+// Node is an interface to be used by an Aggregator
+type Node interface {
+	Identity() handel.Identity
+	SecretKey() lib.SecretKey
+	Diffuse(*handel.Packet)
+	Connect(handel.Identity) error
+	Next() chan handel.Packet
+}
+
 // Aggregator is a struct holding the logic to aggregates all signatures
 // gossiped until it gets the final one
 type Aggregator struct {
-	*P2PNode
-	sig    handel.Signature
-	total  int
-	rcvd   int
-	out    chan *handel.MultiSignature
-	r      handel.Registry
-	accSig handel.Signature
-	accBs  handel.BitSet
-	c      handel.Constructor
-	acc    chan []byte
-	done   chan bool
+	Node
+	sig       handel.Signature
+	total     int
+	threshold int
+	rcvd      int
+	out       chan *handel.MultiSignature
+	r         handel.Registry
+	accSig    handel.Signature
+	accBs     handel.BitSet
+	c         handel.Constructor
+	acc       chan []byte
+	done      chan bool
 }
 
 // NewAggregator returns an aggregator from the P2PNode
-func NewAggregator(n *P2PNode, r handel.Registry, c handel.Constructor, total int) *Aggregator {
-	sig, err := n.priv.SecretKey.Sign(lib.Message, nil)
-	if err != nil {
-		panic(err)
-	}
+func NewAggregator(n Node, r handel.Registry, c handel.Constructor, sig handel.Signature, threshold int) *Aggregator {
+	total := r.Size()
 	return &Aggregator{
-		sig:     sig,
-		P2PNode: n,
-		r:       r,
-		total:   total,
-		rcvd:    0,
-		c:       c,
-		accBs:   handel.NewWilffBitset(total),
-		accSig:  c.Signature(),
-		out:     make(chan *handel.MultiSignature, 1),
-		acc:     make(chan []byte, total),
-		done:    make(chan bool, 1),
+		Node:      n,
+		sig:       sig,
+		r:         r,
+		rcvd:      0,
+		c:         c,
+		total:     total,
+		threshold: threshold,
+		accBs:     handel.NewWilffBitset(total),
+		accSig:    c.Signature(),
+		out:       make(chan *handel.MultiSignature, 1),
+		acc:       make(chan []byte, total),
+		done:      make(chan bool, 1),
 	}
 }
 
@@ -57,49 +67,19 @@ func (a *Aggregator) Start() {
 		BitSet:    handel.NewWilffBitset(1),
 	}
 	msBuff, _ := ms.MarshalBinary()
-	packet := handel.Packet{
-		Origin:   a.handelID,
+	packet := &handel.Packet{
+		Origin:   a.Identity().ID(),
 		Level:    1, // just to always have same size as handel packets
 		MultiSig: msBuff,
 	}
 
-	buff, err := packet.MarshalBinary()
-	if err != nil {
-		panic(err)
-	}
-
-	if err := a.Gossip(buff); err != nil {
-		panic(err)
-	}
-	//fmt.Println(a.P2PNode.handelID, " gossiped his signature")
+	fmt.Printf("%d gossips signature %s\n", a.Node.Identity().ID(), hex.EncodeToString(msBuff[len(msBuff)-1-16:len(msBuff)-1]))
+	a.Diffuse(packet)
 	go a.handleIncoming()
-	go a.processLoop()
 }
 
 func (a *Aggregator) handleIncoming() {
-	for {
-		buff, err := a.Next()
-		if err != nil {
-			fmt.Println("error !!", err)
-			break
-		}
-		a.acc <- buff
-	}
-}
-
-func (a *Aggregator) processLoop() {
-	for {
-		var buff []byte
-		select {
-		case buff = <-a.acc:
-		case <-a.done:
-			return
-		}
-		packet := new(handel.Packet)
-		if err := packet.UnmarshalBinary(buff); err != nil {
-			fmt.Println("error unmarshaling ", err)
-			panic(err)
-		}
+	for packet := range a.Node.Next() {
 		//fmt.Printf("aggregator %d received packet from %d\n", a.P2PNode.handelID, packet.Origin)
 		// check if already received
 		if a.accBs.Get(int(packet.Origin)) {
@@ -120,15 +100,17 @@ func (a *Aggregator) processLoop() {
 		}
 		err = id.PublicKey().VerifySignature(lib.Message, ms.Signature)
 		if err != nil {
-			panic(err)
+			fmt.Printf("INVALID: %d verified signature from %d : %s\n", a.Node.Identity().ID(),
+				packet.Origin, hex.EncodeToString(packet.MultiSig[0:16]))
+			continue
 		}
 		// add it to the accumulator
 		a.accSig = a.accSig.Combine(ms.Signature)
 		a.accBs.Set(int(packet.Origin), true)
 		a.rcvd++
-		fmt.Println(a.handelID, " got sig from", packet.Origin, " -> ", a.rcvd, "/", a.total)
+		fmt.Println(a.Node.Identity().ID(), " got sig from", packet.Origin, " -> ", a.rcvd, "/", a.total)
 		// are we done ?
-		if a.rcvd == a.total {
+		if a.rcvd >= a.threshold {
 			//fmt.Println("looping out")
 			a.out <- &handel.MultiSignature{
 				Signature: a.accSig,
@@ -136,6 +118,13 @@ func (a *Aggregator) processLoop() {
 			}
 			break
 		}
-
 	}
+}
+
+// ConsFunc is a type to implement Constructor for a func
+type ConsFunc func(ctx context.Context, nodes []*lib.Node, ids []int, opts map[string]string) (handel.Registry, []Node)
+
+// Make implements the Constructor interface
+func (c *ConsFunc) Make(ctx context.Context, nodes []*lib.Node, ids []int, opts map[string]string) (handel.Registry, []Node) {
+	return (*c)(ctx, nodes, ids, opts)
 }

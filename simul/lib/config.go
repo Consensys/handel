@@ -252,14 +252,11 @@ func (c *Config) GetResultsDir() string {
 // GetBinaryPath returns the binary to compile
 func (c *Config) GetBinaryPath() string {
 	base := "github.com/ConsenSys/handel/simul/"
-	switch strings.ToLower(c.Simulation) {
-	case "p2p":
-		return filepath.Join(base, "p2p")
-	case "handel":
-		fallthrough
-	default:
-		return filepath.Join(base, "node")
+	simul := strings.ToLower(c.Simulation)
+	if strings.Contains(simul, "p2p") {
+		return filepath.Join(base, simul)
 	}
+	return filepath.Join(base, "node")
 }
 
 // GetThreshold returns the threshold to use for this run config - if 0 it
