@@ -31,7 +31,7 @@ type Test struct {
 }
 
 // NewTest returns all handels instances ready to go !
-func NewTest(keys []SecretKey, pubs []PublicKey, c Constructor, msg []byte) *Test {
+func NewTest(keys []SecretKey, pubs []PublicKey, c Constructor, msg []byte, config* Config) *Test {
 	n := len(keys)
 	ids := make([]Identity, n)
 	sigs := make([]Signature, n)
@@ -54,8 +54,10 @@ func NewTest(keys []SecretKey, pubs []PublicKey, c Constructor, msg []byte) *Tes
 		newPartitioner := func(id int32, reg Registry) Partitioner {
 			return NewBinPartitioner(id, reg)
 		}
-		conf := &Config{NewPartitioner: newPartitioner, Logger: logger}
-		handels[i] = NewHandel(nets[i], reg, ids[i], c, msg, sigs[i], conf)
+		conf := *config
+		conf.Logger = logger
+		conf.NewPartitioner = newPartitioner
+		handels[i] = NewHandel(nets[i], reg, ids[i], c, msg, sigs[i], &conf)
 	}
 	return &Test{
 		reg:             reg,

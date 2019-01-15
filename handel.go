@@ -37,6 +37,12 @@ type level struct {
 	//  a better signature for this level
 	sendPeersCt int
 
+	// The size of the signature we send at this level. It's not symmetric if
+	//  we don't have a power of two for the numbers of nodes: we may have a number of
+	//  signatures to send greater (or smaller!) than the number of peers we have
+	//  at this level
+	sendExpectedFullSize int
+
 	// Size of the current sig we're sending. This allows to check if we have a
 	//  better signature.
 	sendSigSize int
@@ -44,17 +50,18 @@ type level struct {
 
 // newLevel returns a fresh new level at the given id (number) for these given
 // nodes to contact.
-func newLevel(id int, nodes []Identity) *level {
+func newLevel(id int, nodes []Identity, sendExpectedFullSize int) *level {
 	if id <= 0 {
 		panic("bad value for level id")
 	}
 	l := &level{
 		id:           id,
 		nodes:        nodes,
-		sendStarted:  id == 1, // We can start the level 1 immediately: it's only our sig.
+		sendStarted:  false,
 		rcvCompleted: false,
 		sendPos:      0,
 		sendPeersCt:  0,
+		sendExpectedFullSize: sendExpectedFullSize,
 		sendSigSize:  0,
 	}
 	return l
@@ -64,6 +71,7 @@ func newLevel(id int, nodes []Identity) *level {
 func createLevels(c *Config,partitioner Partitioner) map[int]*level {
 	lvls := make(map[int]*level)
 	var firstActive bool
+	sendExpectedFullSize := 1
 	for _, level := range partitioner.Levels() {
 		nodes2, _ := partitioner.IdentitiesAt(level)
 		nodes := nodes2
@@ -72,8 +80,8 @@ func createLevels(c *Config,partitioner Partitioner) map[int]*level {
 			copy(nodes, nodes2)
 			shuffle(nodes, c.Rand)
 		}
-		lvls[level] = newLevel(level, nodes)
-		//fmt.Println(lvls[level].String())
+		lvls[level] = newLevel(level, nodes, sendExpectedFullSize)
+		sendExpectedFullSize += len(nodes)
 		if !firstActive {
 			lvls[level].setStarted()
 			firstActive = true
@@ -123,7 +131,7 @@ func (l *level) updateSigToSend(sig *MultiSignature) bool {
 	l.sendSigSize = sig.Cardinality()
 	l.sendPeersCt = 0
 
-	if l.sendSigSize == len(l.nodes) {
+	if l.sendSigSize == l.sendExpectedFullSize {
 		// If we have all the signatures to send
 		// we can start the level without waiting for the timeout
 		l.setStarted()
@@ -436,15 +444,6 @@ func (h *Handel) checkCompletedLevel(s *sigPair) {
 	if sp.Cardinality() == len(lvl.nodes) {
 		h.log.Debug("level_complete", s.level)
 		lvl.rcvCompleted = true
-		// find and start the next level if it exists
-		for _, id := range h.ids {
-			if id < int(s.level+1) {
-				continue
-			}
-			lvl := h.getLevel(byte(id))
-			h.unsafeStartLevel(lvl)
-			break
-		}
 	}
 
 	// The sending phase: for all upper levels we may have completed the level.

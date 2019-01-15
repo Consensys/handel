@@ -13,9 +13,22 @@ import (
 // specific rules such as "all nodes answered with a 1-contribution
 // multi-signature", etc.
 type TimeoutStrategy interface {
+	// Called by handel when it starts
 	Start()
+	// // Called by handel when it stops
 	Stop()
 }
+
+type InfiniteTimeout struct {
+}
+
+func NewInfiniteTimeout(h *Handel, levels []int) TimeoutStrategy {
+	return &InfiniteTimeout{}
+}
+
+func (l *InfiniteTimeout) Start() {}
+func (l *InfiniteTimeout) Stop()  {}
+
 
 type linearTimeout struct {
 	sync.Mutex

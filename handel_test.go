@@ -22,10 +22,22 @@ type handelTest struct {
 
 func TestHandelTestNetworkSimple(t *testing.T) {
 	var tests = []handelTest{
-		{4, nil, 0, false},
+		{5, nil, 0, false},
 	}
 	testHandelTestNetwork(t, tests)
 }
+
+func TestHandelTestNetworkSNonPowerOfTwo(t *testing.T) {
+	off := func(ids ...int32) []int32 {
+		return ids
+	}
+
+	var tests = []handelTest{
+		{5, off(0), 4, false},
+	}
+	testHandelTestNetwork(t, tests)
+}
+
 
 func TestHandelTestNetworkFull(t *testing.T) {
 	off := func(ids ...int32) []int32 {
@@ -69,6 +81,13 @@ func testHandelTestNetwork(t *testing.T, tests []handelTest) {
 	for i, scenario := range tests {
 		t.Logf(" -- test %d --", i)
 		n := scenario.n
+		config := DefaultConfig(n)
+		// When there is no offine nodes we should not rely on the timeouts
+		//  for this reason we use a very long one, so the tests will fail with a timeout
+		//  if there is a bug.
+		if len(scenario.offlines) == 0 {
+			config.NewTimeoutStrategy = NewInfiniteTimeout
+		}
 		secrets := make([]SecretKey, n)
 		pubs := make([]PublicKey, n)
 		cons := new(fakeCons)
@@ -76,7 +95,7 @@ func testHandelTestNetwork(t *testing.T, tests []handelTest) {
 			secrets[i] = new(fakeSecret)
 			pubs[i] = &fakePublic{true}
 		}
-		test := NewTest(secrets, pubs, cons, msg)
+		test := NewTest(secrets, pubs, cons, msg, config)
 		if scenario.thr != 0 {
 			test.SetOfflineNodes(scenario.offlines...)
 			test.SetThreshold(scenario.thr)
@@ -404,5 +423,4 @@ func TestHandelCreateLevel(t *testing.T) {
 	mapping5 := createLevels(c, part)
 	require.NotEqual(t, mapping5, mapping4)
 	require.NotEqual(t, mapping5, mapping1)
-
 }

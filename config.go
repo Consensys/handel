@@ -59,8 +59,8 @@ type Config struct {
 }
 
 // DefaultConfig returns a default configuration for Handel.
-func DefaultConfig(size int) *Config {
-	contributions := PercentageToContributions(DefaultContributionsPerc, size)
+func DefaultConfig(numberOfNodes int) *Config {
+	contributions := PercentageToContributions(DefaultContributionsPerc, numberOfNodes)
 	return &Config{
 		Contributions:        contributions,
 		NodeCount:            DefaultCandidateCount,
