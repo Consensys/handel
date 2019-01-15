@@ -19,16 +19,19 @@ type TimeoutStrategy interface {
 	Stop()
 }
 
-type InfiniteTimeout struct {
+type infiniteTimeout struct {
 }
 
-func NewInfiniteTimeout(h *Handel, levels []int) TimeoutStrategy {
-	return &InfiniteTimeout{}
+// NewInfiniteTimeout creates an InfiniteTimeout. Needs this signature
+func NewInfiniteTimeout(h *Handel, lvls []int) TimeoutStrategy {
+	return &infiniteTimeout{}
 }
 
-func (l *InfiniteTimeout) Start() {}
-func (l *InfiniteTimeout) Stop()  {}
+// Start implements the interface
+func (l *infiniteTimeout) Start() {}
 
+// Stop implements the interface
+func (l *infiniteTimeout) Stop() {}
 
 type linearTimeout struct {
 	sync.Mutex
