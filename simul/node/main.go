@@ -56,7 +56,7 @@ func main() {
 	}
 	//registry := nodeList.Registry()
 
-	registry := &nodeList
+	registry := nodeList.Registry()
 
 	// instantiate handel for all specified ids in the flags
 	var handels []*h.ReportHandel
@@ -117,10 +117,10 @@ func main() {
 				}
 			}
 			if false { //TODO
-				signatureGen.Record()
 				netMeasure.Record()
 				storeMeasure.Record()
 			}
+			signatureGen.Record()
 			processingMeasure.Record()
 			logger.Debug("node", id, "sigen", "finished")
 

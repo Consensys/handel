@@ -14,3 +14,4 @@ Retrials = 1
         Period = "10ms"
         UpdateCount = 1
         NodeCount = 10
+        Timeout = "100ms"
