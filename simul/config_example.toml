@@ -6,8 +6,8 @@ MaxTimeout = "2m"
 Retrials = 1
 
 [[Runs]]
-    Nodes = 180
-    Threshold = 178
+    Nodes = 5
+    Threshold = 3
     Failing = 2
     Processes = 1
     [Runs.Handel]
