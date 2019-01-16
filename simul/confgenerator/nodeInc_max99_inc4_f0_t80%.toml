@@ -1,0 +1,274 @@
+Network = "udp"
+Curve = "bn256"
+Encoding = "gob"
+Allocator = "linear"
+MonitorPort = 10000
+Debug = 0
+Simulation = "handel"
+MaxTimeout = "2m"
+Retrials = 1
+ResultFile = ""
+
+[[Runs]]
+  Nodes = 4
+  Threshold = 4
+  Failing = 0
+  Processes = 1
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+
+[[Runs]]
+  Nodes = 8
+  Threshold = 7
+  Failing = 0
+  Processes = 2
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+
+[[Runs]]
+  Nodes = 12
+  Threshold = 10
+  Failing = 0
+  Processes = 3
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+
+[[Runs]]
+  Nodes = 16
+  Threshold = 13
+  Failing = 0
+  Processes = 4
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+
+[[Runs]]
+  Nodes = 20
+  Threshold = 16
+  Failing = 0
+  Processes = 5
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+
+[[Runs]]
+  Nodes = 24
+  Threshold = 20
+  Failing = 0
+  Processes = 6
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+
+[[Runs]]
+  Nodes = 28
+  Threshold = 23
+  Failing = 0
+  Processes = 7
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+
+[[Runs]]
+  Nodes = 32
+  Threshold = 26
+  Failing = 0
+  Processes = 8
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+
+[[Runs]]
+  Nodes = 36
+  Threshold = 29
+  Failing = 0
+  Processes = 9
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+
+[[Runs]]
+  Nodes = 40
+  Threshold = 32
+  Failing = 0
+  Processes = 10
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+
+[[Runs]]
+  Nodes = 44
+  Threshold = 36
+  Failing = 0
+  Processes = 11
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+
+[[Runs]]
+  Nodes = 48
+  Threshold = 39
+  Failing = 0
+  Processes = 12
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+
+[[Runs]]
+  Nodes = 52
+  Threshold = 42
+  Failing = 0
+  Processes = 13
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+
+[[Runs]]
+  Nodes = 56
+  Threshold = 45
+  Failing = 0
+  Processes = 14
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+
+[[Runs]]
+  Nodes = 60
+  Threshold = 48
+  Failing = 0
+  Processes = 15
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+
+[[Runs]]
+  Nodes = 64
+  Threshold = 52
+  Failing = 0
+  Processes = 16
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+
+[[Runs]]
+  Nodes = 68
+  Threshold = 55
+  Failing = 0
+  Processes = 17
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+
+[[Runs]]
+  Nodes = 72
+  Threshold = 58
+  Failing = 0
+  Processes = 18
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+
+[[Runs]]
+  Nodes = 76
+  Threshold = 61
+  Failing = 0
+  Processes = 19
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+
+[[Runs]]
+  Nodes = 80
+  Threshold = 64
+  Failing = 0
+  Processes = 20
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+
+[[Runs]]
+  Nodes = 84
+  Threshold = 68
+  Failing = 0
+  Processes = 21
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+
+[[Runs]]
+  Nodes = 88
+  Threshold = 71
+  Failing = 0
+  Processes = 22
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+
+[[Runs]]
+  Nodes = 92
+  Threshold = 74
+  Failing = 0
+  Processes = 23
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+
+[[Runs]]
+  Nodes = 96
+  Threshold = 77
+  Failing = 0
+  Processes = 24
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"

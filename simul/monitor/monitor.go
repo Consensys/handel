@@ -13,9 +13,9 @@
 package monitor
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"strconv"
 	"strings"
@@ -39,13 +39,9 @@ const DefaultSinkPort = 10000
 // them. It takes a stats object so it update that in a concurrent-safe manner
 // for each new measure it receives.
 type Monitor struct {
-	listener     net.Listener
-	listenerLock *sync.Mutex
+	sync.Mutex
 
-	// Current conections
-	conns map[string]net.Conn
-	// and the mutex to play with it
-	mutexConn sync.Mutex
+	sock *net.UDPConn
 
 	// Current stats
 	stats *Stats
@@ -64,13 +60,10 @@ type Monitor struct {
 // NewDefaultMonitor returns a new monitor given the stats
 func NewDefaultMonitor(stats *Stats) *Monitor {
 	return &Monitor{
-		conns:        make(map[string]net.Conn),
-		stats:        stats,
-		sinkPort:     DefaultSinkPort,
-		measures:     make(chan *singleMeasure),
-		done:         make(chan string),
-		listenerLock: new(sync.Mutex),
-		sinkPortChan: make(chan uint16, 1),
+		stats:    stats,
+		sinkPort: DefaultSinkPort,
+		measures: make(chan *singleMeasure),
+		done:     make(chan string),
 	}
 }
 
@@ -85,71 +78,21 @@ func NewMonitor(port int, stats *Stats) *Monitor {
 // It needs the stats struct pointer to update when measures come
 // Return an error if something went wrong during the connection setup
 func (m *Monitor) Listen() error {
-	ln, err := net.Listen("tcp", Sink+":"+strconv.Itoa(int(m.sinkPort)))
+	addr := net.JoinHostPort(Sink, strconv.Itoa(int(m.sinkPort)))
+	udpAddr, err := net.ResolveUDPAddr("udp4", addr)
+	if err != nil {
+		return err
+	}
+	udpSock, err := net.ListenUDP("udp4", udpAddr)
 	if err != nil {
 		return fmt.Errorf("Error while monitor is binding address: %v", err)
 	}
-	if m.sinkPort == 0 {
-		_, p, _ := net.SplitHostPort(ln.Addr().String())
-		var p2 uint16
-		fmt.Sscanf(p, "%d", &p2)
-		m.sinkPortChan <- p2
-	}
-	m.listenerLock.Lock()
-	m.listener = ln
-	m.listenerLock.Unlock()
+	m.Lock()
+	m.sock = udpSock
+	m.Unlock()
+	go m.handleConnection()
 	log.Lvl2("Monitor listening for stats on", Sink, ":", m.sinkPort)
-	finished := false
-	go func() {
-		for {
-			if finished {
-				break
-			}
-			conn, err := ln.Accept()
-			if err != nil {
-				operr, ok := err.(*net.OpError)
-				// We cant accept anymore we closed the listener
-				if ok && operr.Op == "accept" {
-					break
-				}
-				log.Lvl2("Error while monitor accept connection:", operr)
-				continue
-			}
-			log.Lvl3("Monitor: new connection from", conn.RemoteAddr().String())
-			m.mutexConn.Lock()
-			m.conns[conn.RemoteAddr().String()] = conn
-			go m.handleConnection(conn)
-			m.mutexConn.Unlock()
-		}
-	}()
-	for !finished {
-		select {
-		// new stats
-		case measure := <-m.measures:
-			m.update(measure)
-		// end of a peer conn
-		case peer := <-m.done:
-			m.mutexConn.Lock()
-			log.Lvl3("Connections left:", len(m.conns))
-			delete(m.conns, peer)
-			// end of monitoring,
-			if len(m.conns) == 0 {
-				m.listenerLock.Lock()
-				if err := m.listener.Close(); err != nil {
-					log.Lvl2("Couldn't close listener:",
-						err)
-				}
-				m.listener = nil
-				finished = true
-				m.listenerLock.Unlock()
-			}
-			m.mutexConn.Unlock()
-		}
-	}
-	log.Lvl2("Monitor finished waiting")
-	m.mutexConn.Lock()
-	m.conns = make(map[string]net.Conn)
-	m.mutexConn.Unlock()
+	<-m.done
 	return nil
 }
 
@@ -157,55 +100,52 @@ func (m *Monitor) Listen() error {
 // And will stop updating the stats
 func (m *Monitor) Stop() {
 	log.Lvl2("Monitor Stop")
-	m.listenerLock.Lock()
-	if m.listener != nil {
-		if err := m.listener.Close(); err != nil {
-			log.Error("Couldn't close listener:", err)
+	m.Lock()
+	if m.sock != nil {
+		if err := m.sock.Close(); err != nil {
+			fmt.Println("error closing: ", err)
 		}
 	}
-	m.listenerLock.Unlock()
-	m.mutexConn.Lock()
-	for _, c := range m.conns {
-		if err := c.Close(); err != nil {
-			log.Error("Couldn't close connection:", err)
-		}
-	}
-	m.mutexConn.Unlock()
-
+	close(m.done)
+	m.Unlock()
 }
 
 // handleConnection will decode the data received and aggregates it into its
 // stats
-func (m *Monitor) handleConnection(conn net.Conn) {
-	dec := json.NewDecoder(conn)
+func (m *Monitor) handleConnection() {
 	nerr := 0
+	reader := bufio.NewReader(m.sock)
+	dec := json.NewDecoder(reader)
 	for {
+		select {
+		case _, d := <-m.done:
+			if !d {
+				fmt.Println("leaving udp handling")
+				return
+			}
+		default:
+		}
+
 		measure := &singleMeasure{}
 		if err := dec.Decode(measure); err != nil {
 			// if end of connection
-			if err == io.EOF || strings.Contains(err.Error(), "closed") {
+			if strings.Contains(err.Error(), "closed") {
 				break
 			}
-			// otherwise log it
-			log.Lvl2("Error: monitor decoding from", conn.RemoteAddr().String(), ":", err)
 			nerr++
-			if nerr > 1 {
-				log.Lvl2("Monitor: too many errors from", conn.RemoteAddr().String(), ": Abort.")
+			if nerr > 50 {
 				break
 			}
 		}
 
-		log.Lvlf3("Monitor: received a Measure from %s: %+v", conn.RemoteAddr().String(), measure)
 		// Special case where the measurement is indicating a FINISHED step
 		switch strings.ToLower(measure.Name) {
 		case "end":
-			log.Lvl3("Finishing monitor")
 			break
 		default:
-			m.measures <- measure
+			m.update(measure)
 		}
 	}
-	m.done <- conn.RemoteAddr().String()
 }
 
 // updateMeasures will add that specific measure to the global stats

@@ -38,6 +38,8 @@ type BitSet interface {
 	And(b2 BitSet) BitSet
 	// Xor between this bitset and another, returns a new bitset.
 	Xor(b2 BitSet) BitSet
+	// IsSuperSet returns true if this is a superset of the other set
+	IsSuperSet(b2 BitSet) bool
 }
 
 
@@ -124,6 +126,11 @@ func (w *WilffBitSet) inBound(idx int) bool {
 	return !(idx < 0 || idx >= w.l)
 }
 
+// IsSuperSet implements the BitSet interface
+func (w *WilffBitSet) IsSuperSet(b2 BitSet) bool {
+	return w.b.IsSuperSet(b2.(*WilffBitSet).b)
+}
+
 // MarshalBinary implements the go Marshaler interface. It encodes the size
 // first and then the bitset.
 func (w *WilffBitSet) MarshalBinary() ([]byte, error) {
@@ -173,5 +180,3 @@ func (w *WilffBitSet) None() bool {
 func (w *WilffBitSet) Any() bool {
 	return w.b.Any()
 }
-
-
