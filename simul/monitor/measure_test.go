@@ -23,6 +23,7 @@ func (dm *DummyCounter) Values() map[string]float64 {
 
 func TestCounterMeasureRecord(t *testing.T) {
 	mon, _ := setupMonitor(t)
+	defer mon.Stop()
 	dm := &DummyCounter{0, 0}
 	// create the counter measure
 	cm := NewCounterMeasure("dummy", dm)
