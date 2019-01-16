@@ -59,7 +59,7 @@ func main() {
 	}
 	//registry := nodeList.Registry()
 
-	registry := &nodeList
+	registry := nodeList.Registry()
 
 	// instantiate handel for all specified ids in the flags
 	var handels []*h.ReportHandel
@@ -118,9 +118,11 @@ func main() {
 					panic("max timeout")
 				}
 			}
+			if false {
+				netMeasure.Record()
+				storeMeasure.Record()
+			}
 			signatureGen.Record()
-			netMeasure.Record()
-			storeMeasure.Record()
 			logger.Debug("node", id, "sigen", "finished")
 
 			if err := h.VerifyMultiSignature(lib.Message, &sig, registry, cons.Handel()); err != nil {

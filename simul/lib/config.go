@@ -97,6 +97,8 @@ type HandelConfig struct {
 	// Number of node do we contact when starting level + when finishing level
 	// XXX - maybe remove in the futur ! -
 	NodeCount int
+	// Timeout used to give to the LinearTimeout constructor
+	Timeout string
 }
 
 // LoadConfig looks up the given file to unmarshal a TOML encoded Config.
@@ -284,6 +286,11 @@ func (r *RunConfig) GetHandelConfig() *handel.Config {
 	ch.UpdateCount = r.Handel.UpdateCount
 	ch.NodeCount = r.Handel.NodeCount
 	ch.Contributions = r.GetThreshold()
+
+	dd, err := time.ParseDuration(r.Handel.Timeout)
+	if err == nil {
+		ch.NewTimeoutStrategy = handel.LinearTimeoutConstructor(dd)
+	}
 	return ch
 }
 

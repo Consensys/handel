@@ -54,7 +54,8 @@ func NewDefaultLinearTimeout(h *Handel, levels []int) TimeoutStrategy {
 	return NewLinearTimeout(h, levels, DefaultLevelTimeout)
 }
 
-// LinearTimeoutConstructor returns..
+// LinearTimeoutConstructor returns the contructor to give in the Config for a
+// linear timeout with the given period
 func LinearTimeoutConstructor(period time.Duration) func(h *Handel, levels []int) TimeoutStrategy {
 	return func(h *Handel, levels []int) TimeoutStrategy {
 		return NewLinearTimeout(h, levels, period)
