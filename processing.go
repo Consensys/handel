@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 )
 
 var deathPillPair = sigPair{-1, 121, nil}
@@ -86,6 +87,19 @@ type evaluatorProcessing struct {
 	todos     []*sigPair
 	evaluator SigEvaluator
 	log       Logger
+
+	// Statistics on the activity
+	// number of signatures checked by the processing
+	sigCheckedCt int
+
+	// Size of the queue after the cleanup (removal of the redundant signatures)
+	sigQueueSize int
+
+	// Number of signatures identified as redundant by the evaluation
+	sigSuppressed int
+
+	// Time spent checking the signature
+	sigCheckingTime int
 }
 
 // TODO handel argument only for logging
@@ -135,6 +149,8 @@ func (f *evaluatorProcessing) readTodos() (bool, *sigPair) {
 		f.cond.Wait()
 	}
 
+	previousLen := len(f.todos)
+
 	// We need to iterate on our list. We put in
 	//   'newTodos' the signatures not selected in this round
 	//   but possibly interesting next time
@@ -164,6 +180,16 @@ func (f *evaluatorProcessing) readTodos() (bool, *sigPair) {
 	}
 
 	f.todos = newTodos
+
+	newLen := len(f.todos)
+
+	f.sigSuppressed +=  previousLen - newLen
+	if best != nil {
+		f.sigSuppressed-- // we don't want to count 'best' as a suppressed sig.
+		f.sigCheckedCt++
+		f.sigQueueSize += newLen
+	}
+
 	return false, best
 }
 
@@ -187,6 +213,22 @@ func (f *evaluatorProcessing) processLoop() {
 	}
 }
 
+func (f *evaluatorProcessing) Values() map[string]float64 {
+	sigQueueSize := 0.0
+	sigCheckingTime := 0.0
+	if f.sigCheckedCt > 0 {
+		sigQueueSize = float64(f.sigQueueSize) / float64(f.sigCheckedCt)
+		sigCheckingTime = float64(f.sigCheckingTime) / float64(f.sigCheckedCt)
+	}
+
+	return map[string]float64{
+		"sigCheckedCt": float64(f.sigCheckedCt),
+		"sigQueueSize": sigQueueSize,
+		"sigSuppressed": float64(f.sigSuppressed),
+		"sigCheckingTime": sigCheckingTime,
+	}
+}
+
 func (f *evaluatorProcessing) processStep() bool {
 	done, best := f.readTodos()
 	if done {
@@ -200,7 +242,13 @@ func (f *evaluatorProcessing) processStep() bool {
 }
 
 func (f *evaluatorProcessing) verifyAndPublish(sp *sigPair) {
+
+	startTime := time.Now()
 	err := verifySignature(sp, f.msg, f.part, f.cons)
+	endTime := time.Now()
+
+	f.sigCheckingTime += (int)(endTime.Sub(startTime).Nanoseconds()) / 1000000
+
 	if err != nil {
 		f.log.Warn("verify", err)
 	} else {
@@ -264,6 +312,7 @@ func (f *fifoProcessing) processIncoming() {
 	}
 }
 
+
 func (f *fifoProcessing) verifySignature(pair *sigPair) error {
 	level := pair.level
 	ms := pair.ms
@@ -289,6 +338,7 @@ func (f *fifoProcessing) verifySignature(pair *sigPair) error {
 		logf("processing err: from %d -> level %d -> %s", pair.origin, pair.level, ms.String())
 		return fmt.Errorf("handel: %s", err)
 	}
+
 	return nil
 }
 
