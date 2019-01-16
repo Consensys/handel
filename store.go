@@ -69,6 +69,9 @@ func (r *replaceStore) Store(level byte, ms *MultiSignature) (*MultiSignature, b
 	if score == 0 {
 		return nil, false
 	}
+	if score < 0 {
+		panic("can't have a negative score!")
+	}
 	r.store(level, n)
 	return n, true
 }
@@ -77,10 +80,75 @@ func (r *replaceStore) Evaluate(sp *sigPair) int {
 	r.Lock()
 	defer r.Unlock()
 	_, score := r.unsafeCheck(sp.level, sp.ms)
+	if score < 0 {
+		panic("can't have a negative score!")
+	}
 	return score
 }
 
+// Returns the score & a signature
+// Questions: what's the use of the signature we're returning?
+// Should we keep in our todos list the signature that we don't need now but may need later? (yes it seems)
 func (r *replaceStore) unsafeCheck(level byte, ms *MultiSignature) (*MultiSignature, int) {
+	ms2 := r.m[level] // The best signature we have for this level, may be nil
+	toReceive := r.part.Size(int(level))
+	if ms2 != nil && ms2.IsSuperSet(ms.BitSet) {
+		// We have an equal or better signature already. Ignore this new one.
+		if toReceive == ms2.Cardinality() || ms.Cardinality() > 1 {
+			return ms2, 0
+		} else {
+			// here, we haven't completed this level. We keep the sig as it's size 1,
+			//  so it can be used in some byzantine/censorship scenarios
+			return ms2, 1
+		}
+	}
+
+	c1 := ms.Cardinality()
+	if c1 <= 0 {
+		panic("no sigs in this signature?")
+	}
+
+	addedSigs := 0
+	existingSigs := 0
+	toSend := ms
+	if ms2 == nil {
+		addedSigs = c1
+		existingSigs = 0
+	} else {
+		// We need to check that we don't overlap. If we do it will be a replacement.
+		merged := ms.BitSet.Or(ms2.BitSet)
+		if merged.Cardinality() != ms2.Cardinality()+c1 {
+			// We can't merged, it's a replace
+			addedSigs = c1 - ms2.Cardinality()
+		} else {
+			existingSigs = ms2.BitSet.Cardinality()
+			addedSigs = merged.Cardinality()
+			sig := r.c.Signature()
+			sig = sig.Combine(ms.Signature)
+			sig = sig.Combine(ms2.Signature)
+			toSend = &MultiSignature{Signature: sig, BitSet: merged}
+		}
+	}
+
+	if addedSigs <= 0 {
+		// At this point it can't be a single signature, it would have been
+		//  caught by the isSuperSet above.
+		return ms2, 0
+	}
+
+	li := int(level)
+	if addedSigs+existingSigs == toReceive {
+		// This completes a level! That's the best options for us. We give
+		//  a greater value to the first levels/
+		return toSend, 1000000 - li
+	}
+
+	// It adds value, but does not complete a level. We
+	//  favorize the older level but take into account the number of sigs we receive as well.
+	return toSend, 30000 - li*100 + addedSigs
+}
+
+func (r *replaceStore) unsafeCheck2(level byte, ms *MultiSignature) (*MultiSignature, int) {
 	ms2, ok := r.m[level]
 	if !ok {
 		return ms, 1

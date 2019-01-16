@@ -101,9 +101,9 @@ func TestStoreReplace(t *testing.T) {
 		// empty
 		{s(), sc(), b(), 2, nil, false, nil},
 		// duplicate
-		{s(sig2, sig2), sc(1, 0), b(true, false), 2, sig2.ms, true, fullSig2},
+		{s(sig2, sig2), sc(999998, 0), b(true, false), 2, sig2.ms, true, fullSig2},
 		// highest
-		{s(sig0, sig1, sig2, sig3), sc(1, 1, 1, 1), b(true, true, true, true), 2, sig2.ms, true, fullSig3},
+		{s(sig0, sig1, sig2, sig3), sc(1000000, 999999, 999998, 999997), b(true, true, true, true), 2, sig2.ms, true, fullSig3},
 	}
 
 	for i, test := range tests {
