@@ -46,6 +46,11 @@ func (r *ReportHandel) Store() Reporter {
 	return r.Handel.store.(*ReportStore)
 }
 
+// Processing returns the Store reporter interface
+func (r *ReportHandel) Processing() Reporter {
+	return r.Handel.proc.(Reporter)
+}
+
 // ReportNetwork is a struct that implements the Network interface by augmenting
 // the Network's method with accountability. How many packets received and send
 // can be logged.
@@ -131,7 +136,7 @@ func (r *ReportStore) Store(level byte, ms *MultiSignature) (*MultiSignature, bo
 // Values implements the simul/monitor/counterIO interface
 func (r *ReportStore) Values() map[string]float64 {
 	return map[string]float64{
-		"sucessReplace": float64(r.sucessReplaced),
+		"successReplace": float64(r.sucessReplaced),
 		"replaceTrial":  float64(r.replacedTrial),
 	}
 }

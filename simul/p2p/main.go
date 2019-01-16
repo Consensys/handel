@@ -1,4 +1,4 @@
-package main
+package p2p
 
 import (
 	"context"
@@ -9,11 +9,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ConsenSys/handel"
 	h "github.com/ConsenSys/handel"
 	"github.com/ConsenSys/handel/simul/lib"
 	"github.com/ConsenSys/handel/simul/monitor"
 	golog "github.com/ipfs/go-log"
-	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	gologging "github.com/whyrusleeping/go-logging"
 )
 
@@ -39,7 +39,8 @@ func init() {
 
 var isMonitoring bool
 
-func main() {
+// Run starts the simulation
+func Run(a Adaptor) {
 
 	if true {
 		golog.SetAllLoggers(gologging.INFO)
@@ -69,21 +70,14 @@ func main() {
 
 	cons := config.NewConstructor()
 	parser := lib.NewCSVParser()
-	registry, aggregators := ReadRegistry(ctx, *registryFile, parser, cons, ids,
-		extractRouter(&runConf))
-	list := registry.(*P2PRegistry)
-	// connect the nodes - create the overlay
-	connector, count := extractConnector(&runConf)
-	for _, agg := range aggregators {
-		err := connector.Connect(agg.P2PNode, []*P2PIdentity(*list), count)
-		if err != nil {
-			fmt.Println("err : ", err)
-			panic(err)
-		}
-	}
+	// read CSV records
+	records, err := parser.Read(*registryFile)
+	requireNil(err)
+	// transform into lib.Node
+	libNodes, err := toLibNodes(cons, records)
+	registry, p2pNodes := a.Make(ctx, libNodes, ids, runConf.Extra)
+	aggregators := MakeAggregators(cons, p2pNodes, registry, runConf.GetThreshold())
 
-	fmt.Println(" overlay network  - connections - setup ")
-	time.Sleep(10 * time.Second)
 	// Sync with master - wait for the START signal
 	syncer := lib.NewSyncSlave(*syncAddr, *master, ids)
 	select {
@@ -106,7 +100,8 @@ func main() {
 		wg.Add(1)
 		go func(j int) {
 			agg := aggregators[j]
-			id := agg.handelID
+			id := agg.Identity().ID()
+			//fmt.Println(" --- LAUNCHING agg j = ", j, " vs pk = ", agg.Identity().PublicKey().String())
 			signatureGen := monitor.NewTimeMeasure("sigen")
 			go agg.Start()
 			// Wait for final signatures !
@@ -116,6 +111,7 @@ func main() {
 				select {
 				case sig = <-agg.FinalMultiSignature():
 					if sig.BitSet.Cardinality() >= runConf.Threshold {
+						//fmt.Printf(" --- NODE %d outputted signature of %d / %d contributions\n", id, sig.BitSet.Cardinality(), runConf.Threshold)
 						enough = true
 						report <- int(id)
 						wg.Done()
@@ -126,8 +122,6 @@ func main() {
 				}
 			}
 			signatureGen.Record()
-			fmt.Println("reached good enough multi-signature!")
-
 			if err := h.VerifyMultiSignature(lib.Message, sig, registry, cons.Handel()); err != nil {
 				panic("signature invalid !!")
 			}
@@ -138,7 +132,7 @@ func main() {
 		total := len(aggregators)
 		curr := 1
 		for i := range report {
-			fmt.Printf(" --- NODE  %d  - %d/%d FINISHED ---\n", i, curr, total)
+			fmt.Printf(" --- NODE  %d FINISHED - in process: %d/%d ---\n", i, curr, total)
 			curr++
 		}
 	}()
@@ -181,46 +175,25 @@ func (i *arrayFlags) Set(value string) error {
 	return nil
 }
 
-// ReadRegistry extracts a list of P2PIdentity and the relevant Aggregators from the
-// registry directly - alleviating the need for keeping a second list.
-func ReadRegistry(ctx context.Context, uri string, parser lib.NodeParser, c lib.Constructor, ids []int, r NewRouter) (h.Registry, []*Aggregator) {
-	records, err := parser.Read(uri)
-	if err != nil {
-		panic(err)
-	}
-	total := len(records)
-
-	pubsub.GossipSubHistoryLength = total
-	pubsub.GossipSubHistoryGossip = total
-	pubsub.GossipSubHeartbeatInterval = 500 * time.Millisecond
-
-	var aggregators = make([]*Aggregator, 0, len(ids))
-	var registry = P2PRegistry(make([]*P2PIdentity, total))
-	for _, rec := range records {
-		node, err := rec.ToNode(c)
+// MakeAggregators returns
+func MakeAggregators(c lib.Constructor, nodes []Node, reg handel.Registry, threshold int) []*Aggregator {
+	var aggs = make([]*Aggregator, 0, len(nodes))
+	for _, node := range nodes {
+		//i := int(node.Identity().ID())
+		sig, err := node.SecretKey().Sign(lib.Message, nil)
 		if err != nil {
+			fmt.Println(err)
 			panic(err)
 		}
-		id := int(node.ID())
-		registry[id], err = NewP2PIdentity(node.Identity)
-		if err != nil {
-			panic(err)
-		}
-
-		if isIncluded(ids, id) {
-			p2pNode, err := NewP2PNode(ctx, node, r)
-			if err != nil {
-				fmt.Println(err)
-				panic(err)
-			}
-			agg := NewAggregator(p2pNode, &registry, c.Handel(), total)
-			aggregators = append(aggregators, agg)
-		}
+		agg := NewAggregator(node, reg, c.Handel(), sig, threshold)
+		aggs = append(aggs, agg)
 	}
-	return &registry, aggregators
+	return aggs
+
 }
 
-func isIncluded(arr []int, v int) bool {
+// IsIncluded returns true if the index is contained in the array
+func IsIncluded(arr []int, v int) bool {
 	for _, a := range arr {
 		if v == a {
 			return true
@@ -229,48 +202,24 @@ func isIncluded(arr []int, v int) bool {
 	return false
 }
 
-func extractConnector(r *lib.RunConfig) (Connector, int) {
-	c, exists := r.Extra["Connector"]
-	if !exists {
-		c = "neighbor"
-	}
-	countStr, exists := r.Extra["Count"]
-	count := MaxCount
-	if exists {
-		var err error
-		count, err = strconv.Atoi(countStr)
+func toLibNodes(c lib.Constructor, nr []*lib.NodeRecord) ([]*lib.Node, error) {
+	n := len(nr)
+	nodes := make([]*lib.Node, n)
+	var err error
+	fmt.Printf("toLibNodes: ")
+	for i, record := range nr {
+		nodes[i], err = record.ToNode(c)
+		fmt.Printf("%d: %v - ", i, nodes[i])
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 	}
-	var con Connector
-	switch strings.ToLower(c) {
-	case "neighbor":
-		con = NewNeighborConnector()
-		fmt.Println(" selecting NEIGHBOR connector with ", count)
-	case "random":
-		con = NewRandomConnector()
-		fmt.Println(" selecting RANDOM connector with ", count)
-	}
-	return con, count
-
+	fmt.Printf("\n")
+	return nodes, nil
 }
 
-func extractRouter(r *lib.RunConfig) NewRouter {
-	str, exists := r.Extra["Router"]
-	if !exists {
-		str = "flood"
+func requireNil(err error) {
+	if err != nil {
+		panic(err)
 	}
-
-	var n NewRouter
-	switch strings.ToLower(str) {
-	case "flood":
-		fmt.Println("using flood router")
-		n = pubsub.NewFloodSub
-	case "gossip":
-		n = pubsub.NewGossipSub
-	default:
-		n = pubsub.NewGossipSub
-	}
-	return n
 }

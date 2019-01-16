@@ -30,15 +30,12 @@ func init() {
 	flag.Var(&ids, "id", "ID to run on this node - can specify multiple -id flags")
 }
 
-var isMonitoring bool
-
 func main() {
 	flag.Parse()
 	//
 	// SETUP PHASE
 	//
 	if *monitorAddr != "" {
-		isMonitoring = true
 		if err := monitor.ConnectSink(*monitorAddr); err != nil {
 			panic(err)
 		}
@@ -57,7 +54,9 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	registry := nodeList.Registry()
+	//registry := nodeList.Registry()
+
+	registry := &nodeList
 
 	// instantiate handel for all specified ids in the flags
 	var handels []*h.ReportHandel
@@ -98,6 +97,7 @@ func main() {
 			signatureGen := monitor.NewTimeMeasure("sigen")
 			netMeasure := monitor.NewCounterMeasure("net", handel.Network())
 			storeMeasure := monitor.NewCounterMeasure("store", handel.Store())
+			processingMeasure := monitor.NewCounterMeasure("sigs", handel.Processing())
 			go handel.Start()
 			// Wait for final signatures !
 			enough := false
@@ -116,9 +116,12 @@ func main() {
 					panic("max timeout")
 				}
 			}
-			signatureGen.Record()
-			netMeasure.Record()
-			storeMeasure.Record()
+			if false { //TODO
+				signatureGen.Record()
+				netMeasure.Record()
+				storeMeasure.Record()
+			}
+			processingMeasure.Record()
 			logger.Debug("node", id, "sigen", "finished")
 
 			if err := h.VerifyMultiSignature(lib.Message, &sig, registry, cons.Handel()); err != nil {

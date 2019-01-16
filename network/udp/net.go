@@ -87,10 +87,10 @@ func (udpNet *Network) send(identity h.Identity, packet *h.Packet) {
 	//	enc := gob.NewEncoder(byteWriter)
 	//	err = enc.Encode(packet)
 
-	udpNet.enc.Encode(packet, byteWriter)
+	err = udpNet.enc.Encode(packet, byteWriter)
 	if err != nil {
 		//TODO consider changing it to error logging
-		panic(err)
+		return
 	}
 	byteWriter.Flush()
 	//fmt.Printf("%s -> sending packet to %s\n", udpSock.LocalAddr().String(), addr)

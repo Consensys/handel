@@ -7,7 +7,7 @@ import (
 	"os"
 	"strconv"
 
-	h "github.com/ConsenSys/handel"
+	"github.com/ConsenSys/handel"
 )
 
 // NodeParser is an interface that can read / write node records.
@@ -24,13 +24,46 @@ type NodeParser interface {
 // multiple node information - not only the Identity.
 type NodeList []*Node
 
+// Size implements the handel.Registry interface
+func (n *NodeList) Size() int {
+	return len(*n)
+}
+
+// Identity implements the handel.Registry interface
+func (n *NodeList) Identity(idx int) (handel.Identity, bool) {
+	if idx < 0 || idx >= n.Size() {
+		return nil, false
+	}
+	return (*n)[idx], true
+}
+
 // Registry returns a handel.Registry interface
-func (n *NodeList) Registry() h.Registry {
-	ids := make([]h.Identity, len(*n))
+func (n *NodeList) Registry() handel.Registry {
+	ids := make([]handel.Identity, len(*n))
 	for i := 0; i < len(ids); i++ {
 		ids[i] = (*n)[i].Identity
 	}
-	return h.NewArrayRegistry(ids)
+	return handel.NewArrayRegistry(ids)
+}
+
+// Identities implements the handel.Registry interface
+func (n *NodeList) Identities(from, to int) ([]handel.Identity, bool) {
+	if !n.inBound(from) || !n.inBound(to) {
+		return nil, false
+	}
+	if to < from {
+		return nil, false
+	}
+	nodes := (*n)[from:to]
+	ids := make([]handel.Identity, len(nodes))
+	for i, n := range nodes {
+		ids[i] = n.Identity
+	}
+	return ids, true
+}
+
+func (n *NodeList) inBound(idx int) bool {
+	return !(idx < 0 || idx > len(*n))
 }
 
 // Node returns the Node structure at the given index
