@@ -6,13 +6,7 @@ import (
 	"strconv"
 	"testing"
 	"time"
-
-	"github.com/dedis/onet/log"
 )
-
-func TestMain(m *testing.M) {
-	log.MainTest(m)
-}
 
 func TestMonitorReadyNormal(t *testing.T) {
 	m := make(map[string]string)
@@ -21,6 +15,7 @@ func TestMonitorReadyNormal(t *testing.T) {
 	fresh := stat.String()
 	// First set up monitor listening
 	mon := NewDefaultMonitor(stat)
+	defer mon.Stop()
 	go mon.Listen()
 	time.Sleep(100 * time.Millisecond)
 
