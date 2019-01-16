@@ -211,14 +211,14 @@ func TestHandelCheckCompletedLevel(t *testing.T) {
 
 	sig0 := fullSigPair(1)
 	// not-complete signature
-	sig02 := fullSigPair(1)
-	sig02.ms.BitSet.Set(0, false)
+	sig02 := fullSigPair(2)
+	sig02.ms.BitSet.Set(0, true)
 
 	// node 0 corresponds to level 1 in node's 1 view.
 	// => store incomplete signature as if it was an empty signature from node 0
 	// node 1 should NOT send anything to node 2 (or 3 but we're only verifying
 	// node 2 since it will send to both anyway)
-	sender.store.Store(1, sig02.ms)
+	sender.store.Store(2, sig02.ms)
 	sender.checkCompletedLevel(sig02)
 	select {
 	case <-inc2:

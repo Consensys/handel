@@ -441,6 +441,9 @@ func (h *Handel) checkCompletedLevel(s *sigPair) {
 	}
 
 	sp, _ := h.store.Best(s.level)
+	if sp == nil {
+		panic("we should have received the best signature, we got nil!")
+	}
 	if sp.Cardinality() == len(lvl.nodes) {
 		h.log.Debug("level_complete", s.level)
 		lvl.rcvCompleted = true
@@ -504,6 +507,9 @@ func (h *Handel) parsePacket(p *Packet) (*MultiSignature, error) {
 	}
 	if ms.BitLength() != len(lvl.nodes) {
 		return nil, errors.New("invalid bitset's size for given level")
+	}
+	if ms.None() {
+		return nil, errors.New("no signatures in the bitset")
 	}
 	return ms, err
 }
