@@ -12,5 +12,5 @@ Simulation = "p2p/libp2p"
     Threshold = 40
     Processes = 3
     [Runs.Extra]
-        Connector = "neighbor"
-        Count = "10"
+        Connector = "random"
+        Count = "30"
