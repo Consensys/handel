@@ -23,7 +23,7 @@ func TestSigProcessingStrategy(t *testing.T) {
 	sig1 := fullSigPair(1)
 	sig2 := fullSigPair(2)
 
-	s := newEvaluatorProcessing(partitioner, cons, nil, &EvaluatorLevel{}, nil)
+	s := newEvaluatorProcessing(partitioner, cons, nil, 0, &EvaluatorLevel{}, nil)
 	ss := s.(*evaluatorProcessing)
 
 	require.Equal(t, 0, len(ss.todos))

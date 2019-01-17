@@ -88,6 +88,8 @@ type evaluatorProcessing struct {
 	evaluator SigEvaluator
 	log       Logger
 
+	sigSleepTime int64
+
 	// Statistics on the activity
 	// number of signatures checked by the processing
 	sigCheckedCt int
@@ -103,7 +105,7 @@ type evaluatorProcessing struct {
 }
 
 // TODO handel argument only for logging
-func newEvaluatorProcessing(part Partitioner, c Constructor, msg []byte, e SigEvaluator, log Logger) signatureProcessing {
+func newEvaluatorProcessing(part Partitioner, c Constructor, msg []byte, sigSleepTime int, e SigEvaluator, log Logger) signatureProcessing {
 	m := sync.Mutex{}
 
 	ev := &evaluatorProcessing{
@@ -111,6 +113,7 @@ func newEvaluatorProcessing(part Partitioner, c Constructor, msg []byte, e SigEv
 		part: part,
 		cons: c,
 		msg:  msg,
+		sigSleepTime: int64(sigSleepTime),
 
 		out:       make(chan sigPair, 1000),
 		todos:     make([]*sigPair, 0),
@@ -242,12 +245,17 @@ func (f *evaluatorProcessing) processStep() bool {
 }
 
 func (f *evaluatorProcessing) verifyAndPublish(sp *sigPair) {
-
 	startTime := time.Now()
-	err := verifySignature(sp, f.msg, f.part, f.cons)
+	err := (error)(nil)
+	if f.sigSleepTime <= 0 {
+		err = verifySignature(sp, f.msg, f.part, f.cons)
+	} else {
+		time.Sleep(time.Duration(f.sigSleepTime * 1000000))
+		err = nil
+	}
 	endTime := time.Now()
 
-	f.sigCheckingTime += (int)(endTime.Sub(startTime).Nanoseconds()) / 1000000
+	f.sigCheckingTime += int(endTime.Sub(startTime).Nanoseconds() / 1000000)
 
 	if err != nil {
 		f.log.Warn("verify", err)
