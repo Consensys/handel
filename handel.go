@@ -253,7 +253,7 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 	h.store = newReplaceStore(part, h.c.NewBitSet, c)
 	h.store.Store(0, mySig) // Our own sig is at level 0.
 	evaluator := h.c.NewEvaluatorStrategy(h.store, h)
-	h.proc = newEvaluatorProcessing(part, c, msg, config.SleepTimeOnSigVerify, evaluator, h.log)
+	h.proc = newEvaluatorProcessing(part, c, msg, config.UnsafeSleepTimeOnSigVerify, evaluator, h.log)
 	h.net.RegisterListener(h)
 	h.timeout = h.c.NewTimeoutStrategy(h, h.ids)
 	return h

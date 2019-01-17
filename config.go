@@ -57,11 +57,11 @@ type Config struct {
 	// is much easier to detect pattern in bugs in this manner
 	DisableShuffling bool
 
-	// SleepTimeOnSigVerify is a test feature a sleep time (in ms) rather than actually verifying the signatures
+	// UnsafeSleepTimeOnSigVerify is a test feature a sleep time (in ms) rather than actually verifying the signatures
 	// Can be used to save on CPU during tests or/and to test with shorter/longer verifying time
 	// Set to zero by default: no sleep time. When activated the sleep replaces the verification.
 	// This sleep time is approximate and depends on golang and the os. The actual delay can be longer.
-	SleepTimeOnSigVerify int
+	UnsafeSleepTimeOnSigVerify int
 }
 
 // DefaultConfig returns a default configuration for Handel.
