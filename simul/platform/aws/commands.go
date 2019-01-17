@@ -68,9 +68,19 @@ func (c MasterCommands) ShareRegistryFile() map[int]string {
 	return cmds
 }
 
+//Kill previous run
+func (c MasterCommands) Kill() string {
+	return "killall " + c.MasterBinPath + " &> kill.log"
+}
+
 // Start starts master executable
 func (c MasterCommands) Start(masterAddr string, timeOut int, run int, network, resFile string, monitorPort int) string {
 	return "nohup " + c.MasterBinPath + " -masterAddr " + masterAddr + " -timeOut " + strconv.Itoa(timeOut) + " -run " + strconv.Itoa(run) + " -network " + network + " -resultFile " + resFile + " -config " + c.ConfPath + " -monitorPort " + strconv.Itoa(monitorPort) + " &> " + logFile + "_" + strconv.Itoa(run)
+}
+
+//Kill previous run
+func (c SlaveCommands) Kill() string {
+	return "killall " + c.SlaveBinPath + " &> kill.log"
 }
 
 // Configure copies files form the shared directory to slave local storage

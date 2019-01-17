@@ -99,6 +99,8 @@ type HandelConfig struct {
 	NodeCount int
 	// Timeout used to give to the LinearTimeout constructor
 	Timeout string
+	// UnsafeSleepTimeOnSigVerify
+	UnsafeSleepTimeOnSigVerify int
 }
 
 // LoadConfig looks up the given file to unmarshal a TOML encoded Config.
@@ -286,6 +288,7 @@ func (r *RunConfig) GetHandelConfig() *handel.Config {
 	ch.UpdateCount = r.Handel.UpdateCount
 	ch.NodeCount = r.Handel.NodeCount
 	ch.Contributions = r.GetThreshold()
+	ch.UnsafeSleepTimeOnSigVerify = r.Handel.UnsafeSleepTimeOnSigVerify
 
 	dd, err := time.ParseDuration(r.Handel.Timeout)
 	if err == nil {

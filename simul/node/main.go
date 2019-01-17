@@ -116,10 +116,8 @@ func main() {
 					panic("max timeout")
 				}
 			}
-			if false { //TODO
-				netMeasure.Record()
-				storeMeasure.Record()
-			}
+			netMeasure.Record()
+			storeMeasure.Record()
 			signatureGen.Record()
 			processingMeasure.Record()
 			logger.Debug("node", id, "sigen", "finished")
