@@ -133,8 +133,8 @@ func fullSig(level int) *MultiSignature {
 	return newSig(fullBitset(level))
 }
 
-func fullSigPair(level int) *sigPair {
-	return &sigPair{
+func fullIncomingSig(level int) *incomingSig {
+	return &incomingSig{
 		level: byte(level),
 		ms:    fullSig(level),
 	}
@@ -150,29 +150,29 @@ func finalBitset(size int) BitSet {
 
 // returns a final signature pair associated with a given level but with a full
 // size bitset ( n )
-func finalSigPair(level, size int) *sigPair {
-	return &sigPair{
+func finalIncomingSig(level, size int) *incomingSig {
+	return &incomingSig{
 		level: byte(level),
 		ms:    newSig(finalBitset(size)),
 	}
 }
 
-func mkSigPair(level int) *sigPair {
-	return &sigPair{
+func mkIncomingSig(level int) *incomingSig {
+	return &incomingSig{
 		level: byte(level),
 		ms:    fullSig(level),
 	}
 }
 
-func sigPairs(lvls ...int) []*sigPair {
-	s := make([]*sigPair, len(lvls))
+func incomingSigs(lvls ...int) []*incomingSig {
+	s := make([]*incomingSig, len(lvls))
 	for i, lvl := range lvls {
-		s[i] = mkSigPair(lvl)
+		s[i] = mkIncomingSig(lvl)
 	}
 	return s
 }
 
-func sigs(sigs ...*sigPair) []*sigPair {
+func sigs(sigs ...*incomingSig) []*incomingSig {
 	return sigs
 }
 

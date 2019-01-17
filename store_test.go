@@ -12,18 +12,18 @@ func TestStoreCombined(t *testing.T) {
 
 	type combineTest struct {
 		id    int32
-		sigs  []*sigPair
+		sigs  []*incomingSig
 		level int
 		exp   *MultiSignature
 	}
 
-	sig0 := fullSigPair(0)
+	sig0 := fullIncomingSig(0)
 	sig01 := *sig0
 	sig01.level = 1
-	sig1 := fullSigPair(1)
-	sig2 := fullSigPair(2)
+	sig1 := fullIncomingSig(1)
+	sig2 := fullIncomingSig(2)
 
-	sig4 := fullSigPair(4)
+	sig4 := fullIncomingSig(4)
 	bs5 := finalBitset(n)
 
 	var tests = []combineTest{
@@ -64,38 +64,38 @@ func TestStoreReplace(t *testing.T) {
 	n := 8
 	reg := FakeRegistry(n)
 	part := NewBinPartitioner(1, reg)
-	sig0 := &sigPair{level: 0, ms: fullSig(0)}
-	sig1 := &sigPair{level: 1, ms: fullSig(1)}
-	sig2 := &sigPair{level: 2, ms: fullSig(2)}
-	sig3 := &sigPair{level: 3, ms: fullSig(3)}
+	sig0 := &incomingSig{level: 0, ms: fullSig(0)}
+	sig1 := &incomingSig{level: 1, ms: fullSig(1)}
+	sig2 := &incomingSig{level: 2, ms: fullSig(2)}
+	sig3 := &incomingSig{level: 3, ms: fullSig(3)}
 
 	fullBs3 := NewWilffBitset(n / 2)
 	for i := 0; i < fullBs3.BitLength(); i++ {
 		fullBs3.Set(i, true)
 	}
-	fullSig3 := &sigPair{level: 3, ms: newSig(fullBs3)}
+	fullSig3 := &incomingSig{level: 3, ms: newSig(fullBs3)}
 	fullBs2 := NewWilffBitset(pow2(3 - 1))
 	// only signature 2 present so no 0, 1
 	for i := 2; i < fullBs2.BitLength(); i++ {
 		fullBs2.Set(i, true)
 	}
-	fullSig2 := &sigPair{level: 3, ms: newSig(fullBs2)}
+	fullSig2 := &incomingSig{level: 3, ms: newSig(fullBs2)}
 
 	var sc = func(ms ...int) []int {
 		return ms
 	}
 
 	type storeTest struct {
-		toStore []*sigPair
+		toStore []*incomingSig
 		scores  []int
 		ret     []bool
 		best    byte
 		eqMs    *MultiSignature
 		eqBool  bool
-		highest *sigPair // can be nil
+		highest *incomingSig // can be nil
 	}
 
-	var s = func(sps ...*sigPair) []*sigPair { return sps }
+	var s = func(sps ...*incomingSig) []*incomingSig { return sps }
 	var b = func(rets ...bool) []bool { return rets }
 	var tests = []storeTest{
 		// empty

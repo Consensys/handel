@@ -34,12 +34,6 @@ type signatureStore interface {
 	FullSignature() *MultiSignature
 }
 
-type sigPair struct {
-	origin int32
-	level  byte
-	ms     *MultiSignature
-}
-
 // replaceStore is a signatureStore that only stores multisignature if it
 // contains more individual contributions than what's already stored.
 type replaceStore struct {
@@ -76,7 +70,7 @@ func (r *replaceStore) Store(level byte, ms *MultiSignature) (*MultiSignature, b
 	return n, true
 }
 
-func (r *replaceStore) Evaluate(sp *sigPair) int {
+func (r *replaceStore) Evaluate(sp *incomingSig) int {
 	r.Lock()
 	defer r.Unlock()
 	_, score := r.unsafeCheck(sp.level, sp.ms)
@@ -96,11 +90,10 @@ func (r *replaceStore) unsafeCheck(level byte, ms *MultiSignature) (*MultiSignat
 		// We have an equal or better signature already. Ignore this new one.
 		if toReceive == ms2.Cardinality() || ms.Cardinality() > 1 {
 			return ms2, 0
-		} else {
-			// here, we haven't completed this level. We keep the sig as it's size 1,
-			//  so it can be used in some byzantine/censorship scenarios
-			return ms2, 1
 		}
+		// here, we haven't completed this level. We keep the sig as it's size 1,
+		//  so it can be used in some byzantine/censorship scenarios
+		return ms2, 1
 	}
 
 	c1 := ms.Cardinality()
@@ -182,9 +175,9 @@ func (r *replaceStore) Best(level byte) (*MultiSignature, bool) {
 func (r *replaceStore) FullSignature() *MultiSignature {
 	r.Lock()
 	defer r.Unlock()
-	sigs := make([]*sigPair, 0, len(r.m))
+	sigs := make([]*incomingSig, 0, len(r.m))
 	for k, ms := range r.m {
-		sigs = append(sigs, &sigPair{level: k, ms: ms})
+		sigs = append(sigs, &incomingSig{level: k, ms: ms})
 	}
 	return r.part.CombineFull(sigs, r.nbs)
 }
@@ -192,12 +185,12 @@ func (r *replaceStore) FullSignature() *MultiSignature {
 func (r *replaceStore) Combined(level byte) *MultiSignature {
 	r.Lock()
 	defer r.Unlock()
-	sigs := make([]*sigPair, 0, len(r.m))
+	sigs := make([]*incomingSig, 0, len(r.m))
 	for k, ms := range r.m {
 		if k > level {
 			continue
 		}
-		sigs = append(sigs, &sigPair{level: k, ms: ms})
+		sigs = append(sigs, &incomingSig{level: k, ms: ms})
 	}
 	if level < byte(r.part.MaxLevel()) {
 		level++
@@ -225,7 +218,7 @@ func (r *replaceStore) String() string {
 	return b.String()
 }
 
-func (s *sigPair) String() string {
+func (s *incomingSig) String() string {
 	if s.ms == nil {
 		return fmt.Sprintf("sig(lvl %d): <nil>", s.level)
 	}

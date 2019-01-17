@@ -10,7 +10,7 @@ import (
 type EvaluatorLevel struct {
 }
 
-func (f *EvaluatorLevel) Evaluate(sp *sigPair) int {
+func (f *EvaluatorLevel) Evaluate(sp *incomingSig) int {
 	return int(sp.level)
 }
 
@@ -19,9 +19,9 @@ func TestSigProcessingStrategy(t *testing.T) {
 	registry := FakeRegistry(n)
 	partitioner := NewBinPartitioner(1, registry)
 	cons := new(fakeCons)
-	sig0 := fullSigPair(0)
-	sig1 := fullSigPair(1)
-	sig2 := fullSigPair(2)
+	sig0 := fullIncomingSig(0)
+	sig1 := fullIncomingSig(1)
+	sig2 := fullIncomingSig(2)
 
 	s := newEvaluatorProcessing(partitioner, cons, nil, 0, &EvaluatorLevel{}, nil)
 	ss := s.(*evaluatorProcessing)
@@ -57,15 +57,15 @@ func TestProcessingFifo(t *testing.T) {
 	store := newReplaceStore(partitioner, NewWilffBitset, cons)
 
 	type testProcess struct {
-		in  []*sigPair
-		out []*sigPair
+		in  []*incomingSig
+		out []*incomingSig
 	}
-	sig2 := fullSigPair(2)
-	sig2Inv := fullSigPair(2)
+	sig2 := fullIncomingSig(2)
+	sig2Inv := fullIncomingSig(2)
 	sig2Inv.ms.Signature.(*fakeSig).verify = false
-	sig3 := fullSigPair(3)
+	sig3 := fullIncomingSig(3)
 
-	var s = func(sigs ...*sigPair) []*sigPair { return sigs }
+	var s = func(sigs ...*incomingSig) []*incomingSig { return sigs }
 
 	var tests = []testProcess{
 		// all good, one one
@@ -102,7 +102,7 @@ func TestProcessingFifo(t *testing.T) {
 			fifo.Add(sp)
 			// expect same order of verified
 			out := test.out[i]
-			var s *sigPair
+			var s *incomingSig
 			select {
 			case p := <-verified:
 				s = &p

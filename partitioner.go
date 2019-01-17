@@ -29,16 +29,16 @@ type Partitioner interface {
 	// Combine takes a list of signature paired with their level and returns all
 	// signatures correctly combined according to the partition strategy.
 	// All signatures must be valid signatures. The return value can be nil if no
-	// sigPairs have been given.It returns a MultiSignature whose's BitSet's
+	// incomingSig have been given.It returns a MultiSignature whose's BitSet's
 	// size is equal to the size of the level given in parameter + 1. The +1 is
 	// there because it is a combined signature, therefore, encompassing all
 	// signatures of levels up to the given level included.
-	Combine(sigs []*sigPair, level int, nbs func(int) BitSet) *MultiSignature
+	Combine(sigs []*incomingSig, level int, nbs func(int) BitSet) *MultiSignature
 	// CombineFull is similar to Combine but it returns the full multisignature
 	// whose bitset's length is equal to the size of the registry. This length
 	// corresponds to the MaxLevel() + 1 - but this level is not considered a
 	// "valid" level from a Handel perspective.
-	CombineFull(sigs []*sigPair, nbs func(int) BitSet) *MultiSignature
+	CombineFull(sigs []*incomingSig, nbs func(int) BitSet) *MultiSignature
 }
 
 // binomialPartitioner is a partitioner implementation using a binomial tree
@@ -193,7 +193,6 @@ func (c *binomialPartitioner) rangeLevelInverse(level int) (min int, max int, er
 
 }
 
-
 func (c *binomialPartitioner) Size(level int) int {
 	min, max, err := c.rangeLevel(level)
 	if err != nil {
@@ -205,7 +204,7 @@ func (c *binomialPartitioner) Size(level int) int {
 	return max - min
 }
 
-func (c *binomialPartitioner) Combine(sigs []*sigPair, level int, nbs func(int) BitSet) *MultiSignature {
+func (c *binomialPartitioner) Combine(sigs []*incomingSig, level int, nbs func(int) BitSet) *MultiSignature {
 	if len(sigs) == 0 {
 		return nil
 	}
@@ -228,7 +227,7 @@ func (c *binomialPartitioner) Combine(sigs []*sigPair, level int, nbs func(int) 
 	size := globalMax - globalMin
 	bitset := nbs(size)
 	//fmt.Printf("\t -- Combine(lvl %d) => min %d max %d -> size %d\n", level, globalMin, globalMax, size)
-	combined := func(s *sigPair, final BitSet) {
+	combined := func(s *incomingSig, final BitSet) {
 		// compute the offset of this signature compared to the global bitset
 		// index
 		min, _, _ := c.rangeLevel(int(s.level))
@@ -242,14 +241,14 @@ func (c *binomialPartitioner) Combine(sigs []*sigPair, level int, nbs func(int) 
 	return c.combineSize(sigs, bitset, combined)
 }
 
-func (c *binomialPartitioner) CombineFull(sigs []*sigPair, nbs func(int) BitSet) *MultiSignature {
+func (c *binomialPartitioner) CombineFull(sigs []*incomingSig, nbs func(int) BitSet) *MultiSignature {
 	if len(sigs) == 0 {
 		return nil
 	}
 	var finalBitSet = nbs(c.reg.Size())
 
 	// set the bits corresponding to the level to the final bitset
-	var combineBitSet = func(s *sigPair, final BitSet) {
+	var combineBitSet = func(s *incomingSig, final BitSet) {
 		min, _, _ := c.rangeLevel(int(s.level))
 		bs := s.ms.BitSet
 		for i := 0; i < bs.BitLength(); i++ {
@@ -261,7 +260,7 @@ func (c *binomialPartitioner) CombineFull(sigs []*sigPair, nbs func(int) BitSet)
 
 // combineSize combines all given signature witht he combine function on the
 // bitset using `bs`
-func (c *binomialPartitioner) combineSize(sigs []*sigPair, bs BitSet, combine func(*sigPair, BitSet)) *MultiSignature {
+func (c *binomialPartitioner) combineSize(sigs []*incomingSig, bs BitSet, combine func(*incomingSig, BitSet)) *MultiSignature {
 
 	var finalSig = sigs[0].ms.Signature
 	combine(sigs[0], bs)
@@ -281,7 +280,7 @@ func (c *binomialPartitioner) combineSize(sigs []*sigPair, bs BitSet, combine fu
 // that has a bitset's size equal to the highest level given + 1. The +1 is
 // necessary because it covers the whole space in the bitset of all signatures
 // together, while the max level only covers its respective signature.
-func (c *binomialPartitioner) combine(sigs []*sigPair, nbs func(int) BitSet) *sigPair {
+func (c *binomialPartitioner) combine(sigs []*incomingSig, nbs func(int) BitSet) *incomingSig {
 	if len(sigs) == 0 {
 		return nil
 	}
@@ -308,7 +307,7 @@ func (c *binomialPartitioner) combine(sigs []*sigPair, nbs func(int) BitSet) *si
 	finalBitSet := nbs(globalMax - globalMin)
 	finalSig := sigs[0].ms.Signature
 
-	combine := func(s *sigPair) {
+	combine := func(s *incomingSig) {
 		// compute the offset of this signature compared to the global bitset
 		// index
 		min, _, _ := c.rangeLevel(int(s.level))
@@ -325,7 +324,7 @@ func (c *binomialPartitioner) combine(sigs []*sigPair, nbs func(int) BitSet) *si
 		finalSig = finalSig.Combine(s.ms.Signature)
 	}
 
-	return &sigPair{
+	return &incomingSig{
 		level: byte(maxLvl + 1),
 		ms: &MultiSignature{
 			Signature: finalSig,
