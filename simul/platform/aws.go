@@ -150,8 +150,12 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 			if err != nil {
 				panic(err)
 			}
-			configureSlave(slaveNodeController, slaveCmds)
-			fmt.Println("    - Slave", *slave.PublicIP)
+			fmt.Println("    - Configuring Slave", *slave.PublicIP)
+
+			if err := configureSlave(slaveNodeController, slaveCmds); err != nil {
+				fmt.Println("  Problem with Slave", *slave.PublicIP, err)
+				panic(err)
+			}
 			wg.Done()
 		}(*slave)
 		a.allSlaveNodes = append(a.allSlaveNodes, slave)
@@ -162,12 +166,15 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 }
 
 func configureSlave(slaveNodeController aws.NodeController, slaveCmds map[int]string) error {
-	slaveNodeController.Init()
+	if err := slaveNodeController.Init(); err != nil {
+		return err
+	}
 	defer slaveNodeController.Close()
 
 	for idx := 0; idx < len(slaveCmds); idx++ {
 		err := slaveNodeController.Run(slaveCmds[idx], nil)
 		if err != nil {
+			fmt.Println("Error:", slaveCmds[idx])
 			return err
 		}
 	}
@@ -184,7 +191,7 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 	//Create master controller
 	master, err := a.connectToMaster()
 	if err != nil {
-		return nil
+		panic(err)
 	}
 
 	slaveNodes := a.allSlaveNodes[0:r.Processes]
@@ -218,6 +225,7 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 	fmt.Println("       Exec:", len(shareRegistryFile)+1, masterStart)
 	done := make(chan bool)
 	go func() {
+		master.Run(a.masterCMDS.Kill(), nil)
 		err = master.Run(masterStart, nil)
 		if err != nil {
 			panic(err)
@@ -274,6 +282,9 @@ func (a *awsPlatform) startSlave(inst aws.Instance, idx int) {
 			fmt.Println(scanner.Text())
 		}
 	}()
+
+	slaveController.Run(a.slaveCMDS.Kill(), nil)
+
 	err = slaveController.Run(cmd, pw)
 	if err != nil {
 		panic(err)
