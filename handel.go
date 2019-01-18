@@ -275,7 +275,8 @@ func (h *Handel) NewPacket(p *Packet) {
 	}
 	ms, err := h.parseMultisignature(p)
 	if err != nil {
-		h.log.Warn("invalid_packet", err)
+		h.log.Warn("invalid_packet - multisig", err)
+		return
 	} else if !h.getLevel(p.Level).rcvCompleted {
 		// sends it to processing
 		h.log.Debug("rcvd_from", p.Origin, "rcvd_level", p.Level)
@@ -284,10 +285,10 @@ func (h *Handel) NewPacket(p *Packet) {
 
 	ind, err := h.parseIndividual(p)
 	if err != nil {
-		h.log.Warn("invalid_packet", err)
-	} else {
-		h.proc.Add(&incomingSig{origin: p.Origin, level: p.Level, sig: ind})
+		h.log.Warn("invalid_packet - individual sig", err)
+		return
 	}
+	h.proc.Add(&incomingSig{origin: p.Origin, level: p.Level, sig: ind})
 }
 
 // Start the Handel protocol by sending signatures to peers in the first level,

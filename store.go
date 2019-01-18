@@ -46,24 +46,44 @@ type replaceStore struct {
 	// used to compute bitset length for missing multi-signatures
 	part Partitioner
 	c    Constructor
+
+
+	// A bitset for all the individual signatures we have already received
+	//  this will allow us to evict any redundant sig quickly
+	indivSigsReceived BitSet
+
+	// A bitset for all the individual signatures we have already verified
+	//  this will allow us to check quickly if we can merge them
+	indivSigsVerified map[byte]BitSet
+
+	// We keep all our verified individual signatures
+	individualSigs map[byte]map[int]*MultiSignature
 }
 
 func newReplaceStore(part Partitioner, nbs func(int) BitSet, c Constructor) *replaceStore {
+	indivSigsVerified := make( map[byte]BitSet)
+	for i := range part.Levels() {
+		indivSigsVerified[byte(i)] = nbs(i) // TODO
+	}
+
 	return &replaceStore{
 		nbs:  nbs,
 		part: part,
 		m:    make(map[byte]*MultiSignature),
 		c:    c,
+		indivSigsVerified:indivSigsVerified,
 	}
 }
 
 func (r *replaceStore) Store(level byte, ms *MultiSignature) (*MultiSignature, bool) {
 	r.Lock()
 	defer r.Unlock()
-	n, store := r.unsafeCheckMerge(level, ms)
-	if !store {
-		return nil, false
+	if ms.Cardinality() == 1 {
+		// TODO
+		r.indivSigsVerified[level].Or(ms.BitSet)
+		r.individualSigs[level][ ] = ms
 	}
+	n := r.unsafeCheckMerge(level, ms)
 	r.store(level, n)
 	return n, true
 }
@@ -71,90 +91,112 @@ func (r *replaceStore) Store(level byte, ms *MultiSignature) (*MultiSignature, b
 func (r *replaceStore) Evaluate(sp *incomingSig) int {
 	r.Lock()
 	defer r.Unlock()
-	score := r.unsafeEvaluate(sp.level, sp.ms)
+	score := r.unsafeEvaluate(sp)
 	if score < 0 {
 		panic("can't have a negative score!")
 	}
 	return score
 }
 
-func (r *replaceStore) unsafeEvaluate(level byte, ms *MultiSignature) int {
-	ms2 := r.m[level] // The best signature we have for this level, may be nil
-	toReceive := r.part.Size(int(level))
-	if ms2 != nil && ms2.IsSuperSet(ms.BitSet) {
-		// We have an equal or better signature already. Ignore this new one.
-		if toReceive == ms2.Cardinality() || ms.Cardinality() > 1 {
-			return 0
-		}
-		// here, we haven't completed this level. We keep the sig as it's size 1,
-		//  so it can be used in some byzantine/censorship scenarios
-		return int(level)
+func (r *replaceStore) unsafeEvaluate(sp *incomingSig) int {
+	ms := sp.ms
+	level := int(sp.level)
+	toReceive := r.part.Size(level)
+	ms2 := r.m[sp.level] // The best signature we have for this level, may be nil
+
+	if ms2 != nil && toReceive == ms2.Cardinality() {
+		// Completed level, we won't need this signature
+		return 0
 	}
 
-	c1 := ms.Cardinality()
-	if c1 <= 0 {
-		panic("no sigs in this signature?")
+	if sp.Individual() && r.indivSigsVerified[sp.level].Get(int(sp.origin)) {
+		// We have already verified this individual signature
+		return 0
+	}
+
+	if ms2 != nil && !sp.Individual() && ms2.IsSuperSet(ms.BitSet) {
+		// We have verified an equal or better signature already. Ignore this new one.
+		return 0
 	}
 
 	addedSigs := 0
 	existingSigs := 0
+
+	// We take into account the individual signatures already verified we could add.
+	withIndiv := ms.BitSet.Or(r.indivSigsVerified[sp.level])
+	c1 := withIndiv.Cardinality()
+
 	if ms2 == nil {
 		addedSigs = c1
-		existingSigs = 0
 	} else {
 		// We need to check that we don't overlap. If we do it will be a replacement.
-		merged := ms.BitSet.Or(ms2.BitSet)
-		if merged.Cardinality() != ms2.Cardinality()+c1 {
-			// We can't merged, it's a replace
+		if ms.IntersectionCardinality(ms2.BitSet) != 0 {
+			// We can't merge, it's a replace
 			addedSigs = c1 - ms2.Cardinality()
 		} else {
 			existingSigs = ms2.BitSet.Cardinality()
-			addedSigs = merged.Cardinality()
+			addedSigs = c1
 		}
 	}
 
 	if addedSigs <= 0 {
-		// At this point it can't be a single signature, it would have been
-		//  caught by the isSuperSet above.
-		return 0
+		// It doesn't add any value, we keep only the individual signatures for
+		//  byzantine fault tolerance scenario but we can remove the others.
+		if sp.Individual() {
+			return 1
+		} else {
+			return 0
+		}
 	}
 
-	li := int(level)
 	if addedSigs+existingSigs == toReceive {
 		// This completes a level! That's the best options for us. We give
 		//  a greater value to the first levels/
-		return 1000000 - li
+		return 1000000 - level
 	}
 
 	// It adds value, but does not complete a level. We
 	//  favorize the older level but take into account the number of sigs we receive as well.
-	return 30000 - li*100 + addedSigs
-
+	return 30000 - level*100 + addedSigs
 }
 
 
 // Returns the signature to store (can be combined with the existing one or previously verified signatures) and
 //  a boolean: true if the signature should replace the previous one, false if the signature should be
 //  discarded
-func (r *replaceStore) unsafeCheckMerge(level byte, ms *MultiSignature) (*MultiSignature, bool) {
+func (r *replaceStore) unsafeCheckMerge(level byte, ms *MultiSignature) (*MultiSignature) {
 	ms2 := r.m[level] // The best signature we have for this level, may be nil
 	if ms2 == nil {
-		return ms, true
+		// If we don't have a best for this level it means we haven't verified an
+		//  individual sig yet; so we can return now without checking the individual sigs.
+		return ms
 	}
 
+	best := ms;
 	merged := ms.BitSet.Or(ms2.BitSet)
-	if merged.Cardinality() != ms2.Cardinality()+ms.Cardinality() {
-		if ms2.Cardinality() >= ms.Cardinality() {
-			return nil, false
-		} else {
-			return ms, true
-		}
-	} else {
+	if merged.Cardinality() == ms2.Cardinality()+ms.Cardinality() {
 		sig := r.c.Signature()
 		sig = sig.Combine(ms.Signature)
 		sig = sig.Combine(ms2.Signature)
-		return &MultiSignature{Signature: sig, BitSet: merged}, true
+		best = &MultiSignature{Signature: sig, BitSet: merged}
+	} else {
+		if ms.Cardinality() < ms2.Cardinality() {
+			panic("the new signature is smaller than the existing one!")
+		}
 	}
+
+	// TODO merged with already verified individual signatures.
+	vl := r.indivSigsVerified[level]
+	iS := vl.And(best).Xor(vl)
+	// There are some individual sigs that we could use.
+	for pos, cont := iS.NextSet(0); cont; pos, cont = iS.NextSet( + 1) {
+		best.BitSet.Set(pos, true)
+		sig := r.individualSigs[level][pos]
+		sig = sig.Combine(best.Signature)
+		best = &MultiSignature{Signature: sig, BitSet: best.BitSet}
+	}
+
+	return best
 }
 
 
