@@ -1,6 +1,9 @@
 ### Copy this block for each region, and replace region name everywhere.
 # Set the `count` parameter in the `aws_instance` resource to your liking.
 # Also, HCL is a declarative, not a programming language.
+
+## Ireland
+
 provider "aws" {
   alias = "eu-west-1"
   region = "eu-west-1"
@@ -15,6 +18,13 @@ resource "aws_security_group" "eu-west-1" {
     protocol = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
+  ingress {
+      from_port   = 0
+      to_port     = 65535
+      protocol    = "udp"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
 
   egress {
     from_port = 0
@@ -31,14 +41,21 @@ resource "aws_key_pair" "eu-west-1" {
 }
 
 resource "aws_instance" "eu-west-1" {
-  count = 1
+  count = "${var.number_of_instances_per_region}"
   provider = "aws.eu-west-1"
   ami = "${var.ami["eu-west-1"]}"
   instance_type = "${var.instance_type}"
   security_groups = ["${aws_security_group.eu-west-1.name}"]
   key_name = "SIMKEY"
+  tags = {
+   Name = "R&D"
+ }
 }
+
+
 ### End of block
+
+## Mumbai
 
 provider "aws" {
   alias = "ap-south-1"
@@ -55,6 +72,13 @@ resource "aws_security_group" "ap-south-1" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  ingress {
+      from_port   = 0
+      to_port     = 65535
+      protocol    = "udp"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+
   egress {
     from_port = 0
     to_port = 0
@@ -70,12 +94,14 @@ resource "aws_key_pair" "ap-south-1" {
 }
 
 resource "aws_instance" "ap-south-1" {
-  count = 1
+  count = "${var.number_of_instances_per_region}"
   provider = "aws.ap-south-1"
   ami = "${var.ami["ap-south-1"]}"
   instance_type = "${var.instance_type}"
   security_groups = ["${aws_security_group.ap-south-1.name}"]
   key_name = "SIMKEY"
+  tags = {
+   Name = "R&D"
+ }
 }
-
 ### End of block

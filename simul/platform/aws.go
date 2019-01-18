@@ -59,6 +59,16 @@ func (a *awsPlatform) pack(path string, c *lib.Config, binPath string) error {
 	return nil
 }
 
+func transferToS3(path string) error {
+	fmt.Println("File:", path)
+	cmd := NewCommand("aws", "s3", "cp", path, "s3://pegasysrndbucketvirginiav1")
+	if err := cmd.Run(); err != nil {
+		fmt.Println("stdout -> " + cmd.ReadAll())
+		return err
+	}
+	return nil
+}
+
 func (a *awsPlatform) Configure(c *lib.Config) error {
 
 	CMDS := aws.NewCommands("/tmp/masterAWS", "/tmp/nodeAWS", "/tmp/aws.conf", "/tmp/aws.csv")
@@ -103,6 +113,7 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 	if err != nil {
 		return err
 	}
+	master.Run(a.masterCMDS.Kill(), nil)
 
 	fmt.Println("[+] Master Instances")
 	fmt.Println("	 [-] Instance ", *masterInstance.ID, *masterInstance.State, masterAddr)
@@ -113,8 +124,12 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 		fmt.Println("	 [-] Instance ", i, *inst.ID, *inst.State, *inst.PublicIP)
 	}
 
-	fmt.Println("[+] Transfering files to Master:", CMDS.MasterBinPath, CMDS.SlaveBinPath, CMDS.ConfPath)
-	master.CopyFiles(CMDS.MasterBinPath, CMDS.SlaveBinPath, CMDS.ConfPath)
+	fmt.Println("[+] Transfering files to S3:", CMDS.MasterBinPath, CMDS.SlaveBinPath, CMDS.ConfPath)
+
+	transferToS3(CMDS.MasterBinPath)
+	transferToS3(CMDS.SlaveBinPath)
+	transferToS3(CMDS.ConfPath)
+
 	configure := a.masterCMDS.Configure()
 
 	//*** Configure Master
@@ -134,12 +149,9 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 	fmt.Println("")
 	fmt.Println("[+] Configuring Slaves:")
 
-	//addresses, syncs := aws.GenRemoteAddresses(slaveInstances)
 	var wg sync.WaitGroup
 
 	for _, slave := range slaveInstances {
-		//	node := lib.GenerateNode(cons, i, addr)
-		//	nodeAndSync := aws.NodeAndSync{node, syncs[i]}
 		wg.Add(1)
 		// TODO This might become a problem for large number of slaves,
 		// limit numebr of go-routines running concurrently if this is the case
@@ -152,7 +164,7 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 			}
 			fmt.Println("    - Configuring Slave", *slave.PublicIP)
 
-			if err := configureSlave(slaveNodeController, slaveCmds); err != nil {
+			if err := configureSlave(slaveNodeController, slaveCmds, a.slaveCMDS.Kill()); err != nil {
 				fmt.Println("  Problem with Slave", *slave.PublicIP, err)
 				panic(err)
 			}
@@ -165,11 +177,12 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 	return nil
 }
 
-func configureSlave(slaveNodeController aws.NodeController, slaveCmds map[int]string) error {
+func configureSlave(slaveNodeController aws.NodeController, slaveCmds map[int]string, kill string) error {
 	if err := slaveNodeController.Init(); err != nil {
 		return err
 	}
 	defer slaveNodeController.Close()
+	slaveNodeController.Run(kill, nil)
 
 	for idx := 0; idx < len(slaveCmds); idx++ {
 		err := slaveNodeController.Run(slaveCmds[idx], nil)
@@ -182,8 +195,8 @@ func configureSlave(slaveNodeController aws.NodeController, slaveCmds map[int]st
 }
 
 func (a *awsPlatform) Cleanup() error {
-	return a.aws.StopInstances()
-	//	return nil
+	//return a.aws.StopInstances()
+	return nil
 }
 
 func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
@@ -201,17 +214,8 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 	writeRegFile(r.Nodes, slaveNodes, a.masterCMDS.RegPath)
 	//*** Start Master
 	fmt.Println("[+] Registry file written to local storage(", r.Nodes, " nodes)")
-	fmt.Println("[+] Transfering registry file to Master")
-	master.CopyFiles(a.masterCMDS.RegPath)
-	shareRegistryFile := a.masterCMDS.ShareRegistryFile()
-	fmt.Println("[+] Master handel node:")
-	for i := 0; i < len(shareRegistryFile); i++ {
-		fmt.Println("       Exec:", i, shareRegistryFile[i])
-		err := master.Run(shareRegistryFile[i], nil)
-		if err != nil {
-			panic(err)
-		}
-	}
+	fmt.Println("[*] Transfering registry file to S3")
+	transferToS3(a.masterCMDS.RegPath)
 
 	masterStart := a.masterCMDS.Start(
 		a.masterAddr,
@@ -222,7 +226,7 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 		a.monitorPort,
 	)
 
-	fmt.Println("       Exec:", len(shareRegistryFile)+1, masterStart)
+	fmt.Println("       Exec:", masterStart)
 	done := make(chan bool)
 	go func() {
 		master.Run(a.masterCMDS.Kill(), nil)
@@ -251,12 +255,12 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 }
 
 func (a *awsPlatform) startSlave(inst aws.Instance, idx int) {
-	cpyFiles := a.slaveCMDS.CopyRegistryFileFromSharedDirToLocalStorage()
 	slaveController, err := aws.NewSSHNodeController(*inst.PublicIP, a.pemBytes, a.awsConfig.SSHUser)
 	if err != nil {
 		panic(err)
 	}
 
+	cpyFiles := a.slaveCMDS.CopyRegistryFileFromSharedDirToLocalStorage()
 	if err := slaveController.Init(); err != nil {
 		panic(err)
 	}
@@ -343,6 +347,5 @@ func makeMasterAndSlaves(allAwsInstances []aws.Instance) (*aws.Instance, []*aws.
 			slaveInstances = append(slaveInstances, &si)
 		}
 	}
-
 	return &masterInstance, slaveInstances, nil
 }
