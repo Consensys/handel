@@ -382,7 +382,7 @@ func TestHandelParsePacket(t *testing.T) {
 	for i, test := range packets {
 		t.Logf(" -- test %d --", i)
 		err := h.validatePacket(test.Packet)
-		_, err2 := h.parseMultisignature(test.Packet)
+		_, _, err2 := h.parseSignatures(test.Packet)
 		if test.Error {
 			var isErr1 = err != nil
 			var isErr2 = err2 != nil

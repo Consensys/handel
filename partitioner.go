@@ -26,6 +26,10 @@ type Partitioner interface {
 	// this partition scheme.
 	IdentitiesAt(level int) ([]Identity, error)
 
+	// IndexAtLevel returns the index inside the given level of the given global
+	// ID. The returned index is usable inside a bitset for the same level.
+	IndexAtLevel(globalID int32, level int) (int, error)
+
 	// Combine takes a list of signature paired with their level and returns all
 	// signatures correctly combined according to the partition strategy.
 	// All signatures must be valid signatures. The return value can be nil if no
@@ -99,6 +103,18 @@ func (c *binomialPartitioner) Levels() []int {
 		levels = append(levels, i)
 	}
 	return levels
+}
+
+func (c *binomialPartitioner) IndexAtLevel(globalID int32, level int) (int, error) {
+	min, max, err := c.rangeLevel(level)
+	if err != nil {
+		return 0, err
+	}
+	id := int(globalID)
+	if id < min || id >= max {
+		return 0, errors.New("globalID outside level's range")
+	}
+	return id - min, nil
 }
 
 // errEmptyLevel is returned when a range for a requested level is empty. This
