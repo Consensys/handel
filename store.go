@@ -17,6 +17,7 @@ type signatureStore interface {
 	// (implementation-dependent) than the one previously saved at the same
 	// level. It returns true if the entry for this level has been updated,i.e.
 	// if GetBest at the same level will return a new multi-signature.
+	// This signature must have been verified before calling this function.
 	Store(level byte, ms *MultiSignature) (*MultiSignature, bool)
 	// GetBest returns the "best" multisignature at the requested level. Best
 	// should be interpreted as "containing the most individual contributions".
@@ -59,12 +60,9 @@ func newReplaceStore(part Partitioner, nbs func(int) BitSet, c Constructor) *rep
 func (r *replaceStore) Store(level byte, ms *MultiSignature) (*MultiSignature, bool) {
 	r.Lock()
 	defer r.Unlock()
-	n, score := r.unsafeCheck(level, ms)
-	if score == 0 {
+	n, store := r.unsafeCheckMerge(level, ms)
+	if !store {
 		return nil, false
-	}
-	if score < 0 {
-		panic("can't have a negative score!")
 	}
 	r.store(level, n)
 	return n, true
@@ -73,27 +71,24 @@ func (r *replaceStore) Store(level byte, ms *MultiSignature) (*MultiSignature, b
 func (r *replaceStore) Evaluate(sp *incomingSig) int {
 	r.Lock()
 	defer r.Unlock()
-	_, score := r.unsafeCheck(sp.level, sp.ms)
+	score := r.unsafeEvaluate(sp.level, sp.ms)
 	if score < 0 {
 		panic("can't have a negative score!")
 	}
 	return score
 }
 
-// Returns the score & a signature
-// Questions: what's the use of the signature we're returning?
-// Should we keep in our todos list the signature that we don't need now but may need later? (yes it seems)
-func (r *replaceStore) unsafeCheck(level byte, ms *MultiSignature) (*MultiSignature, int) {
+func (r *replaceStore) unsafeEvaluate(level byte, ms *MultiSignature) int {
 	ms2 := r.m[level] // The best signature we have for this level, may be nil
 	toReceive := r.part.Size(int(level))
 	if ms2 != nil && ms2.IsSuperSet(ms.BitSet) {
 		// We have an equal or better signature already. Ignore this new one.
 		if toReceive == ms2.Cardinality() || ms.Cardinality() > 1 {
-			return ms2, 0
+			return 0
 		}
 		// here, we haven't completed this level. We keep the sig as it's size 1,
 		//  so it can be used in some byzantine/censorship scenarios
-		return ms2, 1
+		return int(level)
 	}
 
 	c1 := ms.Cardinality()
@@ -103,7 +98,6 @@ func (r *replaceStore) unsafeCheck(level byte, ms *MultiSignature) (*MultiSignat
 
 	addedSigs := 0
 	existingSigs := 0
-	toSend := ms
 	if ms2 == nil {
 		addedSigs = c1
 		existingSigs = 0
@@ -116,54 +110,54 @@ func (r *replaceStore) unsafeCheck(level byte, ms *MultiSignature) (*MultiSignat
 		} else {
 			existingSigs = ms2.BitSet.Cardinality()
 			addedSigs = merged.Cardinality()
-			sig := r.c.Signature()
-			sig = sig.Combine(ms.Signature)
-			sig = sig.Combine(ms2.Signature)
-			toSend = &MultiSignature{Signature: sig, BitSet: merged}
 		}
 	}
 
 	if addedSigs <= 0 {
 		// At this point it can't be a single signature, it would have been
 		//  caught by the isSuperSet above.
-		return ms2, 0
+		return 0
 	}
 
 	li := int(level)
 	if addedSigs+existingSigs == toReceive {
 		// This completes a level! That's the best options for us. We give
 		//  a greater value to the first levels/
-		return toSend, 1000000 - li
+		return 1000000 - li
 	}
 
 	// It adds value, but does not complete a level. We
 	//  favorize the older level but take into account the number of sigs we receive as well.
-	return toSend, 30000 - li*100 + addedSigs
+	return 30000 - li*100 + addedSigs
+
 }
 
-func (r *replaceStore) unsafeCheck2(level byte, ms *MultiSignature) (*MultiSignature, int) {
-	ms2, ok := r.m[level]
-	if !ok {
-		return ms, 1
+
+// Returns the signature to store (can be combined with the existing one or previously verified signatures) and
+//  a boolean: true if the signature should replace the previous one, false if the signature should be
+//  discarded
+func (r *replaceStore) unsafeCheckMerge(level byte, ms *MultiSignature) (*MultiSignature, bool) {
+	ms2 := r.m[level] // The best signature we have for this level, may be nil
+	if ms2 == nil {
+		return ms, true
 	}
 
-	c1 := ms.Cardinality()
-	c2 := ms2.Cardinality()
-	final := ms2.Or(ms.BitSet)
-
-	if c1+c2 == final.Cardinality() {
+	merged := ms.BitSet.Or(ms2.BitSet)
+	if merged.Cardinality() != ms2.Cardinality()+ms.Cardinality() {
+		if ms2.Cardinality() >= ms.Cardinality() {
+			return nil, false
+		} else {
+			return ms, true
+		}
+	} else {
 		sig := r.c.Signature()
 		sig = sig.Combine(ms.Signature)
 		sig = sig.Combine(ms2.Signature)
-		return &MultiSignature{Signature: sig, BitSet: final}, 2
+		return &MultiSignature{Signature: sig, BitSet: merged}, true
 	}
-
-	// find if new ms has more contributions
-	if c1 > c2 {
-		return ms, 1
-	}
-	return ms2, 0
 }
+
+
 
 func (r *replaceStore) Best(level byte) (*MultiSignature, bool) {
 	r.Lock()
