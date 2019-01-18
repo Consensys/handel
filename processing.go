@@ -90,6 +90,52 @@ func newEvaluatorStore(store signatureStore) SigEvaluator {
 	return &EvaluatorStore{store: store}
 }
 
+// Filter holds the responsibility of filtering out the signatures before they
+// go into the processing queue.
+type Filter interface {
+	Accept(*incomingSig) bool
+}
+
+// individualSigFilter is a filter than only accepts *once* individual
+// signatures
+type individualSigFilter struct {
+	seen map[int]bool
+}
+
+func newIndividualSigFilter() Filter {
+	return &individualSigFilter{make(map[int]bool)}
+}
+
+func (i *individualSigFilter) Accept(inc *incomingSig) bool {
+	if !inc.Individual() {
+		// only refuse individual signatures
+		return true
+	}
+	idx := int(inc.origin)
+	_, inserted := i.seen[idx]
+	if inserted {
+		// already seen so we drop this one
+		return false
+	}
+	// sets it to true so we only accept once
+	i.seen[idx] = true
+	return true
+}
+
+// combinedFilter can combine sequentially multiple filter into one. The first
+// filter that returns false makes the combinedFilter returns false immediatly
+// as well.
+type combinedFilter struct{ filters []Filter }
+
+func (c *combinedFilter) Accept(inc *incomingSig) bool {
+	for _, f := range c.filters {
+		if !f.Accept(inc) {
+			return false
+		}
+	}
+	return true
+}
+
 // evaluator processing processing incoming signatures according to an signature
 // evalutor strategy.
 type evaluatorProcessing struct {
@@ -105,6 +151,8 @@ type evaluatorProcessing struct {
 	todos     []*incomingSig
 	evaluator SigEvaluator
 	log       Logger
+	// to filter out signatures before inserting into processing queue
+	filter Filter
 
 	sigSleepTime int64
 
@@ -122,7 +170,6 @@ type evaluatorProcessing struct {
 	sigCheckingTime int
 }
 
-// TODO handel argument only for logging
 func newEvaluatorProcessing(part Partitioner, c Constructor, msg []byte, sigSleepTime int, e SigEvaluator, log Logger) signatureProcessing {
 	m := sync.Mutex{}
 
@@ -137,6 +184,7 @@ func newEvaluatorProcessing(part Partitioner, c Constructor, msg []byte, sigSlee
 		todos:     make([]*incomingSig, 0),
 		evaluator: e,
 		log:       log,
+		filter:    newIndividualSigFilter(),
 	}
 	return ev
 }
@@ -157,8 +205,10 @@ func (f *evaluatorProcessing) Add(sp *incomingSig) {
 	f.cond.L.Lock()
 	defer f.cond.L.Unlock()
 
-	f.todos = append(f.todos, sp)
-	f.cond.Signal()
+	if f.filter.Accept(sp) {
+		f.todos = append(f.todos, sp)
+		f.cond.Signal()
+	}
 }
 
 // Look at the signatures received so far and select the one
