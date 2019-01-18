@@ -21,7 +21,8 @@ type incomingSig struct {
 	ms     *MultiSignature
 	// is the signature an individual one or not
 	isInd bool
-	// mapped index of the origin to the level's range
+	// mapped index of the origin to the level's range - only useful when this
+	// signature is an individual signature.
 	mappedIndex int
 }
 
