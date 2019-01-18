@@ -251,7 +251,16 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 
 	h.threshold = h.c.Contributions
 	h.store = newReplaceStore(part, h.c.NewBitSet, c)
-	h.store.Store(0, mySig) // Our own sig is at level 0.
+
+	// We need to add our own sig at level 0
+	ind := &incomingSig{
+		origin:      id.ID(),
+		level:       0,
+		ms:          mySig,
+		isInd:       true,
+		mappedIndex: 0,
+	}
+	h.store.Store(ind) // Our own sig is at level 0.
 	evaluator := h.c.NewEvaluatorStrategy(h.store, h)
 	h.proc = newEvaluatorProcessing(part, c, msg, config.UnsafeSleepTimeOnSigVerify, evaluator, h.log)
 	h.net.RegisterListener(h)
@@ -372,7 +381,7 @@ func (h *Handel) FinalSignatures() chan MultiSignature {
 // manner, global lock is held during the call to actors.
 func (h *Handel) rangeOnVerified() {
 	for v := range h.proc.Verified() {
-		h.store.Store(v.level, v.ms)
+		h.store.Store(&v)
 		h.Lock()
 		for _, actor := range h.actors {
 			actor.OnVerifiedSignature(&v)

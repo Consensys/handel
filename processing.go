@@ -123,7 +123,7 @@ func (i *individualSigFilter) Accept(inc *incomingSig) bool {
 }
 
 // combinedFilter can combine sequentially multiple filter into one. The first
-// filter that returns false makes the combinedFilter returns false immediatly
+// filter that returns false makes the combinedFilter returns false immediately
 // as well.
 type combinedFilter struct{ filters []Filter }
 
@@ -137,7 +137,7 @@ func (c *combinedFilter) Accept(inc *incomingSig) bool {
 }
 
 // evaluator processing processing incoming signatures according to an signature
-// evalutor strategy.
+// evaluator strategy.
 type evaluatorProcessing struct {
 	cond *sync.Cond
 

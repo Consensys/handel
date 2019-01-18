@@ -217,7 +217,7 @@ func TestHandelCheckCompletedLevel(t *testing.T) {
 	// => store incomplete signature as if it was an empty signature from node 0
 	// node 1 should NOT send anything to node 2 (or 3 but we're only verifying
 	// node 2 since it will send to both anyway)
-	sender.store.Store(2, sig02.ms)
+	sender.store.Store(sig02)
 	sender.checkCompletedLevel(sig02)
 	select {
 	case <-inc2:
@@ -228,7 +228,7 @@ func TestHandelCheckCompletedLevel(t *testing.T) {
 
 	// send full signature
 	// node 2 should react
-	sender.store.Store(1, sig0.ms)
+	sender.store.Store(sig0)
 	sender.checkCompletedLevel(sig0)
 	select {
 	case p := <-inc2:
@@ -308,7 +308,7 @@ func TestHandelCheckFinalSignature(t *testing.T) {
 		for i, toInsert := range test.sigs {
 			// insert slice
 			for _, sig := range toInsert {
-				store.Store(sig.level, sig.ms)
+				store.Store(sig)
 			}
 			h.checkFinalSignature(test.input)
 
