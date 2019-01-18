@@ -273,21 +273,20 @@ func (h *Handel) NewPacket(p *Packet) {
 		h.log.Warn("invalid_packet", err)
 		return
 	}
-	ms, err := h.parseMultisignature(p)
+	ms, ind, err := h.parseSignatures(p)
 	if err != nil {
 		h.log.Warn("invalid_packet", err)
 	} else if !h.getLevel(p.Level).rcvCompleted {
 		// sends it to processing
 		h.log.Debug("rcvd_from", p.Origin, "rcvd_level", p.Level)
-		h.proc.Add(&incomingSig{origin: p.Origin, level: p.Level, ms: ms})
+		h.proc.Add(ms)
+		if ind != nil {
+			// can happen since we dont always send individual signature if this
+			// is a complete level
+			h.proc.Add(ind)
+		}
 	}
 
-	ind, err := h.parseIndividual(p)
-	if err != nil {
-		h.log.Warn("invalid_packet", err)
-	} else {
-		h.proc.Add(&incomingSig{origin: p.Origin, level: p.Level, sig: ind})
-	}
 }
 
 // Start the Handel protocol by sending signatures to peers in the first level,
@@ -508,26 +507,50 @@ func (h *Handel) validatePacket(p *Packet) error {
 
 // parseMultisignature returns the multisignature unmarshalled if correct, or an
 // error otherwise.
-func (h *Handel) parseMultisignature(p *Packet) (*MultiSignature, error) {
-	ms := new(MultiSignature)
-	err := ms.Unmarshal(p.MultiSig, h.cons.Signature(), h.c.NewBitSet)
+func (h *Handel) parseSignatures(p *Packet) (ms *incomingSig, ind *incomingSig, err error) {
+	m := new(MultiSignature)
+	err = m.Unmarshal(p.MultiSig, h.cons.Signature(), h.c.NewBitSet)
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	// level is already check before
 	lvl, _ := h.levels[int(p.Level)]
-	if ms.BitLength() != len(lvl.nodes) {
-		return nil, errors.New("invalid bitset's size for given level")
+	if m.BitLength() != len(lvl.nodes) {
+		err = errors.New("invalid bitset's size for given level")
+		return
 	}
-	if ms.None() {
-		return nil, errors.New("no signature in the bitset")
+	if m.None() {
+		err = errors.New("no signature in the bitset")
+		return
 	}
-	return ms, nil
-}
+	ms = &incomingSig{
+		origin: p.Origin,
+		level:  p.Level,
+		ms:     m,
+	}
 
-// parseIndividual returns the individual signature parsed from the packet
-func (h *Handel) parseIndividual(p *Packet) (Signature, error) {
-	ind := h.cons.Signature()
-	return ind, ind.UnmarshalBinary(p.IndividualSig)
+	if p.IndividualSig == nil {
+		return
+	}
+	individual := h.cons.Signature()
+	if err = individual.UnmarshalBinary(p.IndividualSig); err != nil {
+		return
+	}
+	bs := h.c.NewBitSet(len(lvl.nodes))
+	var levelIndex int
+	levelIndex, err = h.Partitioner.IndexAtLevel(p.Origin, int(p.Level))
+	if err != nil {
+		return
+	}
+	bs.Set(levelIndex, true)
+	msind := &MultiSignature{BitSet: bs, Signature: individual}
+	ind = &incomingSig{
+		origin:      p.Origin,
+		level:       p.Level,
+		ms:          msind,
+		isInd:       true,
+		mappedIndex: levelIndex,
+	}
+	return
 }

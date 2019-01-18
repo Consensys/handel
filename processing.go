@@ -19,12 +19,15 @@ type incomingSig struct {
 	origin int32
 	level  byte
 	ms     *MultiSignature
-	sig    Signature
+	// is the signature an individual one or not
+	isInd bool
+	// mapped index of the origin to the level's range
+	mappedIndex int
 }
 
 // Individual returns true if this incoming sig is an individual signature
 func (i *incomingSig) Individual() bool {
-	return i.sig != nil
+	return i.isInd
 }
 
 // signatureProcessing is an interface responsible for verifying incoming
