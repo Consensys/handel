@@ -312,9 +312,7 @@ func (h *Handel) Start() {
 
 func (h *Handel) periodicLoop() {
 	for range h.ticker.C {
-		h.Lock()
 		h.periodicUpdate()
-		h.Unlock()
 	}
 }
 
@@ -334,6 +332,8 @@ func (h *Handel) Stop() {
 //  - send a new packet
 // You must have locked handel before calling this function
 func (h *Handel) periodicUpdate() {
+	h.Lock()
+	defer h.Unlock()
 	for _, lvl := range h.levels {
 		if lvl.active() {
 			h.sendUpdate(lvl, h.c.UpdateCount)
@@ -362,9 +362,14 @@ func (h *Handel) unsafeStartLevel(lvl *level) {
 // Send our best signature set for this level, to 'count' nodes. The level must
 // be active before calling this method.
 func (h *Handel) sendUpdate(l *level, count int) {
-	sp := h.store.Combined(byte(l.id) - 1)
+	ms := h.store.Combined(byte(l.id) - 1)
 	newNodes, _ := l.selectNextPeers(count)
-	h.sendTo(l.id, sp, newNodes)
+	var sig Signature
+	if !l.rcvCompleted {
+		// send our individual signature only we still did not finish the level
+		sig = h.sig
+	}
+	h.sendTo(l.id, newNodes, ms, sig)
 }
 
 // FinalSignatures returns the channel over which final multi-signatures
@@ -478,7 +483,7 @@ func (h *Handel) checkCompletedLevel(s *incomingSig) {
 	}
 }
 
-func (h *Handel) sendTo(lvl int, ms *MultiSignature, ids []Identity) {
+func (h *Handel) sendTo(lvl int, ids []Identity, ms *MultiSignature, ind Signature) {
 	h.stats.msgSentCt++
 
 	buff, err := ms.MarshalBinary()
@@ -491,6 +496,14 @@ func (h *Handel) sendTo(lvl int, ms *MultiSignature, ids []Identity) {
 		Origin:   h.id.ID(),
 		Level:    byte(lvl),
 		MultiSig: buff,
+	}
+	if ind != nil {
+		indBuff, err := ind.MarshalBinary()
+		if err != nil {
+			h.log.Error("individual_sig", err)
+			return
+		}
+		p.IndividualSig = indBuff
 	}
 
 	h.log.Debug("sent_level", p.Level, "sent_nodes", fmt.Sprintf("%s", ids))

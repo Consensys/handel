@@ -47,7 +47,6 @@ type replaceStore struct {
 	part Partitioner
 	c    Constructor
 
-
 	// A bitset for all the individual signatures we have already received
 	//  this will allow us to evict any redundant sig quickly
 	indivSigsReceived BitSet
@@ -61,7 +60,7 @@ type replaceStore struct {
 }
 
 func newReplaceStore(part Partitioner, nbs func(int) BitSet, c Constructor) *replaceStore {
-	indivSigsVerified := make( map[byte]BitSet)
+	indivSigsVerified := make(map[byte]BitSet)
 	individualSigs := make(map[byte]map[int]*MultiSignature)
 	indivSigsVerified[0] = nbs(1)
 	individualSigs[0] = make(map[int]*MultiSignature)
@@ -71,16 +70,16 @@ func newReplaceStore(part Partitioner, nbs func(int) BitSet, c Constructor) *rep
 	}
 
 	return &replaceStore{
-		nbs:  nbs,
-		part: part,
-		m:    make(map[byte]*MultiSignature),
-		c:    c,
-		indivSigsVerified:indivSigsVerified,
-		individualSigs: individualSigs,
+		nbs:               nbs,
+		part:              part,
+		m:                 make(map[byte]*MultiSignature),
+		c:                 c,
+		indivSigsVerified: indivSigsVerified,
+		individualSigs:    individualSigs,
 	}
 }
 
-func (r *replaceStore) Store(sp *incomingSig ) *MultiSignature {
+func (r *replaceStore) Store(sp *incomingSig) *MultiSignature {
 	r.Lock()
 	defer r.Unlock()
 
@@ -117,7 +116,7 @@ func (r *replaceStore) unsafeEvaluate(sp *incomingSig) int {
 		return 0
 	}
 
-	if sp.Individual() && r.indivSigsVerified[sp.level].Get(int(sp.origin)) {
+	if sp.Individual() && r.indivSigsVerified[sp.level].Get(int(sp.mappedIndex)) {
 		// We have already verified this individual signature
 		return 0
 	}
@@ -154,9 +153,8 @@ func (r *replaceStore) unsafeEvaluate(sp *incomingSig) int {
 		//  byzantine fault tolerance scenario but we can remove the others.
 		if sp.Individual() {
 			return 1
-		} else {
-			return 0
 		}
+		return 0
 	}
 
 	if addedSigs+existingSigs == toReceive {
@@ -169,7 +167,6 @@ func (r *replaceStore) unsafeEvaluate(sp *incomingSig) int {
 	//  favorize the older level but take into account the number of sigs we receive as well.
 	return 30000 - level*100 + addedSigs
 }
-
 
 // Returns the signature to store (can be combined with the existing one or previously verified signatures) and
 //  a boolean: true if the signature should replace the previous one, false if the signature should be
@@ -200,7 +197,7 @@ func (r *replaceStore) unsafeCheckMerge(sp *incomingSig) (*MultiSignature, bool)
 	}
 
 	// Now we can build all this
-	for pos, cont := iS.NextSet(0); cont; pos, cont = iS.NextSet(+ 1) {
+	for pos, cont := iS.NextSet(0); cont; pos, cont = iS.NextSet(+1) {
 		sig, check := r.individualSigs[sp.level][pos]
 		if !check {
 			panic("we should have this signature in our map")
