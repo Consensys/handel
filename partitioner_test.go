@@ -103,7 +103,7 @@ func TestPartitionerBinTreeCombine(t *testing.T) {
 	bs0 := NewWilffBitset(1)
 	bs0.Set(0, true)
 
-	// final signature should have level 4 and bitlength 8
+	// final signature should have level 4 and bit length 8
 	// with first bit set to false
 	pairs3 := incomingSigs(0, 2, 3)
 	final4 := finalIncomingSig(4, 8)

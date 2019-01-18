@@ -111,7 +111,7 @@ func TestProcessingFifo(t *testing.T) {
 			}
 			require.Equal(t, out, s)
 			// simulate storage
-			store.Store(sp.level, sp.ms)
+			store.Store(sp)
 		}
 	}
 

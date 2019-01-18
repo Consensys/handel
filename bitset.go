@@ -40,6 +40,14 @@ type BitSet interface {
 	Xor(b2 BitSet) BitSet
 	// IsSuperSet returns true if this is a superset of the other set
 	IsSuperSet(b2 BitSet) bool
+	// NextSet returns the next bit set from the specified index,
+	// including possibly the current index
+	// along with an error code (true = valid, false = no set bit found)
+	// for i,e := v.NextSet(0); e; i,e = v.NextSet(i + 1) {...}
+	NextSet(i int) (int, bool)
+	// IntersectionCardinality computes the cardinality of the differnce
+	IntersectionCardinality(b2 BitSet) int
+
 }
 
 
@@ -179,4 +187,15 @@ func (w *WilffBitSet) None() bool {
 // Any implements the BitSet interface
 func (w *WilffBitSet) Any() bool {
 	return w.b.Any()
+}
+
+// NextSet implements the BitSet interface
+func (w *WilffBitSet) NextSet(i int) (int, bool) {
+	ni, res := w.b.NextSet(uint(i))
+	return int(ni), res
+}
+
+// DifferenceCardinality implements the BitSet interface
+func (w *WilffBitSet) IntersectionCardinality(b2 BitSet) int {
+	return int(w.b.IntersectionCardinality(b2.(*WilffBitSet).b))
 }

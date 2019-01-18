@@ -39,7 +39,7 @@ func TestStoreCombined(t *testing.T) {
 		part := NewBinPartitioner(test.id, reg)
 		store := newReplaceStore(part, NewWilffBitset, new(fakeCons))
 		for _, sigs := range test.sigs {
-			store.Store(sigs.level, sigs.ms)
+			store.Store(sigs)
 		}
 		sp := store.Combined(byte(test.level))
 		require.Equal(t, test.exp, sp)
@@ -53,8 +53,14 @@ func TestStoreFullSignature(t *testing.T) {
 	store := newReplaceStore(part, NewWilffBitset, new(fakeCons))
 	bs1 := NewWilffBitset(1)
 	bs1.Set(0, true)
-
-	store.Store(0, &MultiSignature{BitSet: bs1, Signature: &fakeSig{true}})
+	ind := &incomingSig{
+		origin:      0,
+		level:       0,
+		ms:          &MultiSignature{BitSet: bs1, Signature: &fakeSig{true}},
+		isInd:       false,
+		mappedIndex: 0,
+	}
+	store.Store(ind )
 	ms := store.FullSignature()
 	require.Equal(t, n, ms.BitSet.BitLength())
 	require.True(t, ms.BitSet.Get(1))
@@ -113,8 +119,8 @@ func TestStoreReplace(t *testing.T) {
 			score := store.Evaluate(s)
 			require.Equal(t, test.scores[i], score)
 			// then actually store the damn thing
-			_, ret := store.Store(s.level, s.ms)
-			require.Equal(t, test.ret[i], ret)
+			ret := store.Store(s)
+			require.True(t, test.ret[i] == (ret != nil) )
 		}
 		ms, ok := store.Best(test.best)
 		require.Equal(t, test.eqMs, ms)
