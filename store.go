@@ -83,8 +83,10 @@ func (r *replaceStore) Store(level byte, ms *MultiSignature) (*MultiSignature, b
 		r.indivSigsVerified[level].Or(ms.BitSet)
 		r.individualSigs[level][ ] = ms
 	}
-	n := r.unsafeCheckMerge(level, ms)
-	r.store(level, n)
+	n, store := r.unsafeCheckMerge(level, ms)
+	if store {
+		r.store(level, n)
+	}
 	return n, true
 }
 
@@ -134,6 +136,7 @@ func (r *replaceStore) unsafeEvaluate(sp *incomingSig) int {
 			// We can't merge, it's a replace
 			addedSigs = c1 - ms2.Cardinality()
 		} else {
+			// TODO
 			existingSigs = ms2.BitSet.Cardinality()
 			addedSigs = c1
 		}
@@ -164,12 +167,12 @@ func (r *replaceStore) unsafeEvaluate(sp *incomingSig) int {
 // Returns the signature to store (can be combined with the existing one or previously verified signatures) and
 //  a boolean: true if the signature should replace the previous one, false if the signature should be
 //  discarded
-func (r *replaceStore) unsafeCheckMerge(level byte, ms *MultiSignature) (*MultiSignature) {
+func (r *replaceStore) unsafeCheckMerge(level byte, ms *MultiSignature) (*MultiSignature, bool) {
 	ms2 := r.m[level] // The best signature we have for this level, may be nil
 	if ms2 == nil {
 		// If we don't have a best for this level it means we haven't verified an
 		//  individual sig yet; so we can return now without checking the individual sigs.
-		return ms
+		return ms, true
 	}
 
 	best := ms;
@@ -181,7 +184,7 @@ func (r *replaceStore) unsafeCheckMerge(level byte, ms *MultiSignature) (*MultiS
 		best = &MultiSignature{Signature: sig, BitSet: merged}
 	} else {
 		if ms.Cardinality() < ms2.Cardinality() {
-			panic("the new signature is smaller than the existing one!")
+			return nil, false
 		}
 	}
 
@@ -196,10 +199,8 @@ func (r *replaceStore) unsafeCheckMerge(level byte, ms *MultiSignature) (*MultiS
 		best = &MultiSignature{Signature: sig, BitSet: best.BitSet}
 	}
 
-	return best
+	return best, true
 }
-
-
 
 func (r *replaceStore) Best(level byte) (*MultiSignature, bool) {
 	r.Lock()
