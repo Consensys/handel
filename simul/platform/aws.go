@@ -33,6 +33,8 @@ type awsPlatform struct {
 	c             *lib.Config
 }
 
+const s3Dir = "pegasysrndbucketvirginiav1"
+
 // NewAws creates AWS Platform
 func NewAws(aws aws.Manager, awsConfig *aws.Config) Platform {
 	pemBytes, err := ioutil.ReadFile(awsConfig.PemFile)
@@ -60,8 +62,9 @@ func (a *awsPlatform) pack(path string, c *lib.Config, binPath string) error {
 }
 
 func transferToS3(path string) error {
-	fmt.Println("File:", path)
-	cmd := NewCommand("aws", "s3", "cp", path, "s3://pegasysrndbucketvirginiav1")
+	fmt.Println("File", path)
+
+	cmd := NewCommand("aws", "s3", "cp", path, "s3://"+s3Dir+"/tmp/")
 	if err := cmd.Run(); err != nil {
 		fmt.Println("stdout -> " + cmd.ReadAll())
 		return err
@@ -71,7 +74,13 @@ func transferToS3(path string) error {
 
 func (a *awsPlatform) Configure(c *lib.Config) error {
 
-	CMDS := aws.NewCommands("/tmp/masterAWS", "/tmp/nodeAWS", "/tmp/aws.conf", "/tmp/aws.csv")
+	CMDS := aws.NewCommands(
+		"/tmp/masterAWS",
+		"/tmp/nodeAWS",
+		"/tmp/aws.conf",
+		"/tmp/aws.csv",
+		"https://s3.amazonaws.com/"+s3Dir)
+
 	a.masterCMDS = aws.MasterCommands{Commands: CMDS}
 	a.slaveCMDS = aws.SlaveCommands{Commands: CMDS, SameBinary: true, SyncBasePort: 6000}
 	a.network = c.Network
@@ -266,6 +275,7 @@ func (a *awsPlatform) startSlave(inst aws.Instance, idx int) {
 	}
 
 	for i := 0; i < len(cpyFiles); i++ {
+		fmt.Println(*inst.PublicIP, cpyFiles[i])
 		if err := slaveController.Run(cpyFiles[i], nil); err != nil {
 			panic(err)
 		}
@@ -291,6 +301,7 @@ func (a *awsPlatform) startSlave(inst aws.Instance, idx int) {
 
 	err = slaveController.Run(cmd, pw)
 	if err != nil {
+		fmt.Println("Error "+*inst.PublicIP, err)
 		panic(err)
 	}
 	slaveController.Close()
