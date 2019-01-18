@@ -14,3 +14,5 @@
 simul/results
 simul/simul
 simul/results/*
+simul/terraform.tfstate
+simul/terraform.tfstate.backup
