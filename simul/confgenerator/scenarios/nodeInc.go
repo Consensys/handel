@@ -29,7 +29,7 @@ func NewNodeInc(
 	}
 }
 
-func (n nodesInc) Generate() lib.Config {
+func (n nodesInc) Generate(step int) lib.Config {
 	proc := 1
 	var runs []lib.RunConfig
 	for i := n.increment; i < n.maxNodes; i = i + n.increment {
@@ -41,7 +41,9 @@ func (n nodesInc) Generate() lib.Config {
 			Handel:    n.defaultHandel,
 		}
 		proc++
-		runs = append(runs, run)
+		if i%step == 0 {
+			runs = append(runs, run)
+		}
 	}
 	n.defaultConf.Runs = runs
 	return n.defaultConf
