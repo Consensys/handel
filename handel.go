@@ -55,20 +55,20 @@ func newLevel(id int, nodes []Identity, sendExpectedFullSize int) *level {
 		panic("bad value for level id")
 	}
 	l := &level{
-		id:           id,
-		nodes:        nodes,
-		sendStarted:  false,
-		rcvCompleted: false,
-		sendPos:      0,
-		sendPeersCt:  0,
+		id:                   id,
+		nodes:                nodes,
+		sendStarted:          false,
+		rcvCompleted:         false,
+		sendPos:              0,
+		sendPeersCt:          0,
 		sendExpectedFullSize: sendExpectedFullSize,
-		sendSigSize:  0,
+		sendSigSize:          0,
 	}
 	return l
 }
 
 // Create a map of all the levels for this registry.
-func createLevels(c *Config,partitioner Partitioner) map[int]*level {
+func createLevels(c *Config, partitioner Partitioner) map[int]*level {
 	lvls := make(map[int]*level)
 	var firstActive bool
 	sendExpectedFullSize := 1
@@ -251,7 +251,16 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 
 	h.threshold = h.c.Contributions
 	h.store = newReplaceStore(part, h.c.NewBitSet, c)
-	h.store.Store(0, mySig) // Our own sig is at level 0.
+
+	// We need to add our own sig at level 0
+	ind := &incomingSig{
+		origin:      id.ID(),
+		level:       0,
+		ms:          mySig,
+		isInd:       true,
+		mappedIndex: 0,
+	}
+	h.store.Store(ind) // Our own sig is at level 0.
 	evaluator := h.c.NewEvaluatorStrategy(h.store, h)
 	h.proc = newEvaluatorProcessing(part, c, msg, config.UnsafeSleepTimeOnSigVerify, evaluator, h.log)
 	h.net.RegisterListener(h)
@@ -260,8 +269,8 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 }
 
 // NewPacket implements the Listener interface for the network.
-// it parses the packet and sends it to processing if the packet is properly
-// formatted.
+// it parses the packet and sends the multisignature if correct and the
+// individual signature if correct.
 func (h *Handel) NewPacket(p *Packet) {
 	h.Lock()
 	defer h.Unlock()
@@ -269,16 +278,23 @@ func (h *Handel) NewPacket(p *Packet) {
 	if h.done {
 		return
 	}
-	ms, err := h.parsePacket(p)
-	if err != nil {
+	if err := h.validatePacket(p); err != nil {
 		h.log.Warn("invalid_packet", err)
 		return
 	}
-
-	// sends it to processing
-	if !h.getLevel(p.Level).rcvCompleted {
+	ms, ind, err := h.parseSignatures(p)
+	if err != nil {
+		h.log.Warn("invalid_packet - multisig", err)
+		return
+	} else if !h.getLevel(p.Level).rcvCompleted {
+		// sends it to processing
 		h.log.Debug("rcvd_from", p.Origin, "rcvd_level", p.Level)
-		h.proc.Add(&sigPair{origin: p.Origin, level: p.Level, ms: ms})
+		h.proc.Add(ms)
+		if ind != nil {
+			// can happen since we don't always send individual signature if this
+			// is a complete level
+			h.proc.Add(ind)
+		}
 	}
 }
 
@@ -296,9 +312,7 @@ func (h *Handel) Start() {
 
 func (h *Handel) periodicLoop() {
 	for range h.ticker.C {
-		h.Lock()
 		h.periodicUpdate()
-		h.Unlock()
 	}
 }
 
@@ -318,6 +332,8 @@ func (h *Handel) Stop() {
 //  - send a new packet
 // You must have locked handel before calling this function
 func (h *Handel) periodicUpdate() {
+	h.Lock()
+	defer h.Unlock()
 	for _, lvl := range h.levels {
 		if lvl.active() {
 			h.sendUpdate(lvl, h.c.UpdateCount)
@@ -346,9 +362,14 @@ func (h *Handel) unsafeStartLevel(lvl *level) {
 // Send our best signature set for this level, to 'count' nodes. The level must
 // be active before calling this method.
 func (h *Handel) sendUpdate(l *level, count int) {
-	sp := h.store.Combined(byte(l.id) - 1)
+	ms := h.store.Combined(byte(l.id) - 1)
 	newNodes, _ := l.selectNextPeers(count)
-	h.sendTo(l.id, sp, newNodes)
+	var sig Signature
+	if !l.rcvCompleted {
+		// send our individual signature only we still did not finish the level
+		sig = h.sig
+	}
+	h.sendTo(l.id, newNodes, ms, sig)
 }
 
 // FinalSignatures returns the channel over which final multi-signatures
@@ -365,7 +386,7 @@ func (h *Handel) FinalSignatures() chan MultiSignature {
 // manner, global lock is held during the call to actors.
 func (h *Handel) rangeOnVerified() {
 	for v := range h.proc.Verified() {
-		h.store.Store(v.level, v.ms)
+		h.store.Store(&v)
 		h.Lock()
 		for _, actor := range h.actors {
 			actor.OnVerifiedSignature(&v)
@@ -382,18 +403,18 @@ func (h *Handel) rangeOnVerified() {
 // verifiedSig. Each handler is called in a thread safe manner, global lock is
 // held during the call to actors.
 type actor interface {
-	OnVerifiedSignature(s *sigPair)
+	OnVerifiedSignature(s *incomingSig)
 }
 
-type actorFunc func(s *sigPair)
+type actorFunc func(s *incomingSig)
 
-func (a actorFunc) OnVerifiedSignature(s *sigPair) {
+func (a actorFunc) OnVerifiedSignature(s *incomingSig) {
 	a(s)
 }
 
 // checkFinalSignature checks if anew better final signature (ig. a signature at the last level) has been
 // generated. If so, it sends it to the output channel.
-func (h *Handel) checkFinalSignature(s *sigPair) {
+func (h *Handel) checkFinalSignature(s *incomingSig) {
 	sig := h.store.FullSignature()
 
 	if sig.BitSet.Cardinality() < h.threshold {
@@ -433,7 +454,7 @@ func (h *Handel) getLevel(levelID byte) *level {
 // When we have a new signature, multiple levels may be impacted. The store
 //  is in charge of selecting the best signature for a level, so we will
 //  call it for all possibly impacted levels.
-func (h *Handel) checkCompletedLevel(s *sigPair) {
+func (h *Handel) checkCompletedLevel(s *incomingSig) {
 	// The receiving phase: have we completed this level?
 	lvl := h.getLevel(s.level)
 	if lvl.rcvCompleted {
@@ -462,7 +483,7 @@ func (h *Handel) checkCompletedLevel(s *sigPair) {
 	}
 }
 
-func (h *Handel) sendTo(lvl int, ms *MultiSignature, ids []Identity) {
+func (h *Handel) sendTo(lvl int, ids []Identity, ms *MultiSignature, ind Signature) {
 	h.stats.msgSentCt++
 
 	buff, err := ms.MarshalBinary()
@@ -476,40 +497,82 @@ func (h *Handel) sendTo(lvl int, ms *MultiSignature, ids []Identity) {
 		Level:    byte(lvl),
 		MultiSig: buff,
 	}
+	if ind != nil {
+		indBuff, err := ind.MarshalBinary()
+		if err != nil {
+			h.log.Error("individual_sig", err)
+			return
+		}
+		p.IndividualSig = indBuff
+	}
 
 	h.log.Debug("sent_level", p.Level, "sent_nodes", fmt.Sprintf("%s", ids))
 	h.net.Send(ids, p)
 }
 
-// parsePacket returns the multisignature parsed from the given packet, or an
-// error if the packet can't be unmarshalled, or contains erroneous data such as
-// out of range level.  This method is NOT thread-safe and only meant for
-// internal use. After this method is called, a packet is deemed to have a valid
-// origin, a valid level. The signature is only unmarshalled, but not verified
-// yet.
-func (h *Handel) parsePacket(p *Packet) (*MultiSignature, error) {
+// validatePacket verifies the validity of the origin and level fields of the
+// packet and returns an error if any.
+func (h *Handel) validatePacket(p *Packet) error {
 	h.stats.msgRcvCt++
 
 	if p.Origin < 0 || p.Origin >= int32(h.reg.Size()) {
-		return nil, errors.New("packet's origin out of range")
+		return errors.New("packet's origin out of range")
 	}
 
-	lvl, exists := h.levels[int(p.Level)]
+	_, exists := h.levels[int(p.Level)]
 
 	if !exists {
-		return nil, fmt.Errorf("invalid packet's level %d", p.Level)
+		return fmt.Errorf("invalid packet's level %d", p.Level)
+	}
+	return nil
+}
+
+// parseMultisignature returns the multisignature unmarshalled if correct, or an
+// error otherwise.
+func (h *Handel) parseSignatures(p *Packet) (ms *incomingSig, ind *incomingSig, err error) {
+	m := new(MultiSignature)
+	err = m.Unmarshal(p.MultiSig, h.cons.Signature(), h.c.NewBitSet)
+	if err != nil {
+		return
 	}
 
-	ms := new(MultiSignature)
-	err := ms.Unmarshal(p.MultiSig, h.cons.Signature(), h.c.NewBitSet)
+	// level is already check before
+	lvl, _ := h.levels[int(p.Level)]
+	if m.BitLength() != len(lvl.nodes) {
+		err = errors.New("invalid bitset's size for given level")
+		return
+	}
+	if m.None() {
+		err = errors.New("no signature in the bitset")
+		return
+	}
+	ms = &incomingSig{
+		origin: p.Origin,
+		level:  p.Level,
+		ms:     m,
+	}
+
+	if p.IndividualSig == nil {
+		return
+	}
+	individual := h.cons.Signature()
+	if err = individual.UnmarshalBinary(p.IndividualSig); err != nil {
+		return
+	}
+	bs := h.c.NewBitSet(len(lvl.nodes))
+	var levelIndex int
+	levelIndex, err = h.Partitioner.IndexAtLevel(p.Origin, int(p.Level))
 	if err != nil {
-		return nil, err
+		return
 	}
-	if ms.BitLength() != len(lvl.nodes) {
-		return nil, errors.New("invalid bitset's size for given level")
+	bs.Set(levelIndex, true)
+	msind := &MultiSignature{BitSet: bs, Signature: individual}
+	ind = &incomingSig{
+		origin:      p.Origin,
+		level:       p.Level,
+		ms:          msind,
+		isInd:       true,
+		mappedIndex: levelIndex,
 	}
-	if ms.None() {
-		return nil, errors.New("no signature in the bitset")
-	}
-	return ms, err
+	return
 }

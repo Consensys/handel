@@ -13,6 +13,7 @@ import (
 
 var msg = []byte("Sun is Shining...")
 
+
 type handelTest struct {
 	n        int
 	offlines []int32
@@ -27,6 +28,19 @@ func TestHandelTestNetworkSimple(t *testing.T) {
 	testHandelTestNetwork(t, tests)
 }
 
+func TestHandelWithFailures(t *testing.T) {
+	off := func(ids ...int32) []int32 {
+		return ids
+	}
+
+	offs := off(0, 1, 4, 6, 10, 14, 19, 24, 27, 57, 89, 96, 101, 134, 141, 178, 179, 199, 200, 211, 243, 255, 288, 301)
+	var tests = []handelTest{
+		{333, offs, 333 - len(offs), false},
+	}
+	testHandelTestNetwork(t, tests)
+}
+
+
 func TestHandelTestNetworkSNonPowerOfTwo(t *testing.T) {
 	off := func(ids ...int32) []int32 {
 		return ids
@@ -37,7 +51,6 @@ func TestHandelTestNetworkSNonPowerOfTwo(t *testing.T) {
 	}
 	testHandelTestNetwork(t, tests)
 }
-
 
 func TestHandelTestNetworkFull(t *testing.T) {
 	off := func(ids ...int32) []int32 {
@@ -209,16 +222,16 @@ func TestHandelCheckCompletedLevel(t *testing.T) {
 	inc2 := make(chan *Packet)
 	receiver2.net.(*TestNetwork).lis = []Listener{ChanListener(inc2)}
 
-	sig0 := fullSigPair(1)
+	sig0 := fullIncomingSig(1)
 	// not-complete signature
-	sig02 := fullSigPair(2)
+	sig02 := fullIncomingSig(2)
 	sig02.ms.BitSet.Set(0, true)
 
 	// node 0 corresponds to level 1 in node's 1 view.
 	// => store incomplete signature as if it was an empty signature from node 0
 	// node 1 should NOT send anything to node 2 (or 3 but we're only verifying
 	// node 2 since it will send to both anyway)
-	sender.store.Store(2, sig02.ms)
+	sender.store.Store(sig02)
 	sender.checkCompletedLevel(sig02)
 	select {
 	case <-inc2:
@@ -229,7 +242,7 @@ func TestHandelCheckCompletedLevel(t *testing.T) {
 
 	// send full signature
 	// node 2 should react
-	sender.store.Store(1, sig0.ms)
+	sender.store.Store(sig0)
 	sender.checkCompletedLevel(sig0)
 	select {
 	case p := <-inc2:
@@ -246,25 +259,25 @@ func TestHandelCheckFinalSignature(t *testing.T) {
 	type checkFinalTest struct {
 		// one slice represents sigs to store before calling the checkVerified
 		// you can put multiple slices to call checkverified multiple times
-		sigs [][]*sigPair
+		sigs [][]*incomingSig
 		// input to the handler
-		input *sigPair
+		input *incomingSig
 		// expected output on the output channel
 		out []*MultiSignature
 	}
 
 	// test(3) set a non-complete signature followed by a complete signature
-	pairs1 := sigPairs(0, 1, 2, 3, 4)
-	pairs2 := sigPairs(3, 4)
+	pairs1 := incomingSigs(0, 1, 2, 3, 4)
+	pairs2 := incomingSigs(3, 4)
 	// index 8 (2^4-1) + 6 = 14 set to false
 	pairs1[4].ms.BitSet.Set(6, false)
-	final4 := finalSigPair(4, n)
+	final4 := finalIncomingSig(4, n)
 	// missing one contribution
-	final4b := finalSigPair(4, n)
+	final4b := finalIncomingSig(4, n)
 	final4b.ms.BitSet.Set(14, false)
 
 	// test(4) set a under-threshold signature followed by a good one
-	pairs3 := sigPairs(0, 1, 2, 3, 4)
+	pairs3 := incomingSigs(0, 1, 2, 3, 4)
 	// 4-1 -> because that's how you compute the size of a level
 	// -1 -> to just spread out holes to other levels and leave this one still
 	// having one contribution
@@ -277,14 +290,14 @@ func TestHandelCheckFinalSignature(t *testing.T) {
 	//fmt.Println("pairs3[4] bitset = ", pairs3[4].ms.BitSet.String())
 	//fmt.Println("pairs3[3] bitset = ", pairs3[3].ms.BitSet.String())
 
-	toMatrix := func(pairs ...[]*sigPair) [][]*sigPair {
-		return append(make([][]*sigPair, 0), pairs...)
+	toMatrix := func(pairs ...[]*incomingSig) [][]*incomingSig {
+		return append(make([][]*incomingSig, 0), pairs...)
 	}
 	var tests = []checkFinalTest{
 		// too lower level signatures
-		{toMatrix(sigPairs(0, 1, 2)), nil, []*MultiSignature{nil}},
+		{toMatrix(incomingSigs(0, 1, 2)), nil, []*MultiSignature{nil}},
 		// everything's perfect
-		{toMatrix(sigPairs(0, 1, 2, 3, 4)), nil, []*MultiSignature{finalSigPair(4, n).ms}},
+		{toMatrix(incomingSigs(0, 1, 2, 3, 4)), nil, []*MultiSignature{finalIncomingSig(4, n).ms}},
 		// gives two consecutives better
 		{toMatrix(pairs1, pairs2), nil, []*MultiSignature{final4b.ms, final4.ms}},
 		// one underthreshold and fully signed
@@ -309,7 +322,7 @@ func TestHandelCheckFinalSignature(t *testing.T) {
 		for i, toInsert := range test.sigs {
 			// insert slice
 			for _, sig := range toInsert {
-				store.Store(sig.level, sig.ms)
+				store.Store(sig)
 			}
 			h.checkFinalSignature(test.input)
 
@@ -382,9 +395,12 @@ func TestHandelParsePacket(t *testing.T) {
 	}
 	for i, test := range packets {
 		t.Logf(" -- test %d --", i)
-		_, err := h.parsePacket(test.Packet)
+		err := h.validatePacket(test.Packet)
+		_, _, err2 := h.parseSignatures(test.Packet)
 		if test.Error {
-			require.Error(t, err)
+			var isErr1 = err != nil
+			var isErr2 = err2 != nil
+			require.True(t, isErr1 || isErr2)
 		} else {
 			require.NoError(t, err)
 		}
