@@ -6,7 +6,7 @@ import (
 )
 
 type configGen interface {
-	Generate() lib.Config
+	Generate(step int) lib.Config
 }
 
 func main() {
@@ -29,11 +29,11 @@ func main() {
 		Timeout:     "100ms",
 	}
 
-	nodeIncScenario(defaultConf, handel, "nodeInc_max99_inc4_f0_t80%.toml")
+	nodeIncScenario(defaultConf, handel, "2000Nodes200Inst80.toml")
 }
 
 func nodeIncScenario(defaultConf lib.Config, handel *lib.HandelConfig, fileName string) {
-	nodesInc := scenarios.NewNodeInc(defaultConf, handel, 99, 4, 0, scenarios.CalcThreshold80)
-	conf := nodesInc.Generate()
+	nodesInc := scenarios.NewNodeInc(defaultConf, handel, 2001, 4, 0, scenarios.CalcThreshold80)
+	conf := nodesInc.Generate(200)
 	conf.WriteTo(fileName)
 }

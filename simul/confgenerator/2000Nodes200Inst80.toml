@@ -1,0 +1,130 @@
+Network = "udp"
+Curve = "bn256"
+Encoding = "gob"
+Allocator = "linear"
+MonitorPort = 10000
+Debug = 0
+Simulation = "handel"
+MaxTimeout = "2m"
+Retrials = 1
+ResultFile = ""
+
+[[Runs]]
+  Nodes = 200
+  Threshold = 160
+  Failing = 0
+  Processes = 50
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+    UnsafeSleepTimeOnSigVerify = 0
+
+[[Runs]]
+  Nodes = 400
+  Threshold = 320
+  Failing = 0
+  Processes = 100
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+    UnsafeSleepTimeOnSigVerify = 0
+
+[[Runs]]
+  Nodes = 600
+  Threshold = 480
+  Failing = 0
+  Processes = 150
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+    UnsafeSleepTimeOnSigVerify = 0
+
+[[Runs]]
+  Nodes = 800
+  Threshold = 640
+  Failing = 0
+  Processes = 200
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+    UnsafeSleepTimeOnSigVerify = 0
+
+[[Runs]]
+  Nodes = 1000
+  Threshold = 800
+  Failing = 0
+  Processes = 250
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+    UnsafeSleepTimeOnSigVerify = 0
+
+[[Runs]]
+  Nodes = 1200
+  Threshold = 960
+  Failing = 0
+  Processes = 300
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+    UnsafeSleepTimeOnSigVerify = 0
+
+[[Runs]]
+  Nodes = 1400
+  Threshold = 1120
+  Failing = 0
+  Processes = 350
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+    UnsafeSleepTimeOnSigVerify = 0
+
+[[Runs]]
+  Nodes = 1600
+  Threshold = 1280
+  Failing = 0
+  Processes = 400
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+    UnsafeSleepTimeOnSigVerify = 0
+
+[[Runs]]
+  Nodes = 1800
+  Threshold = 1440
+  Failing = 0
+  Processes = 450
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+    UnsafeSleepTimeOnSigVerify = 0
+
+[[Runs]]
+  Nodes = 2000
+  Threshold = 1600
+  Failing = 0
+  Processes = 500
+  [Runs.Handel]
+    Period = "20ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "100ms"
+    UnsafeSleepTimeOnSigVerify = 0

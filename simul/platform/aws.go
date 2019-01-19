@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ConsenSys/handel/simul/lib"
@@ -160,23 +161,25 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 
 	var wg sync.WaitGroup
 
+	var counter int32
 	for _, slave := range slaveInstances {
 		wg.Add(1)
 		// TODO This might become a problem for large number of slaves,
 		// limit numebr of go-routines running concurrently if this is the case
 
 		go func(slave aws.Instance) {
-
 			slaveNodeController, err := aws.NewSSHNodeController(*slave.PublicIP, a.pemBytes, a.awsConfig.SSHUser)
 			if err != nil {
 				panic(err)
 			}
 			fmt.Println("    - Configuring Slave", *slave.PublicIP)
-
 			if err := configureSlave(slaveNodeController, slaveCmds, a.slaveCMDS.Kill()); err != nil {
 				fmt.Println("  Problem with Slave", *slave.PublicIP, err)
 				panic(err)
 			}
+			atomic.AddInt32(&counter, 1)
+			counterValue := atomic.LoadInt32(&counter)
+			fmt.Println("    - Configuring Slave Done", counterValue, *slave.PublicIP)
 			wg.Done()
 		}(*slave)
 		a.allSlaveNodes = append(a.allSlaveNodes, slave)
@@ -191,7 +194,7 @@ func configureSlave(slaveNodeController aws.NodeController, slaveCmds map[int]st
 		return err
 	}
 	defer slaveNodeController.Close()
-	slaveNodeController.Run(kill, nil)
+	//slaveNodeController.Run(kill, nil)
 
 	for idx := 0; idx < len(slaveCmds); idx++ {
 		err := slaveNodeController.Run(slaveCmds[idx], nil)

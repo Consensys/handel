@@ -38,9 +38,6 @@ func main() {
 	runConf := config.Runs[*run]
 	nbOfNodes := runConf.Nodes
 	nbOffline := runConf.Failing
-	nbOfInstances := runConf.Processes
-	threshold := runConf.Threshold
-	period := runConf.Handel.Period
 	active := nbOfNodes - nbOffline
 	master := lib.NewSyncMaster(*masterAddr, active, nbOfNodes)
 	fmt.Println("Master: listen on", *masterAddr)
@@ -54,7 +51,12 @@ func main() {
 	}
 	defer csvFile.Close()
 
-	stats := defaultStats(*run, nbOfNodes, threshold, nbOfInstances, *network, period)
+	stats := defaultStats(runConf,
+		*run,
+		*network,
+		runConf.Handel.Period,
+		config.Simulation,
+	)
 	mon := monitor.NewMonitor(10000, stats)
 	go mon.Listen()
 
@@ -85,13 +87,19 @@ func main() {
 	mon.Stop()
 }
 
-func defaultStats(run, nodes, threshold, nbOfInstances int, network, period string) *monitor.Stats {
+func defaultStats(runConf lib.RunConfig, run int, network, period, simulation string) *monitor.Stats {
 	return monitor.NewStats(map[string]string{
-		"run":            strconv.Itoa(run),
-		"totalNbOfNodes": strconv.Itoa(nodes),
-		"nbOfInstances":  strconv.Itoa(nbOfInstances),
-		"threshold":      strconv.Itoa(threshold),
-		"network":        network,
-		"period":         period,
+		"run":                        strconv.Itoa(run),
+		"totalNbOfNodes":             strconv.Itoa(runConf.Nodes),
+		"nbOfInstances":              strconv.Itoa(runConf.Processes),
+		"threshold":                  strconv.Itoa(runConf.Threshold),
+		"failing":                    strconv.Itoa(runConf.Failing),
+		"network":                    network,
+		"period":                     runConf.Handel.Period,
+		"updateCount":                strconv.Itoa(runConf.Handel.UpdateCount),
+		"simulation":                 simulation,
+		"UnsafeSleepTimeOnSigVerify": strconv.Itoa(runConf.Handel.UnsafeSleepTimeOnSigVerify),
+		"NodeCount":                  strconv.Itoa(runConf.Handel.NodeCount),
+		"timeout":                    runConf.Handel.Timeout,
 	}, nil)
 }
