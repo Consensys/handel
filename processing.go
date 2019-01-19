@@ -11,7 +11,25 @@ import (
 	"time"
 )
 
-var deathPillPair = sigPair{-1, 121, nil}
+var deathPillPair = incomingSig{origin: -1}
+
+// incomingSig represents a parsed signature from the network. It can represents
+// a individual signature or a multisignature.
+type incomingSig struct {
+	origin int32
+	level  byte
+	ms     *MultiSignature
+	// is the signature an individual one or not
+	isInd bool
+	// mapped index of the origin to the level's range - only useful when this
+	// signature is an individual signature.
+	mappedIndex int
+}
+
+// Individual returns true if this incoming sig is an individual signature
+func (i *incomingSig) Individual() bool {
+	return i.isInd
+}
 
 // signatureProcessing is an interface responsible for verifying incoming
 // multi-signature. It can decides to drop some incoming signatures if deemed
@@ -23,13 +41,13 @@ type signatureProcessing interface {
 	Start()
 	// Stop is a blocking call that stops the processing routine
 	Stop()
-	// Add a sigpair to the processing list
-	Add(sp *sigPair)
+	// Add an incomingSig to the processing list
+	Add(sp *incomingSig)
 	// channel that outputs verified signatures. Implementation must guarantee
 	// that all verified signatures are signatures that have been sent on the
 	// incoming channel. No new signatures must be outputted on this channel (
 	// is the role of the Store)
-	Verified() chan sigPair
+	Verified() chan incomingSig
 }
 
 // SigEvaluator is an interface responsible to evaluate incoming *non-verified*
@@ -41,7 +59,7 @@ type SigEvaluator interface {
 	// Evaluate the interest to verify a signature
 	//   0: no interest, the signature can be discarded definitively
 	//  >0: the greater the more interesting
-	Evaluate(sp *sigPair) int
+	Evaluate(sp *incomingSig) int
 }
 
 // Evaluator1 returns 1 for all signatures, leading to having all signatures
@@ -50,7 +68,7 @@ type Evaluator1 struct {
 }
 
 // Evaluate implements the SigEvaluator interface.
-func (f *Evaluator1) Evaluate(sp *sigPair) int {
+func (f *Evaluator1) Evaluate(sp *incomingSig) int {
 	return 1
 }
 
@@ -64,7 +82,7 @@ type EvaluatorStore struct {
 }
 
 // Evaluate implements the SigEvaluator strategy.
-func (f *EvaluatorStore) Evaluate(sp *sigPair) int {
+func (f *EvaluatorStore) Evaluate(sp *incomingSig) int {
 	return f.store.Evaluate(sp)
 }
 
@@ -72,8 +90,54 @@ func newEvaluatorStore(store signatureStore) SigEvaluator {
 	return &EvaluatorStore{store: store}
 }
 
+// Filter holds the responsibility of filtering out the signatures before they
+// go into the processing queue.
+type Filter interface {
+	Accept(*incomingSig) bool
+}
+
+// individualSigFilter is a filter than only accepts *once* individual
+// signatures
+type individualSigFilter struct {
+	seen map[int]bool
+}
+
+func newIndividualSigFilter() Filter {
+	return &individualSigFilter{make(map[int]bool)}
+}
+
+func (i *individualSigFilter) Accept(inc *incomingSig) bool {
+	if !inc.Individual() {
+		// only refuse individual signatures
+		return true
+	}
+	idx := int(inc.origin)
+	_, inserted := i.seen[idx]
+	if inserted {
+		// already seen so we drop this one
+		return false
+	}
+	// sets it to true so we only accept once
+	i.seen[idx] = true
+	return true
+}
+
+// combinedFilter can combine sequentially multiple filter into one. The first
+// filter that returns false makes the combinedFilter returns false immediately
+// as well.
+type combinedFilter struct{ filters []Filter }
+
+func (c *combinedFilter) Accept(inc *incomingSig) bool {
+	for _, f := range c.filters {
+		if !f.Accept(inc) {
+			return false
+		}
+	}
+	return true
+}
+
 // evaluator processing processing incoming signatures according to an signature
-// evalutor strategy.
+// evaluator strategy.
 type evaluatorProcessing struct {
 	cond *sync.Cond
 
@@ -83,10 +147,12 @@ type evaluatorProcessing struct {
 	cons Constructor
 	msg  []byte
 
-	out       chan sigPair
-	todos     []*sigPair
+	out       chan incomingSig
+	todos     []*incomingSig
 	evaluator SigEvaluator
 	log       Logger
+	// to filter out signatures before inserting into processing queue
+	filter Filter
 
 	sigSleepTime int64
 
@@ -104,21 +170,21 @@ type evaluatorProcessing struct {
 	sigCheckingTime int
 }
 
-// TODO handel argument only for logging
 func newEvaluatorProcessing(part Partitioner, c Constructor, msg []byte, sigSleepTime int, e SigEvaluator, log Logger) signatureProcessing {
 	m := sync.Mutex{}
 
 	ev := &evaluatorProcessing{
-		cond: sync.NewCond(&m),
-		part: part,
-		cons: c,
-		msg:  msg,
+		cond:         sync.NewCond(&m),
+		part:         part,
+		cons:         c,
+		msg:          msg,
 		sigSleepTime: int64(sigSleepTime),
 
-		out:       make(chan sigPair, 1000),
-		todos:     make([]*sigPair, 0),
+		out:       make(chan incomingSig, 1000),
+		todos:     make([]*incomingSig, 0),
 		evaluator: e,
 		log:       log,
+		filter:    newIndividualSigFilter(),
 	}
 	return ev
 }
@@ -131,21 +197,23 @@ func (f *evaluatorProcessing) Stop() {
 	f.Add(&deathPillPair)
 }
 
-func (f *evaluatorProcessing) Verified() chan sigPair {
+func (f *evaluatorProcessing) Verified() chan incomingSig {
 	return f.out
 }
 
-func (f *evaluatorProcessing) Add(sp *sigPair) {
+func (f *evaluatorProcessing) Add(sp *incomingSig) {
 	f.cond.L.Lock()
 	defer f.cond.L.Unlock()
 
-	f.todos = append(f.todos, sp)
-	f.cond.Signal()
+	if f.filter.Accept(sp) {
+		f.todos = append(f.todos, sp)
+		f.cond.Signal()
+	}
 }
 
 // Look at the signatures received so far and select the one
 //  that should be processed first.
-func (f *evaluatorProcessing) readTodos() (bool, *sigPair) {
+func (f *evaluatorProcessing) readTodos() (bool, *incomingSig) {
 	f.cond.L.Lock()
 	defer f.cond.L.Unlock()
 	for len(f.todos) == 0 {
@@ -157,8 +225,8 @@ func (f *evaluatorProcessing) readTodos() (bool, *sigPair) {
 	// We need to iterate on our list. We put in
 	//   'newTodos' the signatures not selected in this round
 	//   but possibly interesting next time
-	var newTodos []*sigPair
-	var best *sigPair
+	var newTodos []*incomingSig
+	var best *incomingSig
 	bestMark := 0
 	for _, pair := range f.todos {
 		if *pair == deathPillPair {
@@ -186,7 +254,7 @@ func (f *evaluatorProcessing) readTodos() (bool, *sigPair) {
 
 	newLen := len(f.todos)
 
-	f.sigSuppressed +=  previousLen - newLen
+	f.sigSuppressed += previousLen - newLen
 	if best != nil {
 		f.sigSuppressed-- // we don't want to count 'best' as a suppressed sig.
 		f.sigCheckedCt++
@@ -225,9 +293,9 @@ func (f *evaluatorProcessing) Values() map[string]float64 {
 	}
 
 	return map[string]float64{
-		"sigCheckedCt": float64(f.sigCheckedCt),
-		"sigQueueSize": sigQueueSize,
-		"sigSuppressed": float64(f.sigSuppressed),
+		"sigCheckedCt":    float64(f.sigCheckedCt),
+		"sigQueueSize":    sigQueueSize,
+		"sigSuppressed":   float64(f.sigSuppressed),
 		"sigCheckingTime": sigCheckingTime,
 	}
 }
@@ -244,7 +312,7 @@ func (f *evaluatorProcessing) processStep() bool {
 	return false
 }
 
-func (f *evaluatorProcessing) verifyAndPublish(sp *sigPair) {
+func (f *evaluatorProcessing) verifyAndPublish(sp *incomingSig) {
 	startTime := time.Now()
 	err := (error)(nil)
 	if f.sigSleepTime <= 0 {
@@ -272,8 +340,8 @@ type fifoProcessing struct {
 	part  Partitioner
 	cons  Constructor
 	msg   []byte
-	in    chan sigPair
-	out   chan sigPair
+	in    chan incomingSig
+	out   chan incomingSig
 	done  bool
 }
 
@@ -287,8 +355,8 @@ func newFifoProcessing(store signatureStore, part Partitioner,
 		store: store,
 		cons:  c,
 		msg:   msg,
-		in:    make(chan sigPair, 100),
-		out:   make(chan sigPair, 100),
+		in:    make(chan incomingSig, 100),
+		out:   make(chan incomingSig, 100),
 	}
 }
 
@@ -320,8 +388,7 @@ func (f *fifoProcessing) processIncoming() {
 	}
 }
 
-
-func (f *fifoProcessing) verifySignature(pair *sigPair) error {
+func (f *fifoProcessing) verifySignature(pair *incomingSig) error {
 	level := pair.level
 	ms := pair.ms
 	ids, err := f.part.IdentitiesAt(int(level))
@@ -350,11 +417,11 @@ func (f *fifoProcessing) verifySignature(pair *sigPair) error {
 	return nil
 }
 
-func (f *fifoProcessing) Add(sp *sigPair) {
+func (f *fifoProcessing) Add(sp *incomingSig) {
 	f.in <- *sp
 }
 
-func (f *fifoProcessing) Verified() chan sigPair {
+func (f *fifoProcessing) Verified() chan incomingSig {
 	return f.out
 }
 
@@ -380,7 +447,7 @@ func (f *fifoProcessing) isStopped() bool {
 	return f.done
 }
 
-func verifySignature(pair *sigPair, msg []byte, part Partitioner, cons Constructor) error {
+func verifySignature(pair *incomingSig, msg []byte, part Partitioner, cons Constructor) error {
 	level := pair.level
 	ms := pair.ms
 	ids, err := part.IdentitiesAt(int(level))

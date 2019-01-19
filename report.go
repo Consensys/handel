@@ -123,14 +123,14 @@ func newReportStore(s signatureStore) signatureStore {
 }
 
 // Store implements the signatureStore interface
-func (r *ReportStore) Store(level byte, ms *MultiSignature) (*MultiSignature, bool) {
-	ms, isNew := r.signatureStore.Store(level, ms)
-	if isNew {
+func (r *ReportStore) Store(sp *incomingSig) *MultiSignature{
+	ms := r.signatureStore.Store(sp)
+	if ms != nil {
 		r.sucessReplaced++
 	} else {
 		r.replacedTrial++
 	}
-	return ms, isNew
+	return ms
 }
 
 // Values implements the simul/monitor/counterIO interface

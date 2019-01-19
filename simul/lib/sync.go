@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/ConsenSys/handel"
 	"github.com/ConsenSys/handel/network"
@@ -156,12 +157,14 @@ func (s *SyncMaster) Stop() {
 // SyncSlave sends its state to the master and waits for a START message
 type SyncSlave struct {
 	sync.Mutex
-	own    string
-	master string
-	net    *udp.Network
-	ids    []int
-	waitCh chan bool
-	done   bool
+	own        string
+	master     string
+	net        *udp.Network
+	ids        []int
+	waitCh     chan bool
+	done       bool
+	internDone chan bool
+	sendDone   chan bool
 }
 
 // NewSyncSlave returns a Sync to use as a node in the system to synchronize
@@ -178,25 +181,46 @@ func NewSyncSlave(own, master string, ids []int) *SyncSlave {
 	slave.own = own
 	slave.master = master
 	slave.waitCh = make(chan bool, 1)
+	slave.internDone = make(chan bool, 1)
+	slave.sendDone = make(chan bool, 1)
 	go slave.sendReadyState()
+	go slave.waitDone()
 	return slave
 }
 
+const retrials = 5
+const wait = 1 * time.Second
+
 func (s *SyncSlave) sendReadyState() {
-	msg := &syncMessage{State: READY, IDs: s.ids, Address: s.own}
-	buff, err := msg.ToBytes()
-	if err != nil {
-		panic(err)
+	for i := 0; i < retrials; i++ {
+		msg := &syncMessage{State: READY, IDs: s.ids, Address: s.own}
+		buff, err := msg.ToBytes()
+		if err != nil {
+			panic(err)
+		}
+		packet := &handel.Packet{MultiSig: buff}
+		id := handel.NewStaticIdentity(0, s.master, nil)
+		s.net.Send([]handel.Identity{id}, packet)
+		time.Sleep(wait)
+		select {
+		case <-s.sendDone:
+			return
+		default:
+			continue
+		}
 	}
-	packet := &handel.Packet{MultiSig: buff}
-	id := handel.NewStaticIdentity(0, s.master, nil)
-	go s.net.Send([]handel.Identity{id}, packet)
 }
 
 // WaitMaster returns a channel that receives a value when the sync master sends
 // the START message
 func (s *SyncSlave) WaitMaster() chan bool {
 	return s.waitCh
+}
+
+func (s *SyncSlave) waitDone() {
+	<-s.internDone
+	s.sendDone <- true
+	s.waitCh <- true
 }
 
 // NewPacket implements the Listener interface
@@ -216,7 +240,7 @@ func (s *SyncSlave) NewPacket(p *handel.Packet) {
 		panic("that should not happen")
 	}
 	s.done = true
-	s.waitCh <- true
+	s.internDone <- true
 }
 
 // Reset re-initializes the syncslave to its initial state - it sends its status
@@ -226,6 +250,8 @@ func (s *SyncSlave) Reset() {
 	defer s.Unlock()
 	s.done = false
 	go s.sendReadyState()
+	go s.waitDone()
+
 }
 
 // Stop the network layer of the syncslave

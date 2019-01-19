@@ -49,7 +49,7 @@ func TestSyncer(t *testing.T) {
 		}
 	}
 	tryWait(master, slaves)
-
+	time.Sleep(50 * time.Millisecond)
 	master.Reset()
 	for i := range slaves {
 		slaves[i].Reset()
