@@ -25,7 +25,7 @@ func TestNodeInc(t *testing.T) {
 	}
 
 	nodesInc := NewNodeInc(defaultConf, handel, 99, 4, 0, CalcThreshold80)
-	conf := nodesInc.Generate()
+	conf := nodesInc.Generate(1)
 	require.Equal(t, len(conf.Runs), 24)
 
 	for i, r := range conf.Runs {

@@ -89,14 +89,17 @@ func main() {
 
 func defaultStats(runConf lib.RunConfig, run int, network, period, simulation string) *monitor.Stats {
 	return monitor.NewStats(map[string]string{
-		"run":            strconv.Itoa(run),
-		"totalNbOfNodes": strconv.Itoa(runConf.Nodes),
-		"nbOfInstances":  strconv.Itoa(runConf.Processes),
-		"threshold":      strconv.Itoa(runConf.Threshold),
-		"failing":        strconv.Itoa(runConf.Failing),
-		"network":        network,
-		"period":         runConf.Handel.Period,
-		"updateCount":    strconv.Itoa(runConf.Handel.UpdateCount),
-		"simulation":     simulation,
+		"run":                        strconv.Itoa(run),
+		"totalNbOfNodes":             strconv.Itoa(runConf.Nodes),
+		"nbOfInstances":              strconv.Itoa(runConf.Processes),
+		"threshold":                  strconv.Itoa(runConf.Threshold),
+		"failing":                    strconv.Itoa(runConf.Failing),
+		"network":                    network,
+		"period":                     runConf.Handel.Period,
+		"updateCount":                strconv.Itoa(runConf.Handel.UpdateCount),
+		"simulation":                 simulation,
+		"UnsafeSleepTimeOnSigVerify": strconv.Itoa(runConf.Handel.UnsafeSleepTimeOnSigVerify),
+		"NodeCount":                  strconv.Itoa(runConf.Handel.NodeCount),
+		"timeout":                    runConf.Handel.Timeout,
 	}, nil)
 }
