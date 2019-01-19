@@ -106,47 +106,46 @@ func (r *replaceStore) Evaluate(sp *incomingSig) int {
 }
 
 func (r *replaceStore) unsafeEvaluate(sp *incomingSig) int {
-	ms := sp.ms
-	level := int(sp.level)
-	toReceive := r.part.Size(level)
+	toReceive := r.part.Size(int(sp.level))
 	curBestMs := r.m[sp.level] // The best signature we have for this level, may be nil
 
 	if curBestMs != nil && toReceive == curBestMs.Cardinality() {
-		// Completed level, we won't need this signature
-		return 0
+		return 0 // Completed level, we won't need this signature
 	}
 
 	if sp.Individual() && r.indivSigsVerified[sp.level].Get(int(sp.mappedIndex)) {
-		// We have already verified this individual signature
-		return 0
+		return 0 // We have already verified this individual signature
 	}
 
-	if curBestMs != nil && !sp.Individual() && curBestMs.IsSuperSet(ms.BitSet) {
-		// We have verified an equal or better signature already. Ignore this new one.
-		return 0
+	if curBestMs != nil && !sp.Individual() && curBestMs.IsSuperSet(sp.ms.BitSet) {
+		return 0 // We have verified an equal or better signature already. Ignore this new one.
 	}
-
-	addedSigs := 0
-	existingSigs := 0
 
 	// We take into account the individual signatures already verified we could add.
-	withIndiv := ms.BitSet.Or(r.indivSigsVerified[sp.level])
-	c1 := withIndiv.Cardinality()
+	withIndiv := sp.ms.BitSet.Or(r.indivSigsVerified[sp.level])
+	newTotal := 0 // The number of signatures in our new best
+	addedSigs := 0 // The number of sigs we add with our new best compared to the existing one. Can be negative
+	combineCt := 0 // The number of sigs in our new best that come from combining it with individual sigs
 
 	if curBestMs == nil {
 		// the best is the new multi-sig combined with the ind. sigs
-		addedSigs = c1
+		newTotal = withIndiv.Cardinality()
+		addedSigs = newTotal
+		combineCt = newTotal - sp.ms.BitSet.Cardinality()
 	} else {
-		existingSigs = curBestMs.BitSet.Cardinality()
 		// We need to check that the new sig and curr sig don't overlap to merge
-		if ms.IntersectionCardinality(curBestMs.BitSet) != 0 {
+		if sp.ms.IntersectionCardinality(curBestMs.BitSet) != 0 {
 			// We can't merge, it's a replace
-			addedSigs = c1 - curBestMs.Cardinality()
+			newTotal = withIndiv.Cardinality()
+			addedSigs = newTotal - curBestMs.Cardinality()
+			combineCt = newTotal - sp.ms.BitSet.Cardinality()
 		} else {
-			// We can merge our current best and the new ms. We can also add individual
-			//  signatures that we previously verified.
-			//addedSigs = withIndiv.Or(curBestMs.BitSet).Cardinality() - existingSigs
-			addedSigs = withIndiv.And(curBestMs.BitSet).Xor(withIndiv).Cardinality()
+			// We can merge our current best and the new ms. We also add individual
+			//  signatures that we previously verified
+			finalSet :=  withIndiv.Or(curBestMs.BitSet)
+			newTotal = finalSet.Cardinality()
+			addedSigs = newTotal - curBestMs.BitSet.Cardinality()
+			combineCt =  finalSet.Xor(curBestMs.BitSet.Or(sp.ms.BitSet)).Cardinality()
 		}
 	}
 
@@ -159,15 +158,15 @@ func (r *replaceStore) unsafeEvaluate(sp *incomingSig) int {
 		return 0
 	}
 
-	if addedSigs+existingSigs == toReceive {
+	if newTotal == toReceive {
 		// This completes a level! That's the best options for us. We give
 		//  a greater value to the first levels/
-		return 1000000 - level
+		return 1000000 - int(sp.level) * 10 - combineCt
 	}
 
 	// It adds value, but does not complete a level. We
 	//  favorize the older level but take into account the number of sigs we receive as well.
-	return 30000 - level*100 + addedSigs
+	return 100000 - int(sp.level)*100 + addedSigs * 10 - combineCt
 }
 
 // Returns the signature to store (can be combined with the existing one or previously verified signatures) and
