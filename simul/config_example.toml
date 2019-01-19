@@ -15,4 +15,4 @@ Retrials = 1
         UpdateCount = 1
         NodeCount = 10
         Timeout = "100ms"
-        UnsafeSleepTimeOnSigVerify = 0
+        UnsafeSleepTimeOnSigVerify = 1
