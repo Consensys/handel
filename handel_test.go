@@ -13,6 +13,7 @@ import (
 
 var msg = []byte("Sun is Shining...")
 
+
 type handelTest struct {
 	n        int
 	offlines []int32
@@ -26,6 +27,19 @@ func TestHandelTestNetworkSimple(t *testing.T) {
 	}
 	testHandelTestNetwork(t, tests)
 }
+
+func TestHandelWithFailures(t *testing.T) {
+	off := func(ids ...int32) []int32 {
+		return ids
+	}
+
+	offs := off(0, 1, 4, 6, 10, 14, 19, 24, 27, 57, 89, 96, 101, 134, 141, 178, 179, 199, 200, 211, 243, 255, 288, 301)
+	var tests = []handelTest{
+		{333, offs, 333 - len(offs), false},
+	}
+	testHandelTestNetwork(t, tests)
+}
+
 
 func TestHandelTestNetworkSNonPowerOfTwo(t *testing.T) {
 	off := func(ids ...int32) []int32 {

@@ -84,6 +84,9 @@ func (r *replaceStore) Store(sp *incomingSig) *MultiSignature {
 	defer r.Unlock()
 
 	if sp.Individual() {
+		if sp.ms.BitSet.Cardinality() != 1 {
+			panic("bad individual sig")
+		}
 		r.indivSigsVerified[sp.level].Set(sp.mappedIndex, true)
 		r.individualSigs[sp.level][sp.mappedIndex] = sp.ms
 	}
@@ -198,10 +201,13 @@ func (r *replaceStore) unsafeCheckMerge(sp *incomingSig) (*MultiSignature, bool)
 	}
 
 	// Now we can build all this
-	for pos, cont := iS.NextSet(0); cont; pos, cont = iS.NextSet(+1) {
+	for pos, cont := iS.NextSet(0); cont; pos, cont = iS.NextSet(pos + 1) {
 		sig, check := r.individualSigs[sp.level][pos]
 		if !check {
 			panic("we should have this signature in our map")
+		}
+		if sig.Cardinality() != 1 {
+			panic("bad individual sig")
 		}
 		best.BitSet.Set(pos, true)
 		best.Signature = sig.Combine(best.Signature)
