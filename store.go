@@ -183,7 +183,7 @@ func (r *replaceStore) unsafeCheckMerge(sp *incomingSig) (*MultiSignature, bool)
 		return sp.ms, true
 	}
 
-	best := sp.ms
+	best := &MultiSignature{Signature: sp.ms.Signature, BitSet: sp.ms.BitSet.Clone()}
 	merged := sp.ms.BitSet.Or(ms2.BitSet)
 	if merged.Cardinality() == ms2.Cardinality()+sp.ms.Cardinality() {
 		best.BitSet = merged

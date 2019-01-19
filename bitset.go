@@ -47,7 +47,8 @@ type BitSet interface {
 	NextSet(i int) (int, bool)
 	// IntersectionCardinality computes the cardinality of the differnce
 	IntersectionCardinality(b2 BitSet) int
-
+	// Clone this BitSet
+	Clone() BitSet
 }
 
 
@@ -114,7 +115,6 @@ func (w *WilffBitSet) Combine(b2 BitSet) BitSet {
 	return w
 }
 
-
 // Or implements the BitSet interface
 func (w *WilffBitSet) Or(b2 BitSet) BitSet {
 	return newWilffBitset(w.b.Union(b2.(*WilffBitSet).b))
@@ -128,6 +128,11 @@ func (w *WilffBitSet) And(b2 BitSet) BitSet {
 // Xor implements the BitSet interface
 func (w *WilffBitSet) Xor(b2 BitSet) BitSet {
 	return newWilffBitset(w.b.SymmetricDifference(b2.(*WilffBitSet).b))
+}
+
+// Clone implements the BitSet interface
+func (w *WilffBitSet) Clone() BitSet {
+	return newWilffBitset(w.b.Clone())
 }
 
 func (w *WilffBitSet) inBound(idx int) bool {
