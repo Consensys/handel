@@ -38,12 +38,13 @@ func NewCommand(cmd string, args ...string) *Command {
 // LineOutput continuously reads the stdout + stderr buffer and sends line by line
 // output on the channel
 func (c *Command) LineOutput() chan string {
-	outCh := make(chan string, 1)
+	outCh := make(chan string, 100)
 	go func() {
 		scanner := bufio.NewScanner(c.pipe)
 		for scanner.Scan() {
 			outCh <- scanner.Text()
 		}
+		close(outCh)
 	}()
 	return outCh
 }

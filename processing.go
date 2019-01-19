@@ -319,7 +319,6 @@ func (f *evaluatorProcessing) verifyAndPublish(sp *incomingSig) {
 		err = verifySignature(sp, f.msg, f.part, f.cons)
 	} else {
 		time.Sleep(time.Duration(f.sigSleepTime * 1000000))
-		err = nil
 	}
 	endTime := time.Now()
 
