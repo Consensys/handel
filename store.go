@@ -134,17 +134,19 @@ func (r *replaceStore) unsafeEvaluate(sp *incomingSig) int {
 	c1 := withIndiv.Cardinality()
 
 	if curBestMs == nil {
+		// the best is the new multi-sig combined with the ind. sigs
 		addedSigs = c1
 	} else {
-		// We need to check that we don't overlap. If we do it will be a replacement.
+		existingSigs = curBestMs.BitSet.Cardinality()
+		// We need to check that the new sig and curr sig don't overlap to merge
 		if ms.IntersectionCardinality(curBestMs.BitSet) != 0 {
 			// We can't merge, it's a replace
 			addedSigs = c1 - curBestMs.Cardinality()
 		} else {
 			// We can merge our current best and the new ms. We can also add individual
 			//  signatures that we previously verified.
-			existingSigs = curBestMs.BitSet.Cardinality()
-			addedSigs = withIndiv.Or(curBestMs.BitSet).Cardinality() - existingSigs
+			//addedSigs = withIndiv.Or(curBestMs.BitSet).Cardinality() - existingSigs
+			addedSigs = withIndiv.And(curBestMs.BitSet).Xor(withIndiv).Cardinality()
 		}
 	}
 
