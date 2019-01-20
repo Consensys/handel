@@ -17,6 +17,9 @@ import (
 	gologging "github.com/whyrusleeping/go-logging"
 )
 
+// CtxKey is the type inserted at key value in context
+type CtxKey string
+
 // MaxCount represents the number of outgoing connections a gossip node should
 // make
 const MaxCount = 10
@@ -69,6 +72,7 @@ func Run(a Adaptor) {
 	runConf := config.Runs[*run]
 
 	cons := config.NewConstructor()
+	ctx = context.WithValue(ctx, CtxKey("Constructor"), cons) // for libp2p
 	parser := lib.NewCSVParser()
 	// read CSV records
 	records, err := parser.Read(*registryFile)

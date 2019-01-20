@@ -14,7 +14,6 @@ import (
 
 	"github.com/ConsenSys/handel"
 	h "github.com/ConsenSys/handel"
-	"github.com/ConsenSys/handel/bn256"
 	"github.com/ConsenSys/handel/network"
 	"github.com/ConsenSys/handel/simul/lib"
 	libp2p "github.com/libp2p/go-libp2p"
@@ -42,8 +41,8 @@ type P2PIdentity struct {
 
 // NewP2PIdentity returns the public side of gossip node - useful for connecting
 // to them
-func NewP2PIdentity(id h.Identity) (*P2PIdentity, error) {
-	pub := &bn256Pub{id.PublicKey().(*bn256.PublicKey)}
+func NewP2PIdentity(id h.Identity, c lib.Constructor) (*P2PIdentity, error) {
+	pub := &bn256Pub{PublicKey: id.PublicKey().(lib.PublicKey), newSig: c.Signature}
 	fullAddr := id.Address()
 	ip, port, err := net.SplitHostPort(fullAddr)
 	if err != nil {
@@ -85,12 +84,12 @@ type P2PNode struct {
 }
 
 // NewP2PNode transforms a lib.Node to a p2p node.
-func NewP2PNode(ctx context.Context, handelNode *lib.Node, n NewRouter, reg P2PRegistry) (*P2PNode, error) {
-	secret := handelNode.SecretKey.(*bn256.SecretKey)
-	pub := handelNode.Identity.PublicKey().(*bn256.PublicKey)
+func NewP2PNode(ctx context.Context, handelNode *lib.Node, n NewRouter, reg P2PRegistry, cons lib.Constructor) (*P2PNode, error) {
+	secret := handelNode.SecretKey.(lib.SecretKey)
+	pub := handelNode.Identity.PublicKey().(lib.PublicKey)
 	priv := &bn256Priv{
 		SecretKey: secret,
-		pub:       &bn256Pub{pub},
+		pub:       &bn256Pub{PublicKey: pub, newSig: cons.Signature},
 	}
 	fullAddr := handelNode.Address()
 	ip, port, err := net.SplitHostPort(fullAddr)
