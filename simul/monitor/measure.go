@@ -69,7 +69,7 @@ func ConnectSink(addr string) error {
 	global.Lock()
 	defer global.Unlock()
 	if global.conn != nil {
-		return errors.New("Already connected to an endpoint")
+		return errors.New("already connected to an endpoint")
 	}
 	log.Lvl3("Connecting to:", addr)
 	raddr, err := net.ResolveUDPAddr("udp", addr)
@@ -206,7 +206,7 @@ func send(v interface{}) error {
 		continue
 	}
 	if !ok {
-		return errors.New("Could not send any measures")
+		return errors.New("could not send any measures")
 	}
 	return nil
 }

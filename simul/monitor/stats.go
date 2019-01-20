@@ -129,7 +129,7 @@ func (s *Stats) WriteIndividualStats(w io.Writer) error {
 			if n == 1 {
 				n = newN
 			} else if n != newN {
-				return errors.New("Found inconsistencies in values")
+				return errors.New("found inconsistencies in values")
 			}
 		}
 	}
@@ -191,7 +191,7 @@ func AverageStats(stats []*Stats) *Stats {
 		}
 		// make the average
 		avg := AverageValue(values...)
-		// dont have to necessary collect or filters here. Collect() must be called only
+		// don't have to necessary collect or filters here. Collect() must be called only
 		// when we want the final results (writing or by calling Value(name)
 		s.values[k] = avg
 	}
@@ -303,7 +303,7 @@ func (s *Stats) setDefaultValues(defaults map[string]string) {
 }
 
 // Value is used to compute the statistics
-// it reprensent the time to an action (setup, shamir round, coll round etc)
+// it represent the time to an action (setup, shamir round, coll round etc)
 // use it to compute streaming mean + dev
 type Value struct {
 	name string
