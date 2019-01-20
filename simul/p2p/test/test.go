@@ -2,8 +2,10 @@ package test
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -28,6 +30,7 @@ func Aggregators(t *testing.T, n, thr int, a p2p.Adaptor, opts p2p.Opts) {
 	aggregators := p2p.MakeAggregators(ctx, cons, p2pNodes, reg, thr, defaultResendP)
 
 	var wg sync.WaitGroup
+	var counter int32
 	for _, agg := range aggregators {
 		wg.Add(1)
 		go func(a *p2p.Aggregator) {
@@ -36,6 +39,8 @@ func Aggregators(t *testing.T, n, thr int, a p2p.Adaptor, opts p2p.Opts) {
 			require.True(t, sig.Cardinality() >= thr)
 			err := handel.VerifyMultiSignature(lib.Message, sig, reg, cons.Handel())
 			require.NoError(t, err)
+			atomic.AddInt32(&counter, 1)
+			fmt.Printf(" -- node %d finished, state %d/%d\n", a.Node.Identity().ID(), atomic.LoadInt32(&counter), reg.Size())
 			wg.Done()
 		}(agg)
 	}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -25,6 +26,16 @@ func TestGossipMeshy(t *testing.T) {
 	//connector := NewRandomConnector()
 	r := pubsub.NewGossipSub
 	_, nodes := FakeSetup(ctx, n, nbOutgoing, connector, r)
+
+	var wg sync.WaitGroup
+	for _, n := range nodes {
+		wg.Add(1)
+		go func(n *P2PNode) {
+			n.WaitAllSetup()
+			wg.Done()
+		}(n)
+	}
+	wg.Wait()
 
 	time.Sleep(1 * time.Second)
 

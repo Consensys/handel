@@ -8,9 +8,8 @@ Simulation = "p2p/libp2p"
 
 
 [[Runs]]
-    Nodes = 16
-    Threshold = 16
+    Nodes = 80
     Processes = 1
     [Runs.Extra]
         Connector = "neighbor"
-        Count = "10"
+        Count = "5"
