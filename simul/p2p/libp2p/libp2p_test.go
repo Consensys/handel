@@ -1,8 +1,8 @@
 package main
 
 import (
+	"sync"
 	"testing"
-	"time"
 
 	"github.com/ConsenSys/handel"
 	"github.com/ConsenSys/handel/simul/p2p"
@@ -10,13 +10,21 @@ import (
 )
 
 func TestP2P(t *testing.T) {
-	n := 20
+	n := 50
 	thr := 15
-	var opts = map[string]string{"Connector": "neighbor", "Count": "5"}
+	var opts = map[string]string{"Connector": "neighbor", "Count": "8"}
 	maker := p2p.AdaptorFunc(MakeP2P)
 	maker = p2p.WithConnector(maker)
-	maker = p2p.WithPostFunc(maker, func(handel.Registry, []p2p.Node) {
-		time.Sleep(2 * time.Second)
+	maker = p2p.WithPostFunc(maker, func(r handel.Registry, nodes []p2p.Node) {
+		var wg sync.WaitGroup
+		for _, n := range nodes {
+			wg.Add(1)
+			go func(n *P2PNode) {
+				n.WaitAllSetup()
+				wg.Done()
+			}(n.(*P2PNode))
+		}
+		wg.Wait()
 	})
 
 	test.Aggregators(t, n, thr, maker, opts)
