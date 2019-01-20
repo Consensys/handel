@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/ConsenSys/handel"
 	"github.com/ConsenSys/handel/bn256"
@@ -12,6 +13,8 @@ import (
 	"github.com/ConsenSys/handel/simul/p2p"
 	"github.com/stretchr/testify/require"
 )
+
+var defaultResendP = 1 * time.Second
 
 // Aggregators tests if a node's implementation works out with the aggregator
 // logic before using it in simulation
@@ -22,7 +25,7 @@ func Aggregators(t *testing.T, n, thr int, a p2p.Adaptor, opts p2p.Opts) {
 	nodes, ids := fakeSetup(n)
 	reg, p2pNodes := a.Make(ctx, nodes, ids, opts)
 	cons := lib.NewSimulConstructor(bn256.NewConstructor())
-	aggregators := p2p.MakeAggregators(cons, p2pNodes, reg, thr)
+	aggregators := p2p.MakeAggregators(ctx, cons, p2pNodes, reg, thr, defaultResendP)
 
 	var wg sync.WaitGroup
 	for _, agg := range aggregators {

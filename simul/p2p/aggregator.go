@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"time"
 
 	"github.com/ConsenSys/handel"
 	"github.com/ConsenSys/handel/simul/lib"
@@ -33,10 +34,13 @@ type Aggregator struct {
 	c         handel.Constructor
 	acc       chan []byte
 	done      chan bool
+	resendP   time.Duration
+	tick      *time.Ticker
+	ctx       context.Context
 }
 
 // NewAggregator returns an aggregator from the P2PNode
-func NewAggregator(n Node, r handel.Registry, c handel.Constructor, sig handel.Signature, threshold int) *Aggregator {
+func NewAggregator(ctx context.Context, n Node, r handel.Registry, c handel.Constructor, sig handel.Signature, threshold int, resendPeriod time.Duration) *Aggregator {
 	total := r.Size()
 	return &Aggregator{
 		Node:      n,
@@ -51,6 +55,8 @@ func NewAggregator(n Node, r handel.Registry, c handel.Constructor, sig handel.S
 		out:       make(chan *handel.MultiSignature, 1),
 		acc:       make(chan []byte, total),
 		done:      make(chan bool, 1),
+		resendP:   resendPeriod,
+		ctx:       ctx,
 	}
 }
 
@@ -73,8 +79,21 @@ func (a *Aggregator) Start() {
 		MultiSig: msBuff,
 	}
 
-	fmt.Printf("%d gossips signature %s\n", a.Node.Identity().ID(), hex.EncodeToString(msBuff[len(msBuff)-1-16:len(msBuff)-1]))
-	a.Diffuse(packet)
+	a.tick = time.NewTicker(a.resendP)
+	go func() {
+		// diffuse it right away once
+		fmt.Printf("%d gossips signature %s\n", a.Node.Identity().ID(), hex.EncodeToString(msBuff[len(msBuff)-1-16:len(msBuff)-1]))
+		a.Diffuse(packet)
+		for {
+			select {
+			case <-a.tick.C:
+				a.Diffuse(packet)
+				fmt.Printf("%d gossips signature %s\n", a.Node.Identity().ID(), hex.EncodeToString(msBuff[len(msBuff)-1-16:len(msBuff)-1]))
+			case <-a.ctx.Done():
+				return
+			}
+		}
+	}()
 	go a.handleIncoming()
 }
 
