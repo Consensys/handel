@@ -27,10 +27,9 @@ type incomingSig struct {
 }
 
 // Individual returns true if this incoming sig is an individual signature
-func (i *incomingSig) Individual() bool {
-	return i.isInd
+func (is *incomingSig) Individual() bool {
+	return is.isInd
 }
-
 // signatureProcessing is an interface responsible for verifying incoming
 // multi-signature. It can decides to drop some incoming signatures if deemed
 // useless. It outputs verified signatures to the main handel processing logic

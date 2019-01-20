@@ -22,7 +22,7 @@ type Logger interface {
 
 // DefaultLevel is the default level where statements are logged. One can change
 // this variable inside init() to change the default level, or construct
-// explicitely a Logger.
+// explicitly a Logger.
 var DefaultLevel = lvl.AllowInfo()
 
 // DefaultLogger is the default logger that only outputs statemetns at the

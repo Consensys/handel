@@ -95,7 +95,7 @@ func testHandelTestNetwork(t *testing.T, tests []handelTest) {
 		t.Logf(" -- test %d --", i)
 		n := scenario.n
 		config := DefaultConfig(n)
-		// When there is no offine nodes we should not rely on the timeouts
+		// When there is no offline nodes we should not rely on the timeouts
 		//  for this reason we use a very long one, so the tests will fail with a timeout
 		//  if there is a bug.
 		if len(scenario.offlines) == 0 {
