@@ -269,9 +269,9 @@ func (r *replaceStore) String() string {
 	return b.String()
 }
 
-func (s *incomingSig) String() string {
-	if s.ms == nil {
-		return fmt.Sprintf("sig(lvl %d): <nil>", s.level)
+func (is *incomingSig) String() string {
+	if is.ms == nil {
+		return fmt.Sprintf("sig(lvl %d): <nil>", is.level)
 	}
-	return fmt.Sprintf("sig(lvl %d): %s", s.level, s.ms.String())
+	return fmt.Sprintf("sig(lvl %d): %s", is.level, is.ms.String())
 }
