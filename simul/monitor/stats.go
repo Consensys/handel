@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -447,7 +448,12 @@ func (t *Value) HeaderFields() []string {
 
 // Values returns the string representation of a Value
 func (t *Value) Values() []string {
-	return []string{fmt.Sprintf("%f", t.Min()), fmt.Sprintf("%f", t.Max()), fmt.Sprintf("%f", t.Avg()), fmt.Sprintf("%f", t.Sum()), fmt.Sprintf("%f", t.Dev())}
+	return []string{
+		strconv.FormatFloat(t.min, 'g', 4, 64),
+		strconv.FormatFloat(t.Max(), 'g', 4, 64),
+		strconv.FormatFloat(t.Avg(), 'g', 4, 64),
+		strconv.FormatFloat(t.Sum(), 'g', 4, 64),
+		strconv.FormatFloat(t.Dev(), 'g', 4, 64)}
 }
 
 // SingleValues returns the string representation of an entry in the value
