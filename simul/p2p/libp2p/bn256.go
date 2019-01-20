@@ -4,10 +4,14 @@ import (
 	"bytes"
 	"io"
 
-	"github.com/ConsenSys/handel/bn256"
+	"github.com/ConsenSys/handel"
+	"github.com/ConsenSys/handel/simul/lib"
 	crypto "github.com/libp2p/go-libp2p-crypto"
 	pb "github.com/libp2p/go-libp2p-crypto/pb"
 )
+
+// BN256Constructor is the constructor used for bn256
+var BN256Constructor lib.Constructor
 
 // KeyTypeBN256 bla
 const KeyTypeBN256 pb.KeyType = 4
@@ -20,29 +24,29 @@ func init() {
 	//if !exists {
 	//panic("aie")
 	/*}*/
-	pb.KeyType_name[int32(KeyTypeBN256)] = "BN256"
-	pb.KeyType_value["BN256"] = int32(KeyTypeBN256)
-	crypto.PrivKeyUnmarshallers[KeyTypeBN256] = BN256PrivKeyUnmarshaller
-	crypto.PubKeyUnmarshallers[KeyTypeBN256] = BN256PubKeyUnmarshaller
 	crypto.KeyTypes = append(crypto.KeyTypes, int(KeyTypeBN256))
 }
 
 // NewBN256KeyPair returns libp2p adaptor over the bn256 keypair
-func NewBN256KeyPair(r io.Reader) (crypto.PrivKey, error) {
-	priv, pub, err := bn256.NewKeyPair(r)
-	if err != nil {
-		return nil, err
-	}
+func NewBN256KeyPair(r io.Reader, c lib.Constructor) crypto.PrivKey {
+	priv, pub := c.KeyPair(r)
+
+	pb.KeyType_name[int32(KeyTypeBN256)] = "BN256"
+	pb.KeyType_value["BN256"] = int32(KeyTypeBN256)
+	crypto.PrivKeyUnmarshallers[KeyTypeBN256] = MakePrivUnmarshaller(c)
+	crypto.PubKeyUnmarshallers[KeyTypeBN256] = MakePubUnmarshaller(c)
+
 	return &bn256Priv{
 		SecretKey: priv,
 		pub: &bn256Pub{
 			PublicKey: pub,
+			newSig:    c.Signature,
 		},
-	}, nil
+	}
 }
 
 type bn256Priv struct {
-	*bn256.SecretKey
+	lib.SecretKey
 	pub *bn256Pub
 }
 
@@ -77,7 +81,8 @@ func (b *bn256Priv) GetPublic() crypto.PubKey {
 }
 
 type bn256Pub struct {
-	*bn256.PublicKey
+	lib.PublicKey
+	newSig func() handel.Signature
 }
 
 func (b *bn256Pub) Bytes() ([]byte, error) {
@@ -99,7 +104,7 @@ func (b *bn256Pub) Type() pb.KeyType {
 }
 
 func (b *bn256Pub) Verify(data, sig []byte) (bool, error) {
-	s := new(bn256.SigBLS)
+	s := b.newSig()
 	if err := s.UnmarshalBinary(sig); err != nil {
 		return false, err
 	}
@@ -110,14 +115,18 @@ func (b *bn256Pub) Verify(data, sig []byte) (bool, error) {
 	return true, nil
 }
 
-// BN256PrivKeyUnmarshaller bla
-func BN256PrivKeyUnmarshaller(data []byte) (crypto.PrivKey, error) {
-	sk := new(bn256.SecretKey)
-	return &bn256Priv{SecretKey: sk}, sk.UnmarshalBinary(data)
+// MakePrivUnmarshaller returns an unmarshaller using the given constructor
+func MakePrivUnmarshaller(c lib.Constructor) func(data []byte) (crypto.PrivKey, error) {
+	return func(data []byte) (crypto.PrivKey, error) {
+		sk := c.SecretKey()
+		return &bn256Priv{SecretKey: sk}, sk.UnmarshalBinary(data)
+	}
 }
 
-// BN256PubKeyUnmarshaller bla bla bla
-func BN256PubKeyUnmarshaller(data []byte) (crypto.PubKey, error) {
-	pk := new(bn256.PublicKey)
-	return &bn256Pub{PublicKey: pk}, pk.UnmarshalBinary(data)
+// MakePubUnmarshaller returns a public unmarshaller from the given constructor
+func MakePubUnmarshaller(c lib.Constructor) func(data []byte) (crypto.PubKey, error) {
+	return func(data []byte) (crypto.PubKey, error) {
+		pub := c.PublicKey()
+		return &bn256Pub{PublicKey: pub, newSig: c.Signature}, pub.UnmarshalBinary(data)
+	}
 }

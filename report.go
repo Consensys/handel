@@ -72,7 +72,7 @@ func NewReportNetwork(n Network) Network {
 
 // Send implements the Network interface
 func (r *ReportNetwork) Send(ids []Identity, p *Packet) {
-	r.sentPackets++
+	r.sentPackets += uint32(len(ids))
 	r.Network.Send(ids, p)
 }
 

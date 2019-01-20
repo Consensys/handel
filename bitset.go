@@ -200,7 +200,7 @@ func (w *WilffBitSet) NextSet(i int) (int, bool) {
 	return int(ni), res
 }
 
-// DifferenceCardinality implements the BitSet interface
+// IntersectionCardinality implements the BitSet interface
 func (w *WilffBitSet) IntersectionCardinality(b2 BitSet) int {
 	return int(w.b.IntersectionCardinality(b2.(*WilffBitSet).b))
 }

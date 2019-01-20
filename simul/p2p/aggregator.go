@@ -1,9 +1,11 @@
 package p2p
 
 import (
+	"container/list"
 	"context"
 	"encoding/hex"
 	"fmt"
+	"time"
 
 	"github.com/ConsenSys/handel"
 	"github.com/ConsenSys/handel/simul/lib"
@@ -33,10 +35,15 @@ type Aggregator struct {
 	c         handel.Constructor
 	acc       chan []byte
 	done      chan bool
+	resendP   time.Duration
+	tick      *time.Ticker
+	ctx       context.Context
+	procReady chan bool
+	newPacket chan *handel.Packet
 }
 
 // NewAggregator returns an aggregator from the P2PNode
-func NewAggregator(n Node, r handel.Registry, c handel.Constructor, sig handel.Signature, threshold int) *Aggregator {
+func NewAggregator(ctx context.Context, n Node, r handel.Registry, c handel.Constructor, sig handel.Signature, threshold int, resendPeriod time.Duration) *Aggregator {
 	total := r.Size()
 	return &Aggregator{
 		Node:      n,
@@ -51,6 +58,10 @@ func NewAggregator(n Node, r handel.Registry, c handel.Constructor, sig handel.S
 		out:       make(chan *handel.MultiSignature, 1),
 		acc:       make(chan []byte, total),
 		done:      make(chan bool, 1),
+		procReady: make(chan bool, 1),
+		newPacket: make(chan *handel.Packet, 10),
+		resendP:   resendPeriod,
+		ctx:       ctx,
 	}
 }
 
@@ -73,51 +84,109 @@ func (a *Aggregator) Start() {
 		MultiSig: msBuff,
 	}
 
-	fmt.Printf("%d gossips signature %s\n", a.Node.Identity().ID(), hex.EncodeToString(msBuff[len(msBuff)-1-16:len(msBuff)-1]))
-	a.Diffuse(packet)
+	a.tick = time.NewTicker(a.resendP)
+	go func() {
+		// diffuse it right away once
+		fmt.Printf("%d gossips signature %s\n", a.Node.Identity().ID(), hex.EncodeToString(msBuff[len(msBuff)-1-16:len(msBuff)-1]))
+		a.Diffuse(packet)
+		for {
+			select {
+			case <-a.tick.C:
+				a.Diffuse(packet)
+				fmt.Printf("%d gossips signature %s\n", a.Node.Identity().ID(), hex.EncodeToString(msBuff[len(msBuff)-1-16:len(msBuff)-1]))
+			case <-a.ctx.Done():
+				return
+			case <-a.done:
+				return
+			}
+		}
+	}()
 	go a.handleIncoming()
+	go a.readNexts()
+}
+
+func (a *Aggregator) readNexts() {
+	defer close(a.newPacket)
+	packets := list.New()
+	var ready bool
+	send := func() {
+		p := packets.Remove(packets.Front()).(handel.Packet)
+		a.newPacket <- &p
+	}
+	for {
+		select {
+		case packet := <-a.Node.Next():
+			packets.PushBack(packet)
+			if ready {
+				send()
+				ready = false
+			}
+		case <-a.procReady:
+			if packets.Len() == 0 {
+				ready = true
+			} else {
+				send()
+			}
+		case <-a.ctx.Done():
+			return
+		case <-a.done:
+			return
+		}
+	}
 }
 
 func (a *Aggregator) handleIncoming() {
-	for packet := range a.Node.Next() {
-		//fmt.Printf("aggregator %d received packet from %d\n", a.P2PNode.handelID, packet.Origin)
-		// check if already received
-		if a.accBs.Get(int(packet.Origin)) {
-			fmt.Println("already received - continue")
-			continue
+	a.procReady <- true
+	for {
+		select {
+		case <-a.done:
+			return
+		case packet := <-a.newPacket:
+			a.verifyPacket(packet)
 		}
+	}
+}
 
-		// verify it
-		ms := new(handel.MultiSignature)
-		err := ms.Unmarshal(packet.MultiSig, a.c.Signature(), handel.NewWilffBitset)
-		if err != nil {
-			panic(err)
-		}
+func (a *Aggregator) verifyPacket(packet *handel.Packet) {
+	defer func() { a.procReady <- true }()
+	//fmt.Printf("aggregator %d received packet from %d\n", a.P2PNode.handelID, packet.Origin)
+	// check if already received
+	if a.accBs.Get(int(packet.Origin)) {
+		fmt.Println("already received - continue")
+		return
+	}
 
-		id, ok := a.r.Identity(int(packet.Origin))
-		if !ok {
-			panic("some guy does not exist")
+	// verify it
+	ms := new(handel.MultiSignature)
+	err := ms.Unmarshal(packet.MultiSig, a.c.Signature(), handel.NewWilffBitset)
+	if err != nil {
+		panic(err)
+	}
+
+	id, ok := a.r.Identity(int(packet.Origin))
+	if !ok {
+		panic("some guy does not exist")
+	}
+	err = id.PublicKey().VerifySignature(lib.Message, ms.Signature)
+	if err != nil {
+		fmt.Printf("INVALID: %d verified signature from %d : %s\n", a.Node.Identity().ID(),
+			packet.Origin, hex.EncodeToString(packet.MultiSig[0:16]))
+		return
+	}
+	// add it to the accumulator
+	a.accSig = a.accSig.Combine(ms.Signature)
+	a.accBs.Set(int(packet.Origin), true)
+	a.rcvd++
+	fmt.Println(a.Node.Identity().ID(), " got sig from", packet.Origin, " -> ", a.rcvd, "/", a.total)
+	// are we done ?
+	if a.rcvd >= a.threshold {
+		//fmt.Println("looping OUUUTTTT")
+		a.out <- &handel.MultiSignature{
+			Signature: a.accSig,
+			BitSet:    a.accBs,
 		}
-		err = id.PublicKey().VerifySignature(lib.Message, ms.Signature)
-		if err != nil {
-			fmt.Printf("INVALID: %d verified signature from %d : %s\n", a.Node.Identity().ID(),
-				packet.Origin, hex.EncodeToString(packet.MultiSig[0:16]))
-			continue
-		}
-		// add it to the accumulator
-		a.accSig = a.accSig.Combine(ms.Signature)
-		a.accBs.Set(int(packet.Origin), true)
-		a.rcvd++
-		fmt.Println(a.Node.Identity().ID(), " got sig from", packet.Origin, " -> ", a.rcvd, "/", a.total)
-		// are we done ?
-		if a.rcvd >= a.threshold {
-			//fmt.Println("looping out")
-			a.out <- &handel.MultiSignature{
-				Signature: a.accSig,
-				BitSet:    a.accBs,
-			}
-			break
-		}
+		close(a.done)
+		return
 	}
 }
 

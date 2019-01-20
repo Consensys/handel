@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"math/rand"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/ConsenSys/handel"
-	"github.com/ConsenSys/handel/bn256"
+	"github.com/ConsenSys/handel/bn256/cf"
 	"github.com/ConsenSys/handel/simul/lib"
 	"github.com/ConsenSys/handel/simul/p2p"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -26,6 +27,16 @@ func TestGossipMeshy(t *testing.T) {
 	r := pubsub.NewGossipSub
 	_, nodes := FakeSetup(ctx, n, nbOutgoing, connector, r)
 
+	var wg sync.WaitGroup
+	for _, n := range nodes {
+		wg.Add(1)
+		go func(n *P2PNode) {
+			n.WaitAllSetup()
+			wg.Done()
+		}(n)
+	}
+	wg.Wait()
+
 	time.Sleep(1 * time.Second)
 
 	// broadcast
@@ -34,11 +45,11 @@ func TestGossipMeshy(t *testing.T) {
 		packet := &handel.Packet{Origin: int32(i)}
 		fmt.Println("trial", i, "from node", sender.handelID)
 		sender.Diffuse(packet)
-		for j, n := range nodes {
+		for _, n := range nodes {
 			select {
 			case p := <-n.Next():
 				require.Equal(t, packet.Origin, p.Origin)
-				fmt.Println("received from ", j)
+				//fmt.Println("received from ", j)
 			case <-time.After(1 * time.Second):
 				t.FailNow()
 			}
@@ -48,25 +59,27 @@ func TestGossipMeshy(t *testing.T) {
 }
 
 func FakeSetup(ctx context.Context, n int, max int, c p2p.Connector, r NewRouter) ([]*P2PIdentity, []*P2PNode) {
-	base := 2000
+	base := 20000
 	addresses := make([]string, n)
 	for i := 0; i < n; i++ {
 		port := base + i
 		address := "127.0.0.1:" + strconv.Itoa(port)
 		addresses[i] = address
 	}
-	nodes := lib.GenerateNodes(lib.NewSimulConstructor(bn256.NewConstructor()), addresses)
+	cons := lib.NewSimulConstructor(bn256.NewConstructor())
+	ctx = context.WithValue(ctx, p2p.CtxKey("Constructor"), cons)
+	nodes := lib.GenerateNodes(cons, addresses)
 
 	p2pNodes := make([]*P2PNode, n)
 	p2pIDs := make([]*P2PIdentity, n)
 	var err error
 	for i := 0; i < n; i++ {
 		node := nodes[i]
-		p2pIDs[i], err = NewP2PIdentity(node.Identity)
+		p2pIDs[i], err = NewP2PIdentity(node.Identity, cons)
 		if err != nil {
 			panic(err)
 		}
-		p2pNodes[i], err = NewP2PNode(ctx, node, r, p2pIDs)
+		p2pNodes[i], err = NewP2PNode(ctx, node, r, p2pIDs, cons)
 		if err != nil {
 			panic(err)
 		}

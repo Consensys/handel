@@ -10,7 +10,7 @@ import (
 )
 
 func TestHandel(t *testing.T) {
-	n := 101
+	n := 37
 	config := h.DefaultConfig(n)
 	msg := []byte("Peaches and Cream")
 	secretKeys := make([]h.SecretKey, n)

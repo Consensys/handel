@@ -17,6 +17,9 @@ import (
 	gologging "github.com/whyrusleeping/go-logging"
 )
 
+// CtxKey is the type inserted at key value in context
+type CtxKey string
+
 // MaxCount represents the number of outgoing connections a gossip node should
 // make
 const MaxCount = 10
@@ -69,6 +72,7 @@ func Run(a Adaptor) {
 	runConf := config.Runs[*run]
 
 	cons := config.NewConstructor()
+	ctx = context.WithValue(ctx, CtxKey("Constructor"), cons) // for libp2p
 	parser := lib.NewCSVParser()
 	// read CSV records
 	records, err := parser.Read(*registryFile)
@@ -76,7 +80,7 @@ func Run(a Adaptor) {
 	// transform into lib.Node
 	libNodes, err := toLibNodes(cons, records)
 	registry, p2pNodes := a.Make(ctx, libNodes, ids, runConf.Extra)
-	aggregators := MakeAggregators(cons, p2pNodes, registry, runConf.GetThreshold())
+	aggregators := MakeAggregators(ctx, cons, p2pNodes, registry, runConf.GetThreshold(), extractResendPeriod(runConf.Extra))
 
 	// Sync with master - wait for the START signal
 	syncer := lib.NewSyncSlave(*syncAddr, *master, ids)
@@ -176,7 +180,7 @@ func (i *arrayFlags) Set(value string) error {
 }
 
 // MakeAggregators returns
-func MakeAggregators(c lib.Constructor, nodes []Node, reg handel.Registry, threshold int) []*Aggregator {
+func MakeAggregators(ctx context.Context, c lib.Constructor, nodes []Node, reg handel.Registry, threshold int, resendPeriod time.Duration) []*Aggregator {
 	var aggs = make([]*Aggregator, 0, len(nodes))
 	for _, node := range nodes {
 		//i := int(node.Identity().ID())
@@ -185,7 +189,7 @@ func MakeAggregators(c lib.Constructor, nodes []Node, reg handel.Registry, thres
 			fmt.Println(err)
 			panic(err)
 		}
-		agg := NewAggregator(node, reg, c.Handel(), sig, threshold)
+		agg := NewAggregator(ctx, node, reg, c.Handel(), sig, threshold, resendPeriod)
 		aggs = append(aggs, agg)
 	}
 	return aggs
@@ -222,4 +226,16 @@ func requireNil(err error) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func extractResendPeriod(opts Opts) time.Duration {
+	str, ok := opts.String("ResendPeriod")
+	if !ok {
+		str = "1s"
+	}
+	t, err := time.ParseDuration(str)
+	if err != nil {
+		panic(err)
+	}
+	return t
 }

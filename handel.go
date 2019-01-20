@@ -484,7 +484,7 @@ func (h *Handel) checkCompletedLevel(s *incomingSig) {
 }
 
 func (h *Handel) sendTo(lvl int, ids []Identity, ms *MultiSignature, ind Signature) {
-	h.stats.msgSentCt++
+	h.stats.msgSentCt += len(ids)
 
 	buff, err := ms.MarshalBinary()
 	if err != nil {

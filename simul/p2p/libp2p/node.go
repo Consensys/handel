@@ -10,10 +10,10 @@ import (
 	"log"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/ConsenSys/handel"
 	h "github.com/ConsenSys/handel"
-	"github.com/ConsenSys/handel/bn256"
 	"github.com/ConsenSys/handel/network"
 	"github.com/ConsenSys/handel/simul/lib"
 	libp2p "github.com/libp2p/go-libp2p"
@@ -41,8 +41,8 @@ type P2PIdentity struct {
 
 // NewP2PIdentity returns the public side of gossip node - useful for connecting
 // to them
-func NewP2PIdentity(id h.Identity) (*P2PIdentity, error) {
-	pub := &bn256Pub{id.PublicKey().(*bn256.PublicKey)}
+func NewP2PIdentity(id h.Identity, c lib.Constructor) (*P2PIdentity, error) {
+	pub := &bn256Pub{PublicKey: id.PublicKey().(lib.PublicKey), newSig: c.Signature}
 	fullAddr := id.Address()
 	ip, port, err := net.SplitHostPort(fullAddr)
 	if err != nil {
@@ -66,24 +66,30 @@ func NewP2PIdentity(id h.Identity) (*P2PIdentity, error) {
 // P2PNode represents the libp2p version of a node - with a host.Host and
 // pubsub.PubSub structure.
 type P2PNode struct {
-	id       handel.Identity
-	handelID int32
-	enc      network.Encoding
-	priv     *bn256Priv
-	h        host.Host
-	g        *pubsub.PubSub
-	s        *pubsub.Subscription
-	reg      P2PRegistry
-	ch       chan handel.Packet
+	ctx          context.Context
+	id           handel.Identity
+	handelID     int32
+	enc          network.Encoding
+	priv         *bn256Priv
+	h            host.Host
+	g            *pubsub.PubSub
+	s            *pubsub.Subscription
+	reg          P2PRegistry
+	ch           chan handel.Packet
+	resendPeriod time.Duration
+	ticker       *time.Ticker
+	setup        handel.BitSet
+	setupDoneCh  chan bool
+	setupDone    bool
 }
 
 // NewP2PNode transforms a lib.Node to a p2p node.
-func NewP2PNode(ctx context.Context, handelNode *lib.Node, n NewRouter, reg P2PRegistry) (*P2PNode, error) {
-	secret := handelNode.SecretKey.(*bn256.SecretKey)
-	pub := handelNode.Identity.PublicKey().(*bn256.PublicKey)
+func NewP2PNode(ctx context.Context, handelNode *lib.Node, n NewRouter, reg P2PRegistry, cons lib.Constructor) (*P2PNode, error) {
+	secret := handelNode.SecretKey.(lib.SecretKey)
+	pub := handelNode.Identity.PublicKey().(lib.PublicKey)
 	priv := &bn256Priv{
 		SecretKey: secret,
-		pub:       &bn256Pub{pub},
+		pub:       &bn256Pub{PublicKey: pub, newSig: cons.Signature},
 	}
 	fullAddr := handelNode.Address()
 	ip, port, err := net.SplitHostPort(fullAddr)
@@ -128,18 +134,50 @@ func NewP2PNode(ctx context.Context, handelNode *lib.Node, n NewRouter, reg P2PR
 
 	subscription, err := router.Subscribe(topicName)
 	node := &P2PNode{
-		enc:      network.NewGOBEncoding(),
-		handelID: handelNode.Identity.ID(),
-		id:       handelNode.Identity,
-		priv:     priv,
-		h:        basicHost,
-		g:        router,
-		s:        subscription,
-		reg:      reg,
-		ch:       make(chan handel.Packet, reg.Size()),
+		ctx:          ctx,
+		enc:          network.NewGOBEncoding(),
+		handelID:     handelNode.Identity.ID(),
+		id:           handelNode.Identity,
+		priv:         priv,
+		h:            basicHost,
+		g:            router,
+		s:            subscription,
+		reg:          reg,
+		ch:           make(chan handel.Packet, reg.Size()),
+		setup:        handel.NewWilffBitset(reg.Size()),
+		resendPeriod: 500 * time.Millisecond,
+		setupDoneCh:  make(chan bool, 1),
 	}
+	node.setup.Set(int(node.id.ID()), true)
 	go node.readNexts()
 	return node, err
+}
+
+var setupPacket = &handel.Packet{Level: 255}
+
+// WaitAllSetup periodically do the following:
+// - sends out its setup message on the topic
+// Until the node received all setup message from everybody expected
+// The messages are read as Packets with special origin -1.
+func (p *P2PNode) WaitAllSetup() chan bool {
+	p.ticker = time.NewTicker(p.resendPeriod)
+	ch := make(chan bool, 1)
+	go func() {
+		ok := true
+		for ok {
+			select {
+			case <-p.ticker.C:
+				setupPacket.Origin = p.id.ID()
+				p.Diffuse(setupPacket)
+			case <-p.setupDoneCh:
+				ok = false
+			case <-p.ctx.Done():
+				ok = false
+			}
+		}
+		ch <- true
+	}()
+	return ch
 }
 
 // Connect to the given identity
@@ -193,7 +231,19 @@ func (p *P2PNode) readNexts() {
 			fmt.Println(" ++ err:", err)
 			return
 		}
-		p.ch <- *packet
+		if packet.Level == setupPacket.Level {
+			p.incomingSetup(packet)
+		} else {
+			p.ch <- *packet
+		}
+	}
+}
+
+func (p *P2PNode) incomingSetup(packet *handel.Packet) {
+	p.setup.Set(int(packet.Origin), true)
+	if p.setup.Cardinality() == p.reg.Size() && !p.setupDone {
+		p.setupDone = true
+		p.setupDoneCh <- true
 	}
 }
 

@@ -36,7 +36,6 @@ func TestMainLocalHost(t *testing.T) {
 	}()
 	err := cmd.Cmd.Run()
 	require.NoError(t, err)
-	close(chLine)
 
 	require.True(t, <-foundCh)
 
