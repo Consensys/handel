@@ -12,6 +12,7 @@ type Commands struct {
 	ConfPath      string
 	RegPath       string
 	S3            string
+	copyBinFiles  bool
 }
 
 // MasterCommands commands invoked on a master node
@@ -30,28 +31,31 @@ const logFile = "log"
 const sharedDir = "$HOME/sharedDir"
 
 // NewCommands creates an instance of Commands
-func NewCommands(masterBinPath, slaveBinPath, confPath, regPath, s3 string) Commands {
+func NewCommands(masterBinPath, slaveBinPath, confPath, regPath, s3 string, copyBinFiles bool) Commands {
 	return Commands{
 		MasterBinPath: masterBinPath,
 		SlaveBinPath:  slaveBinPath,
 		ConfPath:      confPath,
 		RegPath:       regPath,
 		S3:            s3,
+		copyBinFiles:  copyBinFiles,
 	}
 }
 
 func (c MasterCommands) Configure() map[int]string {
 	cmds := make(map[int]string)
-	cmds[0] = "wget -O " + c.MasterBinPath + " " + c.S3 + c.MasterBinPath
-	cmds[1] = "wget -O " + c.ConfPath + " " + c.S3 + c.ConfPath
-	cmds[2] = "chmod 777 " + c.MasterBinPath
-	cmds[3] = "chmod 777 " + c.ConfPath
+	cmds[0] = "wget -O " + c.ConfPath + " " + c.S3 + c.ConfPath
+	cmds[1] = "chmod 777 " + c.ConfPath
+	if c.copyBinFiles {
+		cmds[2] = "wget -O " + c.MasterBinPath + " " + c.S3 + c.MasterBinPath
+		cmds[3] = "chmod 777 " + c.MasterBinPath
+	}
 	return cmds
 }
 
 //Kill previous run
 func (c MasterCommands) Kill() string {
-	return "killall " + c.MasterBinPath + " &> kill.log"
+	return "killall " + c.MasterBinPath
 }
 
 // Start starts master executable
@@ -64,12 +68,14 @@ func (c SlaveCommands) Kill() string {
 	return "killall " + c.SlaveBinPath + " &> kill.log"
 }
 
-func (c SlaveCommands) Configure(masterIP string) map[int]string {
+func (c SlaveCommands) Configure() map[int]string {
 	cmds := make(map[int]string)
-	cmds[0] = "wget -O " + c.SlaveBinPath + " " + c.S3 + c.SlaveBinPath
-	cmds[1] = "wget -O " + c.ConfPath + " " + c.S3 + c.ConfPath
-	cmds[2] = "chmod 777 " + c.SlaveBinPath
-	cmds[3] = "chmod 777 " + c.ConfPath
+	cmds[0] = "wget -O " + c.ConfPath + " " + c.S3 + c.ConfPath
+	cmds[1] = "chmod 777 " + c.ConfPath
+	if c.copyBinFiles {
+		cmds[2] = "wget -O " + c.SlaveBinPath + " " + c.S3 + c.SlaveBinPath
+		cmds[3] = "chmod 777 " + c.SlaveBinPath
+	}
 	return cmds
 }
 
