@@ -89,7 +89,7 @@ const DefaultContributionsPerc = 51
 const DefaultCandidateCount = 10
 
 // DefaultUpdatePeriod is the default update period used by Handel.
-const DefaultUpdatePeriod = 20 * time.Millisecond
+const DefaultUpdatePeriod = 10 * time.Millisecond
 
 // DefaultUpdateCount is the default number of candidate contacted during an
 // update

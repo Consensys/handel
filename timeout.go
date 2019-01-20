@@ -45,7 +45,7 @@ type linearTimeout struct {
 
 // DefaultLevelTimeout is the default level timeout used by the linear timeout
 // strategy.
-const DefaultLevelTimeout = 100 * time.Millisecond
+const DefaultLevelTimeout = 50 * time.Millisecond
 
 // NewDefaultLinearTimeout returns a TimeoutStrategy that starts level linearly
 // with the default period of DefaultLevelTimeout.  More precisely, level i
