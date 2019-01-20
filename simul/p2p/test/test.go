@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/ConsenSys/handel"
-	"github.com/ConsenSys/handel/bn256"
+	"github.com/ConsenSys/handel/bn256/cf"
 	"github.com/ConsenSys/handel/simul/lib"
 	"github.com/ConsenSys/handel/simul/p2p"
 	"github.com/stretchr/testify/require"
@@ -25,8 +25,9 @@ func Aggregators(t *testing.T, n, thr int, a p2p.Adaptor, opts p2p.Opts) {
 	defer cancel()
 
 	nodes, ids := fakeSetup(n)
-	reg, p2pNodes := a.Make(ctx, nodes, ids, opts)
 	cons := lib.NewSimulConstructor(bn256.NewConstructor())
+	ctx = context.WithValue(ctx, p2p.CtxKey("Constructor"), cons)
+	reg, p2pNodes := a.Make(ctx, nodes, ids, opts)
 	aggregators := p2p.MakeAggregators(ctx, cons, p2pNodes, reg, thr, defaultResendP)
 
 	var wg sync.WaitGroup
@@ -49,10 +50,11 @@ func Aggregators(t *testing.T, n, thr int, a p2p.Adaptor, opts p2p.Opts) {
 
 func fakeSetup(n int) (lib.NodeList, []int) {
 	ids := make([]int, n)
-	base := 2000
 	addresses := make([]string, n)
 	for i := 0; i < n; i++ {
-		port := base + i
+		// base := 40000
+		//	port := base + i
+		port := lib.GetFreePort()
 		address := "127.0.0.1:" + strconv.Itoa(port)
 		addresses[i] = address
 	}

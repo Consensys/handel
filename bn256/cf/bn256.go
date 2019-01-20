@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"io"
 	"math/big"
@@ -17,48 +16,19 @@ import (
 	"github.com/cloudflare/bn256"
 )
 
-// G1Str is the hexadecimal string representing the base specified for the G1
-// base point. It is taken from the cloudfare's bn256 implementation.
-var G1Str = "00000000000000000000000000000000000000000000000000000000000000018fb501e34aa387f9aa6fecb86184dc21ee5b88d120b5b59e185cac6c5e089665"
-
-// G1Base is the base point specified for the G1 group. If one wants to use a
-// different point, set this variable before using any public methods / structs
-// of this package.
-var G1Base *bn256.G1
-
-// G2Str is the hexadecimal string representing the base specified for the G1
-// base point.
-var G2Str = "012ecca446ff6f3d4d03c76e9b5c752f28bc37b364cb05ac4a37eb32e1c32459708f25386f72c9462b81597d65ae2092c4b97792155dcdaad32b8a6dd41792534c2db10ef5233b0fe3962b9ee6a4bbc2b5bde01a54f3513d42df972e128f31bf12274e5747e8cafacc3716cc8699db79b22f0e4ff3c23e898f694420a3be3087a5"
+// Hash is the hash function used to hash the message prior to signing
+var Hash = sha256.New
 
 // G2Base is the base point specified for the G2 group. If one wants to use a
 // different point, set this variable before using any public methods / structs
 // of this package.
 var G2Base *bn256.G2
 
-// Hash is the hash function used to digest a message before mapping it to a
-// point.
-var Hash = sha256.New
-
 func init() {
-	buff, err := hex.DecodeString(G1Str)
-	if err != nil {
-		panic("bn256: can't decode base point on G1. Fatal error")
-	}
-	G1Base = new(bn256.G1)
-	_, err = G1Base.Unmarshal(buff)
-	if err != nil {
-		panic("bn256: can't decode base point on G1. Fatal error")
-	}
 
-	buff, err = hex.DecodeString(G2Str)
-	if err != nil {
-		panic("bn256: can't decode base point on G2. Fatal error.")
-	}
 	G2Base = new(bn256.G2)
-	_, err = G2Base.Unmarshal(buff)
-	if err != nil {
-		panic("bn256: can't decode base point on G2. Fatal error.")
-	}
+	exp := big.NewInt(1)
+	G2Base.ScalarBaseMult(exp)
 }
 
 // Constructor implements the handel.Constructor interface
