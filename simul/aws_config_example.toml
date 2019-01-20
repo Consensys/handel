@@ -4,3 +4,5 @@ MasterTimeOut = 20
 SSHUser = "ubuntu"
 TargetSystem = "linux"
 TargetArch = "amd64"
+ConfTimeout = 10
+CopyBinFiles = true
