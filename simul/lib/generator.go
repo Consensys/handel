@@ -25,6 +25,18 @@ func GenerateNode(cons Constructor, idx int, addr string) *Node {
 	return &Node{SecretKey: sec, Identity: id}
 }
 
+// GenerateNodesFromAllocation returns a list of Node from the allocation
+// returned by Allocator + filled with the addresses
+func GenerateNodesFromAllocation(cons Constructor, alloc map[string][]*NodeInfo) []*Node {
+	var nodes []*Node
+	for _, list := range alloc {
+		for _, ni := range list {
+			nodes = append(nodes, GenerateNode(cons, ni.ID, ni.Address))
+		}
+	}
+	return nodes
+}
+
 // WriteAll writes down all the given nodes to the specified URI with the given
 // parser.
 func WriteAll(nodes []*Node, p NodeParser, uri string) {

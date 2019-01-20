@@ -221,8 +221,13 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 
 	slaveNodes := a.allSlaveNodes[0:r.Processes]
 	allocator := a.c.NewAllocator()
-	ids := allocator.Allocate(r.Nodes, r.Failing)
-	aws.UpdateInstances(ids, r.Nodes, slaveNodes, a.cons)
+	platforms := make([]lib.Platform, len(slaveNodes))
+	for i := 0; i < len(slaveNodes); i++ {
+		platforms[i] = slaveNodes[i]
+	}
+
+	allocation := allocator.Allocate(platforms, r.Nodes, r.Failing)
+	aws.UpdateInstances(slaveNodes, allocation, a.cons)
 	writeRegFile(r.Nodes, slaveNodes, a.masterCMDS.RegPath)
 	//*** Start Master
 	fmt.Println("[+] Registry file written to local storage(", r.Nodes, " nodes)")
