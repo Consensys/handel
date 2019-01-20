@@ -12,7 +12,8 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/ConsenSys/handel"
-	"github.com/ConsenSys/handel/bn256"
+	cf "github.com/ConsenSys/handel/bn256/cf"
+	golang "github.com/ConsenSys/handel/bn256/go"
 	"github.com/ConsenSys/handel/network"
 	"github.com/ConsenSys/handel/network/quic"
 	"github.com/ConsenSys/handel/network/udp"
@@ -201,11 +202,15 @@ func (c *Config) NewEncoding() network.Encoding {
 // curve field of the config. Valid input so far is "bn256".
 func (c *Config) NewConstructor() Constructor {
 	if c.Curve == "" {
-		c.Curve = "bn256"
+		c.Curve = "bn256/cf"
 	}
 	switch c.Curve {
 	case "bn256":
-		return &SimulConstructor{bn256.NewConstructor()}
+		fallthrough
+	case "bn256/cf":
+		return &SimulConstructor{cf.NewConstructor()}
+	case "bn256/go":
+		return &SimulConstructor{golang.NewConstructor()}
 	default:
 		panic("not implemented yet")
 	}

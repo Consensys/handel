@@ -1,5 +1,5 @@
 Network = "udp"
-Curve = "bn256"
+Curve = "bn256/cf"
 Encoding = "gob"
 MonitorPort = 10000
 MaxTimeout = "2m"

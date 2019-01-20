@@ -17,20 +17,21 @@ func MakeP2P(ctx context.Context, nodes lib.NodeList, ids []int, opts p2p.Opts) 
 	pubsub.GossipSubHistoryLength = total
 	pubsub.GossipSubHistoryGossip = total
 	pubsub.GossipSubHeartbeatInterval = 500 * time.Millisecond
+	cons := ctx.Value(p2p.CtxKey("Constructor")).(lib.Constructor)
 	var router = getRouter(opts)
 	var registry = P2PRegistry(make([]*P2PIdentity, total))
 	var ns []p2p.Node
 	var err error
 	for _, node := range nodes {
 		id := int(node.Identity.ID())
-		registry[id], err = NewP2PIdentity(node.Identity)
+		registry[id], err = NewP2PIdentity(node.Identity, cons)
 		if err != nil {
 			fmt.Println("err: ", err)
 			panic(err)
 		}
 
 		if p2p.IsIncluded(ids, id) {
-			p2pNode, err := NewP2PNode(ctx, node, router, registry)
+			p2pNode, err := NewP2PNode(ctx, node, router, registry, cons)
 			if err != nil {
 				fmt.Println(err)
 				panic(err)
