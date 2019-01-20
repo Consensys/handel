@@ -28,7 +28,7 @@ func (p *oneBin) startSlave(inst Instance) []idsAndSync {
 		iDS = append(iDS, idsStr)
 	}
 	sync := GenRemoteAddress(*inst.PublicIP, p.syncBasePort)
-	return []idsAndSync{idsAndSync{iDS, sync}}
+	return []idsAndSync{{iDS, sync}}
 }
 
 type multiBin struct {

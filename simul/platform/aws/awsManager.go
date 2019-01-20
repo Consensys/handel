@@ -24,14 +24,14 @@ type Instance struct {
 
 //Manager manages group of EC2 instances
 type Manager interface {
-	// Instances lists avaliable instances in any state
+	// Instances lists available instances in any state
 	Instances() []Instance
 	// RefreshInstances populates the instance list and updates instances status
 	RefreshInstances() ([]Instance, error)
-	// StartInstances starts all avaliable instances and populates the instance list,
+	// StartInstances starts all available instances and populates the instance list,
 	// blocks until all instances are in "running" state
 	StartInstances() error
-	// StopInstances stops all avaliable instances
+	// StopInstances stops all available instances
 	StopInstances() error
 }
 

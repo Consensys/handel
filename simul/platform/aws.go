@@ -165,7 +165,7 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 	for _, slave := range slaveInstances {
 		wg.Add(1)
 		// TODO This might become a problem for large number of slaves,
-		// limit numebr of go-routines running concurrently if this is the case
+		// limit number of go-routines running concurrently if this is the case
 
 		go func(slave aws.Instance) {
 			slaveNodeController, err := aws.NewSSHNodeController(*slave.PublicIP, a.pemBytes, a.awsConfig.SSHUser)
@@ -226,7 +226,7 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 	writeRegFile(r.Nodes, slaveNodes, a.masterCMDS.RegPath)
 	//*** Start Master
 	fmt.Println("[+] Registry file written to local storage(", r.Nodes, " nodes)")
-	fmt.Println("[*] Transfering registry file to S3")
+	fmt.Println("[*] Transferring registry file to S3")
 	transferToS3(a.masterCMDS.RegPath)
 
 	masterStart := a.masterCMDS.Start(
@@ -352,7 +352,7 @@ func makeMasterAndSlaves(allAwsInstances []aws.Instance) (*aws.Instance, []*aws.
 	for _, inst := range allAwsInstances {
 		if inst.Tag == aws.RnDMasterTag {
 			if nbOfMasterIns > 1 {
-				return nil, nil, errors.New("More than one Master instance avaliable")
+				return nil, nil, errors.New("more than one Master instance available")
 			}
 			masterInstance = inst
 			nbOfMasterIns++
