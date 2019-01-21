@@ -86,6 +86,12 @@ func (c SlaveCommands) CopyRegistryFileFromSharedDirToLocalStorage() map[int]str
 	return cmds
 }
 
+func (c SlaveCommands) CopyRegistryFileFromSharedDirToLocalStorageQuitSSH() map[int]string {
+	cmds := make(map[int]string)
+	cmds[0] = "nohup " + "wget -O " + c.RegPath + " " + c.S3 + c.RegPath + " & " + "chmod 777 " + c.RegPath + " &> cpy.log"
+	return cmds
+}
+
 // Start starts executable
 func (c SlaveCommands) start(masterAddr, sync string, monitorAddr, ids string, run int) string {
 	return c.SlaveBinPath + " -config " + c.ConfPath + " -registry " + c.RegPath + " -monitor " + monitorAddr + " -master " + masterAddr + ids + " -sync " + sync + " -run " + strconv.Itoa(run)
@@ -102,4 +108,8 @@ func (c SlaveCommands) Start(masterAddr, monitorAddr string, inst Instance, run 
 		strCmds = append(strCmds, start)
 	}
 	return strings.Join(strCmds, " & ")
+}
+
+func (c SlaveCommands) StartAndQuitSSH(masterAddr, monitorAddr string, inst Instance, run int) string {
+	return "nohup " + c.Start(masterAddr, monitorAddr, inst, run) + " &> log.txt"
 }
