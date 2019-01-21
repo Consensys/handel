@@ -66,6 +66,71 @@ func TestStoreFullSignature(t *testing.T) {
 	require.True(t, ms.BitSet.Get(1))
 }
 
+func TestStoreUnsafeCheckMerge(t *testing.T) {
+	n := 8
+	reg := FakeRegistry(n)
+	part := NewBinPartitioner(0, reg)
+	store := newReplaceStore(part, NewWilffBitset, new(fakeCons))
+
+	// We put a first sig. It should get in.
+	bs1 := NewWilffBitset(4)
+	bs1.Set(0, true)
+	p4L3 := &incomingSig{
+		origin:      1,
+		level:       3,
+		ms:          &MultiSignature{BitSet: bs1, Signature: &fakeSig{true}},
+		isInd:       true,
+		mappedIndex: 0,
+	}
+	s, b := store.unsafeCheckMerge(p4L3)
+	require.True(t, b)
+	require.True(t, s.Get(0))
+	require.Equal(t, 1, s.BitSet.Cardinality())
+	store.Store(p4L3)
+
+	// If we try again we should be told that it exists already.
+	s, b = store.unsafeCheckMerge(p4L3)
+	require.False(t, b)
+	require.Nil(t, s)
+
+	// A larger signature should get in.
+	bs1 = NewWilffBitset(4)
+	bs1.Set(0, true)
+	bs1.Set(2, true)
+	p46L3 := &incomingSig{
+		origin:      1,
+		level:       3,
+		ms:          &MultiSignature{BitSet: bs1, Signature: &fakeSig{true}},
+		isInd:       false,
+		mappedIndex: 0,
+	}
+	s, b = store.unsafeCheckMerge(p46L3)
+	require.True(t, b)
+	require.True(t, s.Get(0))
+	require.True(t, s.Get(2))
+	require.Equal(t, 2, s.BitSet.Cardinality())
+	store.Store(p46L3)
+
+	// This signature is size 2 as well, but can be merged with the individual one, so
+	//  we will end-up with a size 3 signature
+	bs1 = NewWilffBitset(4)
+	bs1.Set(3, true)
+	bs1.Set(2, true)
+	p67L3 := &incomingSig{
+		origin:      1,
+		level:       3,
+		ms:          &MultiSignature{BitSet: bs1, Signature: &fakeSig{true}},
+		isInd:       false,
+		mappedIndex: 0,
+	}
+	s, b = store.unsafeCheckMerge(p67L3)
+	require.True(t, b)
+	require.True(t, s.Get(0))
+	require.True(t, s.Get(2))
+	require.True(t, s.Get(3))
+	require.Equal(t, 3, s.BitSet.Cardinality())
+}
+
 func TestStoreReplace(t *testing.T) {
 	n := 8
 	reg := FakeRegistry(n)
