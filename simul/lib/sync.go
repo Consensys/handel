@@ -47,7 +47,7 @@ func NewSyncMaster(addr string, expected, total int) *SyncMaster {
 	s := new(SyncMaster)
 	n.RegisterListener(s)
 	s.exp = expected
-	s.probExp = int(math.Ceil(float64(expected) * 0.95))
+	s.probExp = int(math.Ceil(float64(expected) * 0.995))
 	s.n = n
 	s.total = total
 	s.addr = addr
@@ -114,7 +114,9 @@ func (s *SyncMaster) handleReady(incoming *syncMessage) {
 		}
 	}
 
-	s.done = true
+	if len(s.readys) >= s.exp {
+		s.done = true
+	}
 	// send the messagesssss
 	msg := &syncMessage{State: START}
 	buff, err := msg.ToBytes()
@@ -245,7 +247,6 @@ func (s *SyncSlave) NewPacket(p *handel.Packet) {
 
 	close(s.sendDone)
 	s.waitCh <- true
-
 }
 
 // Reset re-initializes the syncslave to its initial state - it sends its status
