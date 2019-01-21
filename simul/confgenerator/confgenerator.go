@@ -29,10 +29,10 @@ func main() {
 	}
 
 	handel := &lib.HandelConfig{
-		Period:      "20ms",
+		Period:      "10ms",
 		UpdateCount: 1,
 		NodeCount:   10,
-		Timeout:     "100ms",
+		Timeout:     "50ms",
 	}
 
 	dir, err := os.Getwd()
@@ -66,9 +66,6 @@ func periodIncScenario(dir string, defaultConf lib.Config, handel *lib.HandelCon
 	failings := []float64{0.01, 0.25, 0.49}
 	periods := []time.Duration{
 		10 * time.Millisecond,
-		20 * time.Millisecond,
-		50 * time.Millisecond,
-		100 * time.Millisecond,
 	}
 	n := 2001
 	thr := 0.99 // 99% of the ALIVE nodes
@@ -112,7 +109,6 @@ func timeoutIncScenario(dir string, defaultConf lib.Config, handel *lib.HandelCo
 	timeouts := []time.Duration{
 		50 * time.Millisecond,
 		100 * time.Millisecond,
-		200 * time.Millisecond,
 	}
 	n := 2001
 	thr := 0.99 // 99% of the ALIVE nodes
