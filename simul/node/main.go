@@ -15,7 +15,7 @@ import (
 )
 
 // BeaconTimeout represents how much time do we wait to receive the beacon
-const BeaconTimeout = 2 * time.Minute
+const BeaconTimeout = 10 * time.Minute
 
 var configFile = flag.String("config", "", "config file created for the exp.")
 var registryFile = flag.String("registry", "", "registry file based - array registry")
@@ -83,6 +83,7 @@ func main() {
 	case <-syncer.WaitMaster():
 		logger.Debug("sync", "finished", "nodes", ids.String())
 	case <-time.After(BeaconTimeout):
+		logger.Error("Haven't received beacon in time!")
 		panic("Haven't received beacon in time!")
 	}
 	logger.Debug("nodes", ids.String(), "sync", "finished")
@@ -136,6 +137,7 @@ func main() {
 	case <-syncer.WaitMaster():
 		logger.Debug("sync", "finished", "nodes", ids.String())
 	case <-time.After(BeaconTimeout):
+		logger.Error("Haven't received beacon in time!")
 		panic("Haven't received beacon in time!")
 	}
 }

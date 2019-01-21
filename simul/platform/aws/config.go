@@ -11,6 +11,8 @@ type Config struct {
 	SSHUser       string
 	TargetSystem  string
 	TargetArch    string
+	CopyBinFiles  bool
+	ConfTimeout   int
 }
 
 func LoadConfig(path string) *Config {
