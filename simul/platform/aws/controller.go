@@ -10,6 +10,9 @@ type NodeController interface {
 	CopyFiles(files ...string) error
 	// Run runs command on a remote node, for example Run("ls -l") and blocks until completion
 	Run(command string, pw *io.PipeWriter) error
+	// Run starts command on a remote node
+	Start(command string) error
+
 	// Init inits connection to the remote node
 	Init() error
 	// Close
