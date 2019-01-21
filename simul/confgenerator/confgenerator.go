@@ -46,9 +46,17 @@ func main() {
 	procF := getProcessF(4)
 
 	thresholdIncScenario(configDir, defaultConf, handel)
+	//nsquareScenario(configDir, defaultConf, handel)
 	failingIncScenario(configDir, defaultConf, handel, procF)
 	timeoutIncScenario(configDir, defaultConf, handel, procF)
 	periodIncScenario(configDir, defaultConf, handel, procF)
+}
+
+func nsquareScenario(dir string, defaultConf lib.Config, handel *lib.HandelConfig, procF func(int) int) {
+	oldSimul := defaultConf.Simulation
+	defer func() { defaultConf.Simulation = oldSimul }()
+
+	defaultConf.Simulation = "p2p/udp"
 }
 
 // periodIncScenario increases the "update" period
