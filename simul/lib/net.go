@@ -6,19 +6,17 @@ import (
 	"time"
 )
 
-
-
 // GetFreePort returns a free tcp port or panics
 var afterPort = 10000
+
 func GetFreePort() int {
-	for i := afterPort + 1; i < afterPort + 1000; i++ {
+	for i := afterPort + 1; i < afterPort+1000; i++ {
 		addr, err := net.ResolveTCPAddr("tcp4", "127.0.0.1:"+strconv.Itoa(i))
 		if err != nil {
 			continue
 		}
 		sock, err := net.ListenTCP("tcp4", addr)
 		if err != nil {
-			println(err.Error())
 			continue
 		}
 		sock.Close()
@@ -33,7 +31,7 @@ func GetFreePort() int {
 // We need to keep an history of the previous port we
 //  allocated, we do this with this global variable.
 func GetFreeUDPPort() int {
-	for i := afterPort + 1; i < afterPort + 1000; i++ {
+	for i := afterPort + 1; i < afterPort+1000; i++ {
 		udpAddr, err := net.ResolveUDPAddr("udp4", "127.0.0.1:"+strconv.Itoa(i))
 		if err != nil {
 			continue
