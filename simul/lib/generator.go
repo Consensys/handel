@@ -65,7 +65,9 @@ func GetFreePort() int {
 	if err != nil {
 		panic(err)
 	}
-	defer l.Close()
-	time.Sleep(1 * time.Millisecond)
+	defer func() {
+		l.Close()
+		time.Sleep(2 * time.Millisecond)
+	}()
 	return l.Addr().(*net.TCPAddr).Port
 }
