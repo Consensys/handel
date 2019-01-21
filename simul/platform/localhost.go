@@ -215,7 +215,7 @@ func (p *Proc) String() string {
 }
 
 func newLocalAddr(c *lib.Config) string {
-	var getPort = lib.GetFreePort
+	var getPort = lib.GetFreeTCPPort
 	if strings.Contains(c.Simulation, "udp") {
 		getPort = lib.GetFreeUDPPort
 	}

@@ -6,10 +6,10 @@ import (
 	"time"
 )
 
-// GetFreePort returns a free tcp port or panics
-var afterPort = 10000
+var afterPort = 11000 // Keeps the last port allocated
 
-func GetFreePort() int {
+// GetFreeTCPPort returns a free tcp port or panics
+func GetFreeTCPPort() int {
 	for i := afterPort + 1; i < afterPort+1000; i++ {
 		addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:"+strconv.Itoa(i))
 		if err != nil {

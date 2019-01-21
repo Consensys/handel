@@ -54,7 +54,7 @@ func fakeSetup(n int, getPort func() int) (lib.NodeList, []int) {
 	for i := 0; i < n; i++ {
 		// base := 40000
 		//	port := base + i
-		//port := lib.GetFreePort()
+		//port := lib.GetFreeTCPPort()
 		port := getPort()
 		address := "127.0.0.1:" + strconv.Itoa(port)
 		addresses[i] = address
