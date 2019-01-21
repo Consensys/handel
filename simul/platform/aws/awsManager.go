@@ -22,6 +22,10 @@ type Instance struct {
 	Nodes []*lib.Node
 }
 
+func (i *Instance) String() string {
+	return *i.ID
+}
+
 //Manager manages group of EC2 instances
 type Manager interface {
 	// Instances lists available instances in any state
@@ -62,25 +66,11 @@ type info struct {
 	active bool
 }
 
-// UpdateInstances bla
-func UpdateInstances(actives []int, total int, instances []*Instance, cons lib.Constructor) {
-	nodesPerInstance := make([][]info, len(instances))
-	instID := 0
-	for id := 0; id < total; id++ {
-		var active bool
-		if isContained(actives, id) {
-			active = true
-		}
-		info := info{id, active}
-		nodesPerInstance[instID] = append(nodesPerInstance[instID], info)
-		instID++
-		if instID >= len(instances) {
-			instID = 0
-		}
-	}
-
-	for i, inst := range instances {
-		UpdateInstance(nodesPerInstance[i], inst, cons)
+// UpdateInstances updates the address of the instances
+func UpdateInstances(inst []*Instance, allocations map[string][]*lib.NodeInfo, cons lib.Constructor) {
+	for _, inst := range inst {
+		list := allocations[inst.String()]
+		UpdateInstance(inst, list, cons)
 	}
 }
 
@@ -94,12 +84,13 @@ func isContained(arr []int, v int) bool {
 }
 
 // UpdateInstance bla
-func UpdateInstance(nodes []info, instances *Instance, cons lib.Constructor) {
+func UpdateInstance(instances *Instance, nodes []*lib.NodeInfo, cons lib.Constructor) {
 	var ls []*lib.Node
 	for i, n := range nodes {
 		addr1 := GenRemoteAddress(*instances.PublicIP, base+i)
-		node := lib.GenerateNode(cons, n.id, addr1)
-		node.Active = n.active
+		n.Address = addr1
+		node := lib.GenerateNode(cons, n.ID, addr1)
+		node.Active = n.Active
 		ls = append(ls, node)
 	}
 	instances.Nodes = ls

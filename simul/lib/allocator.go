@@ -1,34 +1,89 @@
 package lib
 
-// Allocator is responsible to determine which nodes ID should fail in a given
-// experiment amongst all nodes. One allocator could set space out regularly
-// failing node, or put a maximum of failing node in one region of the ID space,
-// etc.
-type Allocator interface {
-	// Allocate returns the list of IDs of node that must be online during the
-	// experiments. IDs not returned in the slice should not be setup.
-	Allocate(total, offline int) []int
+import "fmt"
+
+// Platform represents the platform where multiple Handel nodes can run. It can
+// be a process for localhost platform's or EC2 instance for aws.
+type Platform interface {
+	String() string
 }
 
-type linearAllocator struct{}
+// NodeInfo is the output of the allocator. The allocator only tries to assign
+// the ID and the status, not the physical network address since that is
+// dependent on the chosen platform.
+type NodeInfo struct {
+	ID      int
+	Active  bool
+	Address string
+}
 
-func (l *linearAllocator) Allocate(total, offline int) []int {
-	var bucket = total + 1
-	if offline != 0 {
-		bucket, _ = Divmod(total, offline)
-	}
-	ids := make([]int, 0, total-offline)
-	for i := 0; i < total; i++ {
-		if offline > 0 && i%bucket == 0 {
-			// remove the node of the bucket
-			offline--
-			continue
+// Allocator allocates *total* Handel instances on *len(plats)* platform, where
+// *offline* instances will be set as offline.
+type Allocator interface {
+	Allocate(plats []Platform, total, offline int) map[string][]*NodeInfo
+}
+
+// RoundRobin allocates the nodes in a round robin fashion as to minimise the
+// number of nodes on each platforms.
+type RoundRobin struct{}
+
+// Allocate implements the Allocator2 interface
+func (r *RoundRobin) Allocate(plats []Platform, total, offline int) map[string][]*NodeInfo {
+	n := len(plats)
+	out := make(map[string][]*NodeInfo)
+	instPerPlat, rem := Divmod(total, n)
+	for i := 0; i < n; i++ {
+		// add instPerPlat instances to the i-th platform
+		s := plats[i].String()
+		for j := 0; j < instPerPlat; j++ {
+			out[s] = append(out[s], &NodeInfo{ID: -1})
 		}
-		ids = append(ids, i)
+		if rem > 0 {
+			out[s] = append(out[s], &NodeInfo{ID: -1})
+			rem--
+		}
 	}
-	// take out the end
-	if offline > 0 {
-		ids = ids[:len(ids)-offline]
+
+	// dispatch the IDs online then offline by round robin
+	bucketOffline := total
+	if offline != 0 {
+		bucketOffline, _ = Divmod(total, offline)
 	}
-	return ids
+	i := 0
+	nextOffline := 0
+	// allocate all ids
+	for i < total {
+		// put one ID in one platform at a time, roundrobin fashion
+		for _, plat := range plats {
+			s := plat.String()
+			// find the first non allocated node
+			list := out[s]
+			for idx, ni := range list {
+				if ni.ID != -1 {
+					// already allocated
+					continue
+				}
+				var status = true
+				if i == nextOffline && offline > 0 {
+					status = false
+					nextOffline = (i + bucketOffline + 1) % total
+					offline--
+				}
+				list[idx].ID = i
+				list[idx].Active = status
+				i++
+				break
+			}
+			out[s] = list
+		}
+	}
+
+	for k, list := range out {
+		fmt.Printf("\t[+] plat %s: ", k)
+		for _, node := range list {
+			fmt.Printf("%d (%v)- ", node.ID, node.Active)
+		}
+		fmt.Printf("\n")
+	}
+	return out
 }
