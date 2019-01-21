@@ -39,7 +39,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	configDir := filepath.Join(dir, "configs")
+	configDir := filepath.Join(dir, "generated_configs")
 	os.MkdirAll(configDir, 0777)
 
 	// 4 instance per proc
