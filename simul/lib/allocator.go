@@ -67,8 +67,12 @@ func (r *RoundRobin) Allocate(plats []Platform, total, offline int) map[string][
 				list[idx].ID = i
 				if i == nextOffline && offline > 0 {
 					list[idx].Active = false
-					nextOffline = (i + bucketOffline + 1) % total
+					nextOffline += bucketOffline
 					offline--
+					if nextOffline <= i || nextOffline >= total {
+						fmt.Printf("i %d - nextOffline %d\n", i, nextOffline)
+						panic("internal error")
+					}
 				} else {
 					list[idx].Active = true
 				}
@@ -97,11 +101,11 @@ func (r *RoundRobin) Allocate(plats []Platform, total, offline int) map[string][
 	}
 
 	if dead != poffline {
-		fmt.Printf("DEAD %d - WANTED %d", dead, poffline)
+		fmt.Printf("DEAD %d - WANTED %d\n", dead, poffline)
 		panic("wrong number of dead nodes")
 	}
 	if dead + live != total {
-		panic("wont number of total nodes")
+		panic("wrong number of total nodes")
 	}
 	return out
 }
