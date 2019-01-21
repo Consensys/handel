@@ -37,7 +37,7 @@ func main() {
 	config := lib.LoadConfig(*configFile)
 	runConf := config.Runs[*run]
 	nbOfNodes := runConf.Nodes
-	nbOffline := runConf.Failing
+	//nbOffline := runConf.Failing
 	master := lib.NewSyncMaster(*masterAddr, runConf.GetThreshold(), nbOfNodes)
 	fmt.Println("Master: listen on", *masterAddr)
 
