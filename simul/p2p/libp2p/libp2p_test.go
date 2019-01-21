@@ -28,6 +28,6 @@ func TestP2P(t *testing.T) {
 		wg.Wait()
 	})
 
-	test.Aggregators(t, n, thr, maker, opts, lib.GetFreePort)
+	test.Aggregators(t, n, thr, maker, opts, lib.GetFreeTCPPort)
 
 }
