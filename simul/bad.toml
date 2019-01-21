@@ -17,8 +17,6 @@ Retrials = 1
        Timeout = "50ms"
        UnsafeSleepTimeOnSigVerify = 1
 
-
-
 [[Runs]]
    Nodes = 256
    Threshold = 200
