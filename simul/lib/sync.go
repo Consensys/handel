@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
-	"net"
 	"sync"
 	"time"
 
@@ -286,22 +285,4 @@ func (s *syncMessage) FromBytes(buff []byte) error {
 	var b = bytes.NewBuffer(buff)
 	dec := gob.NewDecoder(b)
 	return dec.Decode(s)
-}
-
-// FindFreeUDPAddress returns a free usable UDP address
-func FindFreeUDPAddress() string {
-	for i := 0; i < 1000; i++ {
-		udpAddr, err := net.ResolveUDPAddr("udp4", "127.0.0.1:0")
-		if err != nil {
-			continue
-		}
-		sock, err := net.ListenUDP("udp4", udpAddr)
-		if err != nil {
-			continue
-		}
-		addr := sock.LocalAddr().String()
-		sock.Close()
-		return addr
-	}
-	panic("not found")
 }

@@ -90,7 +90,8 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 	fmt.Println("[+] Registry file written (", r.Nodes, " nodes)")
 
 	// 2. Run the sync master
-	masterAddr := lib.FindFreeUDPAddress()
+	masterPort := lib.GetFreeUDPPort()
+	masterAddr := net.JoinHostPort("127.0.0.1", masterPort)
 	master := lib.NewSyncMaster(masterAddr, r.GetThreshold(), r.Nodes)
 	fmt.Println("[+] Master synchronization daemon launched")
 

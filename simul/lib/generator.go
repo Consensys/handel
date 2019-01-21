@@ -2,8 +2,6 @@ package lib
 
 import (
 	"crypto/rand"
-	"net"
-	"time"
 
 	h "github.com/ConsenSys/handel"
 )
@@ -52,22 +50,4 @@ func WriteAll(nodes []*Node, p NodeParser, uri string) {
 	if err := p.Write(uri, records); err != nil {
 		panic(err)
 	}
-}
-
-// GetFreePort returns a free tcp port or panics
-func GetFreePort() int {
-	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
-	if err != nil {
-		panic(err)
-	}
-
-	l, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		panic(err)
-	}
-	defer func() {
-		l.Close()
-		time.Sleep(2 * time.Millisecond)
-	}()
-	return l.Addr().(*net.TCPAddr).Port
 }
