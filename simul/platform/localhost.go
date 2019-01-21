@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -83,7 +84,7 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 		procs[i] = &Proc{id: i}
 	}
 	allocation := allocator.Allocate(procs, r.Nodes, r.Failing)
-	updateAddresses(procs, allocation)
+	updateAddresses(l.c, procs, allocation)
 
 	nodes := lib.GenerateNodesFromAllocation(cons, allocation)
 	lib.WriteAll(nodes, parser, l.regPath)
@@ -92,7 +93,8 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 	// 2. Run the sync master
 	masterPort := lib.GetFreeUDPPort()
 	masterAddr := net.JoinHostPort("127.0.0.1", strconv.Itoa(masterPort))
-	master := lib.NewSyncMaster(masterAddr, r.GetThreshold(), r.Nodes)
+
+	master := lib.NewSyncMaster(masterAddr, r.Nodes-r.Failing, r.Nodes)
 	fmt.Println("[+] Master synchronization daemon launched")
 
 	// 3. Run binaries
@@ -213,12 +215,16 @@ func (p *Proc) String() string {
 	return fmt.Sprintf("proc-%d", p.id)
 }
 
-func newLocalAddr() string {
-	port := lib.GetFreePort()
+func newLocalAddr(c *lib.Config) string {
+	var getPort = lib.GetFreePort
+	if strings.Contains(c.Simulation, "udp") {
+		getPort = lib.GetFreeUDPPort
+	}
+	port := getPort()
 	return net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
 }
 
-func updateAddresses(procs []lib.Platform, allocation map[string][]*lib.NodeInfo) {
+func updateAddresses(c *lib.Config, procs []lib.Platform, allocation map[string][]*lib.NodeInfo) {
 	for _, p := range procs {
 		proc := p.(*Proc)
 		s := proc.String()
@@ -226,9 +232,9 @@ func updateAddresses(procs []lib.Platform, allocation map[string][]*lib.NodeInfo
 		if !exists {
 			panic("aie")
 		}
-		proc.syncAddr = newLocalAddr()
+		proc.syncAddr = newLocalAddr(c)
 		for _, node := range list {
-			node.Address = newLocalAddr()
+			node.Address = newLocalAddr(c)
 		}
 	}
 }
