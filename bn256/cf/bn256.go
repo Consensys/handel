@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"io"
 	"math/big"
@@ -72,7 +73,10 @@ type PublicKey struct {
 }
 
 func (p *PublicKey) String() string {
-	return p.p.String()
+	//return p.p.String()
+	buff, _ := p.MarshalBinary()
+	s := sha256.Sum256(buff)
+	return hex.EncodeToString(s[:])
 }
 
 // VerifySignature checks the given BLS signature bls on the message m using the

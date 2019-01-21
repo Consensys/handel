@@ -41,7 +41,9 @@ func (n *NodeList) Identity(idx int) (handel.Identity, bool) {
 func (n *NodeList) Registry() handel.Registry {
 	ids := make([]handel.Identity, len(*n))
 	for i := 0; i < len(ids); i++ {
-		ids[i] = (*n)[i].Identity
+		id := (*n)[i]
+		idx := int(id.ID())
+		ids[idx] = id
 	}
 	return handel.NewArrayRegistry(ids)
 }
