@@ -85,7 +85,7 @@ func Run(a Adaptor) {
 	// Sync with master - wait for the START signal
 	syncer := lib.NewSyncSlave(*syncAddr, *master, ids)
 	select {
-	case <-syncer.WaitMaster():
+	case <-syncer.WaitMaster(lib.START):
 		now := time.Now()
 		formatted := fmt.Sprintf("%02d:%02d:%02d:%03d", now.Hour(),
 			now.Minute(),
@@ -145,9 +145,8 @@ func Run(a Adaptor) {
 	fmt.Println("signature valid & finished- sending state to sync master")
 
 	// Sync with master - wait to close our node
-	syncer.Reset()
 	select {
-	case <-syncer.WaitMaster():
+	case <-syncer.WaitMaster(lib.END):
 		now := time.Now()
 		formatted := fmt.Sprintf("%02d:%02d:%02d:%03d", now.Hour(),
 			now.Minute(),
