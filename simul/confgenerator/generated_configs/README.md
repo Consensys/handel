@@ -1,0 +1,1 @@
+Generated configurations goes here. Don't commit them in git.

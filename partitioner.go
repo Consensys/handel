@@ -2,6 +2,7 @@ package handel
 
 import (
 	"errors"
+	"fmt"
 	"math"
 )
 
@@ -58,17 +59,19 @@ type binomialPartitioner struct {
 	// mapping for each level of the index of the last node picked for this
 	// level
 	picked map[int]int
+	logger Logger
 }
 
 // NewBinPartitioner returns a binTreePartition using the given ID as its
 // anchor point in the ID list, and the given registry.
-func NewBinPartitioner(id int32, reg Registry) Partitioner {
+func NewBinPartitioner(id int32, reg Registry, logger Logger) Partitioner {
 	return &binomialPartitioner{
 		size:    reg.Size(),
 		reg:     reg,
 		id:      int(id),
 		bitsize: log2(reg.Size()),
 		picked:  make(map[int]int),
+		logger:  logger,
 	}
 }
 
@@ -112,7 +115,9 @@ func (c *binomialPartitioner) IndexAtLevel(globalID int32, level int) (int, erro
 	}
 	id := int(globalID)
 	if id < min || id >= max {
-		return 0, errors.New("globalID outside level's range")
+		err := fmt.Errorf("globalID outside level's range. id=%d, min=%d, max=%d, level=%d", id, min, max, level)
+		c.logger.Warn(err) // If it happens it's either a bug either an attack from a byzantine node
+		return 0, err
 	}
 	return id - min, nil
 }

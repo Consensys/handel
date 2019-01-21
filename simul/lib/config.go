@@ -58,7 +58,7 @@ type Config struct {
 	// Debug forwards the debug output if set to != 0
 	Debug int
 	// which simulation are we running -
-	// valid values: "handel" (default) or "gossip"
+	// valid values: "handel" (default) or "p2p/udp" or "p2p/libp2p"
 	Simulation string
 	// Maximum time to wait for the whole thing to finish
 	// string because of ugly format of TOML encoding ---

@@ -20,11 +20,11 @@ var defaultResendP = 1 * time.Second
 
 // Aggregators tests if a node's implementation works out with the aggregator
 // logic before using it in simulation
-func Aggregators(t *testing.T, n, thr int, a p2p.Adaptor, opts p2p.Opts) {
+func Aggregators(t *testing.T, n, thr int, a p2p.Adaptor, opts p2p.Opts, getPort func() int) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	nodes, ids := fakeSetup(n)
+	nodes, ids := fakeSetup(n, getPort)
 	cons := lib.NewSimulConstructor(bn256.NewConstructor())
 	ctx = context.WithValue(ctx, p2p.CtxKey("Constructor"), cons)
 	reg, p2pNodes := a.Make(ctx, nodes, ids, thr, opts)
@@ -48,13 +48,14 @@ func Aggregators(t *testing.T, n, thr int, a p2p.Adaptor, opts p2p.Opts) {
 	wg.Wait()
 }
 
-func fakeSetup(n int) (lib.NodeList, []int) {
+func fakeSetup(n int, getPort func() int) (lib.NodeList, []int) {
 	ids := make([]int, n)
 	addresses := make([]string, n)
 	for i := 0; i < n; i++ {
 		// base := 40000
 		//	port := base + i
-		port := lib.GetFreePort()
+		//port := lib.GetFreeTCPPort()
+		port := getPort()
 		address := "127.0.0.1:" + strconv.Itoa(port)
 		addresses[i] = address
 	}

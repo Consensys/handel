@@ -1,7 +1,6 @@
 package lib
 
 import (
-	"fmt"
 	"testing"
 	"time"
 )
@@ -24,11 +23,10 @@ func TestSyncer(t *testing.T) {
 		defer slaves[i].Stop()
 	}
 
-	tryWait := func(m *SyncMaster, slaves []*SyncSlave) {
+	tryWait := func(id int, m *SyncMaster, slaves []*SyncSlave) {
 		for i := range slaves {
 			go func(j int) {
-				fmt.Println("waiting start")
-				doneSlave <- <-slaves[j].WaitMaster()
+				doneSlave <- <-slaves[j].WaitMaster(id)
 			}(i)
 		}
 		var masterDone bool
@@ -36,11 +34,11 @@ func TestSyncer(t *testing.T) {
 
 		for {
 			select {
-			case <-master.WaitAll():
+			case <-master.WaitAll(id):
 				masterDone = true
 			case <-doneSlave:
 				slavesDone++
-			case <-time.After(1000 * time.Millisecond):
+			case <-time.After(2000 * time.Millisecond):
 				panic("aie aie aie")
 			}
 			if masterDone && slavesDone == len(slaveAddrs) {
@@ -48,12 +46,7 @@ func TestSyncer(t *testing.T) {
 			}
 		}
 	}
-	tryWait(master, slaves)
+	tryWait(START, master, slaves)
 	time.Sleep(50 * time.Millisecond)
-	master.Reset()
-	for i := range slaves {
-		slaves[i].Reset()
-	}
-
-	tryWait(master, slaves)
+	tryWait(END, master, slaves)
 }

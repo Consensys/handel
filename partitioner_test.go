@@ -33,7 +33,7 @@ func TestPartitionerBinTreeSize(t *testing.T) {
 
 	for i, test := range tests {
 		t.Logf(" -- test %d -- ", i)
-		ct := NewBinPartitioner(test.id, reg)
+		ct := NewBinPartitioner(test.id, reg, DefaultLogger)
 		size := ct.Size(test.level)
 		require.Equal(t, test.exp, size)
 	}
@@ -64,7 +64,7 @@ func TestPartitionerBinIndexAtLevel(t *testing.T) {
 
 	for i, test := range tests {
 		t.Logf(" -- test %d --", i)
-		part := NewBinPartitioner(test.partID, reg)
+		part := NewBinPartitioner(test.partID, reg, DefaultLogger)
 		res, err := part.IndexAtLevel(test.id, test.level)
 		if err != nil {
 			if test.err {
@@ -131,7 +131,7 @@ func TestPartitionerBinTreeCombine(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		ct := NewBinPartitioner(test.id, reg)
+		ct := NewBinPartitioner(test.id, reg, DefaultLogger)
 		t.Logf(" -- test %d -- ", i)
 		ms := ct.Combine(test.sigs, test.level, NewWilffBitset)
 		if ms == nil {
@@ -225,7 +225,7 @@ func TestPartitionerBinTreeCombineFull(t *testing.T) {
 
 	for i, test := range tests {
 		t.Logf(" -- test %d -- ", i)
-		ct := NewBinPartitioner(test.id, reg)
+		ct := NewBinPartitioner(test.id, reg, DefaultLogger)
 		res := ct.CombineFull(test.sigs, NewWilffBitset)
 		if res == nil {
 			if test.exp == nil {
@@ -258,7 +258,7 @@ func TestPartitionerBinTreeMaxLevel(t *testing.T) {
 	for i, test := range tests {
 		t.Logf(" -- test %d -- ", i)
 		reg := FakeRegistry(test.n)
-		ct := NewBinPartitioner(1, reg)
+		ct := NewBinPartitioner(1, reg, DefaultLogger)
 		require.Equal(t, test.exp, ct.MaxLevel())
 	}
 }
@@ -283,7 +283,7 @@ func TestPartitionerBinLevels(t *testing.T) {
 	for i, test := range tests {
 		t.Logf(" -- test %d --", i)
 		reg := FakeRegistry(test.n)
-		ct := NewBinPartitioner(test.id, reg).(*binomialPartitioner)
+		ct := NewBinPartitioner(test.id, reg, DefaultLogger).(*binomialPartitioner)
 		levels := ct.Levels()
 		require.Equal(t, test.levels, levels)
 		for _, lvl := range levels {
@@ -323,7 +323,7 @@ func TestPartitionerBinTreeRangeAt(t *testing.T) {
 
 	for i, test := range tests {
 		t.Logf(" -- test %d -- ", i)
-		ct := NewBinPartitioner(test.id, reg).(*binomialPartitioner)
+		ct := NewBinPartitioner(test.id, reg, DefaultLogger).(*binomialPartitioner)
 		_ids, err := ct.IdentitiesAt(test.level)
 		if test.isErr {
 			require.Error(t, err)
@@ -382,7 +382,7 @@ func TestPartitionerBinTreeRangeAtInverse(t *testing.T) {
 
 	for i, test := range tests {
 		t.Logf(" -- test %d -- ", i)
-		ct := NewBinPartitioner(test.id, reg).(*binomialPartitioner)
+		ct := NewBinPartitioner(test.id, reg, DefaultLogger).(*binomialPartitioner)
 		min, max, err := ct.rangeLevelInverse(test.level)
 		if test.isErr {
 			require.Error(t, err)

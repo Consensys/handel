@@ -2,7 +2,7 @@ package scenarios
 
 import "github.com/ConsenSys/handel/simul/lib"
 
-type nodesInc struct {
+type NodesInc struct {
 	defaultConf   lib.Config
 	defaultHandel *lib.HandelConfig
 	maxNodes      int
@@ -17,9 +17,9 @@ func NewNodeInc(
 	maxNodes,
 	increment,
 	failing int,
-	calcThreshold func(int) int) nodesInc {
+	calcThreshold func(int) int) NodesInc {
 
-	return nodesInc{
+	return NodesInc{
 		defaultConf:   defaultConf,
 		defaultHandel: handel,
 		maxNodes:      maxNodes,
@@ -29,21 +29,17 @@ func NewNodeInc(
 	}
 }
 
-func (n nodesInc) Generate(step int) lib.Config {
-	proc := 1
+func (n NodesInc) Generate(proc int, nodesCt []int) lib.Config {
 	var runs []lib.RunConfig
-	for i := n.increment; i < n.maxNodes; i = i + n.increment {
+	for _, nodeCt := range nodesCt{
 		run := lib.RunConfig{
-			Nodes:     i,
-			Threshold: n.calcThreshold(i),
+			Nodes:     nodeCt,
+			Threshold: n.calcThreshold(nodeCt),
 			Failing:   n.failing,
-			Processes: proc,
+			Processes: nodeCt / proc,
 			Handel:    n.defaultHandel,
 		}
-		proc++
-		if i%step == 0 {
-			runs = append(runs, run)
-		}
+		runs = append(runs, run)
 	}
 	n.defaultConf.Runs = runs
 	return n.defaultConf

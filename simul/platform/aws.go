@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -37,6 +36,7 @@ type awsPlatform struct {
 }
 
 const s3Dir = "pegasysrndbucketvirginiav1"
+const stream_logs_via_ssh = true
 
 // NewAws creates AWS Platform
 func NewAws(aws aws.Manager, awsConfig *aws.Config) Platform {
@@ -258,43 +258,58 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 	)
 
 	fmt.Println("       Exec:", masterStart)
-	done := make(chan bool)
+	masterDone := make(chan bool)
 	go func() {
 		master.Run(a.masterCMDS.Kill(), nil)
 		err = master.Run(masterStart, nil)
 		if err != nil {
 			fmt.Println(err)
 		}
-		done <- true
+		masterDone <- true
 	}()
 	//*** Start slaves
 
-	var wg sync.WaitGroup
+	//var wg sync.WaitGroup
+
+	//	slaveDone := make(chan bool, len(slaveNodes))
+
 	for _, n := range slaveNodes {
-		wg.Add(1)
+		//	wg.Add(1)
+
 		go func(slaveNode aws.Instance) {
 			// TODO This might become a problem for large number of slaves,
 			// limit numebr of go-routines running concurrently if this is the case
-			a.startSlave(slaveNode, idx)
-			wg.Done()
+
+			slaveController, err := aws.NewSSHNodeController(*slaveNode.PublicIP, a.pemBytes, a.awsConfig.SSHUser)
+			if err != nil {
+				panic(err)
+			}
+
+			if err := slaveController.Init(); err != nil {
+				panic(err)
+			}
+
+			if stream_logs_via_ssh {
+				a.runSlave(slaveNode, idx, slaveController)
+			} else {
+				a.startSlave(slaveNode, idx, slaveController)
+			}
+			fmt.Println("Close ssh", *slaveNode.PublicIP, *slaveNode.ID)
+			slaveController.Close()
+			//	wg.Done()
+			//	slaveDone <- true
 		}(*n)
 	}
-	wg.Wait()
-	<-done
+	//	wg.Wait()
+	fmt.Println("Waiting for master")
+	<-masterDone
 	master.Close()
 	return nil
 }
 
-func (a *awsPlatform) startSlave(inst aws.Instance, idx int) {
-	slaveController, err := aws.NewSSHNodeController(*inst.PublicIP, a.pemBytes, a.awsConfig.SSHUser)
-	if err != nil {
-		panic(err)
-	}
-
+func (a *awsPlatform) runSlave(inst aws.Instance, idx int, slaveController aws.NodeController) {
+	slaveController.Run(a.slaveCMDS.Kill(), nil)
 	cpyFiles := a.slaveCMDS.CopyRegistryFileFromSharedDirToLocalStorage()
-	if err := slaveController.Init(); err != nil {
-		panic(err)
-	}
 
 	for i := 0; i < len(cpyFiles); i++ {
 		fmt.Println(*inst.PublicIP, cpyFiles[i])
@@ -315,18 +330,36 @@ func (a *awsPlatform) startSlave(inst aws.Instance, idx int) {
 				}
 				break
 			}
-			fmt.Println(scanner.Text())
+			fmt.Println(*inst.PublicIP, scanner.Text())
 		}
 	}()
 
+	err := slaveController.Run(cmd, pw)
+	if err != nil {
+		fmt.Println("Error "+*inst.PublicIP, err)
+		//	panic(err)
+	}
+}
+
+func (a *awsPlatform) startSlave(inst aws.Instance, idx int, slaveController aws.NodeController) {
 	slaveController.Run(a.slaveCMDS.Kill(), nil)
 
-	err = slaveController.Run(cmd, pw)
+	cpyFiles := a.slaveCMDS.CopyRegistryFileFromSharedDirToLocalStorage() //.CopyRegistryFileFromSharedDirToLocalStorageQuitSSH()
+
+	for i := 0; i < len(cpyFiles); i++ {
+		fmt.Println(*inst.PublicIP, cpyFiles[i])
+		if err := slaveController.Run(cpyFiles[i], nil); err != nil {
+			panic(err)
+		}
+	}
+
+	cmd := a.slaveCMDS.StartAndQuitSSH(a.masterAddr, a.monitorAddr, inst, idx)
+	fmt.Println("Start Slave", cmd)
+	err := slaveController.Start(cmd)
 	if err != nil {
 		fmt.Println("Error "+*inst.PublicIP, err)
 		panic(err)
 	}
-	slaveController.Close()
 }
 
 func (a *awsPlatform) connectToMaster() (aws.NodeController, error) {

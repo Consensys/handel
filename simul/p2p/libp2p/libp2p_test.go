@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ConsenSys/handel"
+	"github.com/ConsenSys/handel/simul/lib"
 	"github.com/ConsenSys/handel/simul/p2p"
 	"github.com/ConsenSys/handel/simul/p2p/test"
 )
@@ -27,6 +28,6 @@ func TestP2P(t *testing.T) {
 		wg.Wait()
 	})
 
-	test.Aggregators(t, n, thr, maker, opts)
+	test.Aggregators(t, n, thr, maker, opts, lib.GetFreeTCPPort)
 
 }

@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -83,16 +84,16 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 		procs[i] = &Proc{id: i}
 	}
 	allocation := allocator.Allocate(procs, r.Nodes, r.Failing)
-	updateAddresses(procs, allocation)
+	updateAddresses(l.c, procs, allocation)
 
 	nodes := lib.GenerateNodesFromAllocation(cons, allocation)
 	lib.WriteAll(nodes, parser, l.regPath)
 	fmt.Println("[+] Registry file written (", r.Nodes, " nodes)")
 
 	// 2. Run the sync master
-	active := r.Nodes - r.Failing
-	masterAddr := lib.FindFreeUDPAddress()
-	master := lib.NewSyncMaster(masterAddr, active, r.Nodes)
+	masterPort := lib.GetFreeUDPPort()
+	masterAddr := net.JoinHostPort("127.0.0.1", strconv.Itoa(masterPort))
+	master := lib.NewSyncMaster(masterAddr, r.Nodes-r.Failing, r.Nodes)
 	fmt.Println("[+] Master synchronization daemon launched")
 
 	// 3. Run binaries
@@ -111,12 +112,15 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 		copy(args, sameArgs)
 		nodeInfos := allocation[proc.String()]
 		for _, node := range nodeInfos {
-			args = append(args, []string{"-id", strconv.Itoa(node.ID)}...)
+			if node.Active {
+				args = append(args, []string{"-id", strconv.Itoa(node.ID)}...)
+			}
 		}
 		args = append(args, []string{"-sync", proc.syncAddr,
 			"-run", strconv.Itoa(idx)}...)
 
 		// 3.2 run command
+		fmt.Printf("[+] %d args: %v\n", i, args)
 		commands[i] = NewCommand(l.binPath, args...)
 		go func(j int) {
 			fmt.Printf("[+] Starting node %d.\n", j)
@@ -147,17 +151,15 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 
 	// 4. Wait for the master to have synced up every node
 	select {
-	case <-master.WaitAll():
+	case <-master.WaitAll(lib.START):
 		fmt.Printf("[+] Master full synchronization done.\n")
 	case <-time.After(5 * time.Minute):
 		panic("timeout after 2 mn")
 	}
 
-	time.Sleep(500 * time.Millisecond)
-	master.Reset()
 	// 5. Wait all finished - then tell them to quit
 	select {
-	case <-master.WaitAll():
+	case <-master.WaitAll(lib.END):
 		fmt.Printf("[+] Master - finished synchronization done.\n")
 	case <-time.After(l.c.GetMaxTimeout()):
 		panic(fmt.Sprintf("timeout after %s", l.c.GetMaxTimeout()))
@@ -211,12 +213,16 @@ func (p *Proc) String() string {
 	return fmt.Sprintf("proc-%d", p.id)
 }
 
-func newLocalAddr() string {
-	port := lib.GetFreePort()
+func newLocalAddr(c *lib.Config) string {
+	var getPort = lib.GetFreeTCPPort
+	if strings.Contains(c.Simulation, "udp") {
+		getPort = lib.GetFreeUDPPort
+	}
+	port := getPort()
 	return net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
 }
 
-func updateAddresses(procs []lib.Platform, allocation map[string][]*lib.NodeInfo) {
+func updateAddresses(c *lib.Config, procs []lib.Platform, allocation map[string][]*lib.NodeInfo) {
 	for _, p := range procs {
 		proc := p.(*Proc)
 		s := proc.String()
@@ -224,9 +230,9 @@ func updateAddresses(procs []lib.Platform, allocation map[string][]*lib.NodeInfo
 		if !exists {
 			panic("aie")
 		}
-		proc.syncAddr = newLocalAddr()
+		proc.syncAddr = newLocalAddr(c)
 		for _, node := range list {
-			node.Address = newLocalAddr()
+			node.Address = newLocalAddr(c)
 		}
 	}
 }

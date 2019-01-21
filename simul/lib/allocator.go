@@ -29,6 +29,7 @@ type RoundRobin struct{}
 
 // Allocate implements the Allocator2 interface
 func (r *RoundRobin) Allocate(plats []Platform, total, offline int) map[string][]*NodeInfo {
+	poffline := offline
 	n := len(plats)
 	out := make(map[string][]*NodeInfo)
 	instPerPlat, rem := Divmod(total, n)
@@ -53,7 +54,7 @@ func (r *RoundRobin) Allocate(plats []Platform, total, offline int) map[string][
 	nextOffline := 0
 	// allocate all ids
 	for i < total {
-		// put one ID in one platform at a time, roundrobin fashion
+		// put one ID in one platform at a time, round robin fashion
 		for _, plat := range plats {
 			s := plat.String()
 			// find the first non allocated node
@@ -63,27 +64,48 @@ func (r *RoundRobin) Allocate(plats []Platform, total, offline int) map[string][
 					// already allocated
 					continue
 				}
-				var status = true
-				if i == nextOffline && offline > 0 {
-					status = false
-					nextOffline = (i + bucketOffline + 1) % total
-					offline--
-				}
 				list[idx].ID = i
-				list[idx].Active = status
+				if i == nextOffline && offline > 0 {
+					list[idx].Active = false
+					nextOffline += bucketOffline
+					offline--
+					if nextOffline <= i || nextOffline >= total {
+						fmt.Printf("i %d - nextOffline %d\n", i, nextOffline)
+						panic("internal error")
+					}
+				} else {
+					list[idx].Active = true
+				}
 				i++
 				break
 			}
-			out[s] = list
 		}
 	}
 
+	dead := 0
+	live := 0
 	for k, list := range out {
 		fmt.Printf("\t[+] plat %s: ", k)
 		for _, node := range list {
 			fmt.Printf("%d (%v)- ", node.ID, node.Active)
+			if node.ID < 0 {
+				panic("id not allocated")
+			}
+			if !node.Active {
+				dead++
+			} else {
+				live++
+			}
 		}
 		fmt.Printf("\n")
+	}
+
+	if dead != poffline {
+		fmt.Printf("DEAD %d - WANTED %d\n", dead, poffline)
+		panic("wrong number of dead nodes")
+	}
+	if dead + live != total {
+		panic("wrong number of total nodes")
 	}
 	return out
 }

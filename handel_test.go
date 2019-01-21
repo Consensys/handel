@@ -345,7 +345,7 @@ func TestHandelParsePacket(t *testing.T) {
 		reg:         registry,
 		cons:        new(fakeCons),
 		msg:         msg,
-		Partitioner: NewBinPartitioner(1, registry),
+		Partitioner: NewBinPartitioner(1, registry, DefaultLogger),
 	}
 	h.levels = createLevels(h.c, h.Partitioner)
 	type packetTest struct {
@@ -410,7 +410,7 @@ func TestHandelParsePacket(t *testing.T) {
 func TestHandelCreateLevel(t *testing.T) {
 	n := 16
 	registry := FakeRegistry(n)
-	part := NewBinPartitioner(1, registry)
+	part := NewBinPartitioner(1, registry, DefaultLogger)
 	c := DefaultConfig(n)
 	c.DisableShuffling = true
 

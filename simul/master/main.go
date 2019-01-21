@@ -37,9 +37,8 @@ func main() {
 	config := lib.LoadConfig(*configFile)
 	runConf := config.Runs[*run]
 	nbOfNodes := runConf.Nodes
-	nbOffline := runConf.Failing
-	active := nbOfNodes - nbOffline
-	master := lib.NewSyncMaster(*masterAddr, active, nbOfNodes)
+	//nbOffline := runConf.Failing
+	master := lib.NewSyncMaster(*masterAddr, nbOfNodes-runConf.Failing, nbOfNodes)
 	fmt.Println("Master: listen on", *masterAddr)
 
 	os.MkdirAll(resultsDir, 0777)
@@ -61,9 +60,8 @@ func main() {
 	go mon.Listen()
 
 	select {
-	case <-master.WaitAll():
+	case <-master.WaitAll(lib.START):
 		fmt.Printf("[+] Master full synchronization done.\n")
-		master.Reset()
 
 	case <-time.After(time.Duration(*timeOut) * time.Minute):
 		msg := fmt.Sprintf("timeout after %d mn", *timeOut)
@@ -72,7 +70,7 @@ func main() {
 	}
 
 	select {
-	case <-master.WaitAll():
+	case <-master.WaitAll(lib.END):
 		fmt.Printf("[+] Master - finished synchronization done.\n")
 	case <-time.After(time.Duration(*timeOut) * time.Minute):
 		msg := fmt.Sprintf("timeout after %d mn", *timeOut)

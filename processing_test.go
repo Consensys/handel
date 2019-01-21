@@ -17,7 +17,7 @@ func (f *EvaluatorLevel) Evaluate(sp *incomingSig) int {
 func TestSigProcessingStrategy(t *testing.T) {
 	n := 16
 	registry := FakeRegistry(n)
-	partitioner := NewBinPartitioner(1, registry)
+	partitioner := NewBinPartitioner(1, registry, DefaultLogger)
 	cons := new(fakeCons)
 	sig0 := fullIncomingSig(0)
 	sig1 := fullIncomingSig(1)
@@ -52,7 +52,7 @@ func TestSigProcessingStrategy(t *testing.T) {
 func TestProcessingFifo(t *testing.T) {
 	n := 16
 	registry := FakeRegistry(n)
-	partitioner := NewBinPartitioner(1, registry)
+	partitioner := NewBinPartitioner(1, registry, DefaultLogger)
 	cons := new(fakeCons)
 	store := newReplaceStore(partitioner, NewWilffBitset, cons)
 
