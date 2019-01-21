@@ -151,16 +151,15 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 
 	// 4. Wait for the master to have synced up every node
 	select {
-	case <-master.WaitAll():
+	case <-master.WaitAll(lib.START):
 		fmt.Printf("[+] Master full synchronization done.\n")
 	case <-time.After(5 * time.Minute):
 		panic("timeout after 2 mn")
 	}
 
-	master.Reset()
 	// 5. Wait all finished - then tell them to quit
 	select {
-	case <-master.WaitAll():
+	case <-master.WaitAll(lib.END):
 		fmt.Printf("[+] Master - finished synchronization done.\n")
 	case <-time.After(l.c.GetMaxTimeout()):
 		panic(fmt.Sprintf("timeout after %s", l.c.GetMaxTimeout()))

@@ -80,7 +80,7 @@ func main() {
 	// Sync with master - wait for the START signal
 	syncer := lib.NewSyncSlave(*syncAddr, *master, ids)
 	select {
-	case <-syncer.WaitMaster():
+	case <-syncer.WaitMaster(lib.START):
 		logger.Debug("sync", "finished", "nodes", ids.String())
 	case <-time.After(BeaconTimeout):
 		logger.Error("Haven't received beacon in time!")
@@ -132,9 +132,8 @@ func main() {
 	logger.Info("simul", "finished")
 
 	// Sync with master - wait to close our node
-	syncer.Reset()
 	select {
-	case <-syncer.WaitMaster():
+	case <-syncer.WaitMaster(lib.END):
 		logger.Debug("sync", "finished", "nodes", ids.String())
 	case <-time.After(BeaconTimeout):
 		logger.Error("Haven't received beacon in time!")
