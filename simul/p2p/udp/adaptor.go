@@ -11,7 +11,7 @@ import (
 
 // MakeUDP is a p2p.Adaptor that returns a list of node using UDP as their
 // network and that sends the packet to all identities.
-func MakeUDP(ctx context.Context, list lib.NodeList, ids []int, opts p2p.Opts) (handel.Registry, []p2p.Node) {
+func MakeUDP(ctx context.Context, list lib.NodeList, ids []int, threshold int, opts p2p.Opts) (handel.Registry, []p2p.Node) {
 	created := len(ids)
 	encoding := extractEncoding(opts)
 	nodes := make([]p2p.Node, 0, created)

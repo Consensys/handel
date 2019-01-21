@@ -122,8 +122,10 @@ func (s *SyncMaster) handleReady(incoming *syncMessage) {
 		ids = append(ids, id)
 	}
 	go func() {
-		s.n.Send(ids, packet)
-		s.waitAll <- true
+		for i := 0; i < 3; i++ {
+			s.n.Send(ids, packet)
+			s.waitAll <- true
+		}
 	}()
 }
 

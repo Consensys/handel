@@ -12,7 +12,7 @@ import (
 )
 
 // MakeP2P returns the constructor for the libp2p node
-func MakeP2P(ctx context.Context, nodes lib.NodeList, ids []int, opts p2p.Opts) (handel.Registry, []p2p.Node) {
+func MakeP2P(ctx context.Context, nodes lib.NodeList, ids []int, threshold int, opts p2p.Opts) (handel.Registry, []p2p.Node) {
 	total := len(nodes)
 	pubsub.GossipSubHistoryLength = total
 	pubsub.GossipSubHistoryGossip = total
@@ -31,7 +31,7 @@ func MakeP2P(ctx context.Context, nodes lib.NodeList, ids []int, opts p2p.Opts) 
 		}
 
 		if p2p.IsIncluded(ids, id) {
-			p2pNode, err := NewP2PNode(ctx, node, router, registry, cons)
+			p2pNode, err := NewP2PNode(ctx, node, router, registry, cons, threshold)
 			if err != nil {
 				fmt.Println(err)
 				panic(err)
