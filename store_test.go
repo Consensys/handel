@@ -110,6 +110,8 @@ func TestStoreUnsafeCheckMerge(t *testing.T) {
 	require.True(t, s.Get(2))
 	require.Equal(t, 2, s.BitSet.Cardinality())
 	store.Store(p46L3)
+	best, _ := store.Best(3)
+	require.Equal(t, bs1.Clone(),  best.BitSet)
 
 	// This signature is size 2 as well, but can be merged with the individual one, so
 	//  we will end-up with a size 3 signature
