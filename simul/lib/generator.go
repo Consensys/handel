@@ -3,6 +3,7 @@ package lib
 import (
 	"crypto/rand"
 	"net"
+	"time"
 
 	h "github.com/ConsenSys/handel"
 )
@@ -65,5 +66,6 @@ func GetFreePort() int {
 		panic(err)
 	}
 	defer l.Close()
+	time.Sleep(1 * time.Millisecond)
 	return l.Addr().(*net.TCPAddr).Port
 }

@@ -87,7 +87,7 @@ func (a *Aggregator) Start() {
 	a.tick = time.NewTicker(a.resendP)
 	go func() {
 		// diffuse it right away once
-		fmt.Printf("%d gossips signature %s\n", a.Node.Identity().ID(), hex.EncodeToString(msBuff[len(msBuff)-1-16:len(msBuff)-1]))
+		fmt.Printf("%d gossips signature %s - pk = %s\n", a.Node.Identity().ID(), hex.EncodeToString(msBuff[len(msBuff)-1-16:len(msBuff)-1]), a.Identity().PublicKey().String())
 		a.Diffuse(packet)
 		for {
 			select {
@@ -169,8 +169,10 @@ func (a *Aggregator) verifyPacket(packet *handel.Packet) {
 	}
 	err = id.PublicKey().VerifySignature(lib.Message, ms.Signature)
 	if err != nil {
-		fmt.Printf("INVALID: %d verified signature from %d : %s\n", a.Node.Identity().ID(),
-			packet.Origin, hex.EncodeToString(packet.MultiSig[0:16]))
+		msBuff := packet.MultiSig
+		fmt.Printf("INVALID: %d verified signature from %d : %s - pk = %s\n", a.Node.Identity().ID(),
+			packet.Origin, hex.EncodeToString(msBuff[len(msBuff)-1-16:len(msBuff)-1]), id.PublicKey().String())
+
 		return
 	}
 	// add it to the accumulator

@@ -8,8 +8,8 @@ import (
 )
 
 func TestUDP(t *testing.T) {
-	n := 20
-	thr := 15
+	n := 128
+	thr := 50
 	maker := p2p.AdaptorFunc(MakeUDP)
 
 	test.Aggregators(t, n, thr, maker, nil)

@@ -17,7 +17,7 @@ func MakeUDP(ctx context.Context, list lib.NodeList, ids []int, threshold int, o
 	nodes := make([]p2p.Node, 0, created)
 	for i, n := range list {
 		if p2p.IsIncluded(ids, i) {
-			udpNode := NewNode(n.SecretKey, n.Identity, &list, encoding)
+			udpNode := NewNode(n.SecretKey, n.Identity, list.Registry(), encoding)
 			nodes = append(nodes, udpNode)
 		}
 	}
