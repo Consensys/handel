@@ -2,8 +2,8 @@ package platform
 
 import (
 	"fmt"
+	"net"
 	"os"
-	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -78,37 +78,40 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 	parser := lib.NewCSVParser()
 	allocator := l.c.NewAllocator()
 
-	procInfos, addresses := genProcInfo(r.Nodes, r.Processes)
-	nodes := lib.GenerateNodes(cons, addresses)
+	procs := make([]lib.Platform, r.Processes)
+	for i := 0; i < r.Processes; i++ {
+		procs[i] = &Proc{id: i}
+	}
+	allocation := allocator.Allocate(procs, r.Nodes, r.Failing)
+	updateAddresses(procs, allocation)
+
+	nodes := lib.GenerateNodesFromAllocation(cons, allocation)
 	lib.WriteAll(nodes, parser, l.regPath)
 	fmt.Println("[+] Registry file written (", r.Nodes, " nodes)")
-	// ids of the active nodes
-	actives := allocator.Allocate(r.Nodes, r.Failing)
 
 	// 2. Run the sync master
+	active := r.Nodes - r.Failing
 	masterAddr := lib.FindFreeUDPAddress()
-	master := lib.NewSyncMaster(masterAddr, len(actives), r.Nodes)
+	master := lib.NewSyncMaster(masterAddr, active, r.Nodes)
 	fmt.Println("[+] Master synchronization daemon launched")
 
 	// 3. Run binaries
-	commands := make([]*Command, len(procInfos))
-	doneCh := make(chan int, len(procInfos))
-	errCh := make(chan int, len(procInfos))
+	commands := make([]*Command, len(procs))
+	doneCh := make(chan int, len(procs))
+	errCh := make(chan int, len(procs))
 	sameArgs := []string{"-config", l.confPath,
 		"-registry", l.regPath,
 		"-master", masterAddr,
 		"-monitor", l.c.GetMonitorAddress("127.0.0.1")}
 
-	for i := 0; i < len(procInfos); i++ {
+	for i := 0; i < len(procs); i++ {
+		proc := procs[i].(*Proc)
 		// 3.1 prepare args
 		args := make([]string, len(sameArgs))
 		copy(args, sameArgs)
-		proc := procInfos[i]
-		for _, id := range proc.ids {
-			idx := sort.Search(len(actives), func(i int) bool { return actives[i] >= id })
-			if idx < len(actives) && actives[idx] == id {
-				args = append(args, []string{"-id", strconv.Itoa(id)}...)
-			}
+		nodeInfos := allocation[proc.String()]
+		for _, node := range nodeInfos {
+			args = append(args, []string{"-id", strconv.Itoa(node.ID)}...)
 		}
 		args = append(args, []string{"-sync", proc.syncAddr,
 			"-run", strconv.Itoa(idx)}...)
@@ -173,7 +176,7 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 		case <-maxTimeout:
 			panic("global timeout reached")
 		}
-		if nOk+nErr >= len(procInfos) {
+		if nOk+nErr >= len(procs) {
 			fmt.Printf("[+] nOk = %d, nErr = %d\n", nOk, nErr)
 			break
 		}
@@ -198,48 +201,34 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 	return nil
 }
 
-type procInfo struct {
+// Proc implements the lib.Platform interface for the process
+type Proc struct {
+	id       int
 	syncAddr string
-	ids      []int
 }
 
-func (p *procInfo) String() string {
-	return fmt.Sprintf("proc{sync:%s, ids %v}", p.syncAddr, p.ids)
+func (p *Proc) String() string {
+	return fmt.Sprintf("proc-%d", p.id)
 }
 
-func genProcInfo(nHandels, nProc int) ([]procInfo, []string) {
-	infos := make([]procInfo, nProc)
-	globalHandels := make([]string, 0, nHandels)
-	handelPerProc, rem := lib.Divmod(nHandels, nProc)
-	base := 3000
-	baseSync := 25000
-	baseID := 0
-	for p := 0; p < nProc; p++ {
-		portSync := baseSync + p
-		addrSync := "127.0.0.1:" + strconv.Itoa(portSync)
-		handels := make([]int, 0, handelPerProc)
-		for i := 0; i < handelPerProc; i++ {
-			portHandel := base + p*100 + i
-			addrHandel := "127.0.0.1:" + strconv.Itoa(portHandel)
-			globalHandels = append(globalHandels, addrHandel)
-			handels = append(handels, baseID)
-			baseID++
+func newLocalAddr() string {
+	port := lib.GetFreePort()
+	return net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
+}
+
+func updateAddresses(procs []lib.Platform, allocation map[string][]*lib.NodeInfo) {
+	for _, p := range procs {
+		proc := p.(*Proc)
+		s := proc.String()
+		list, exists := allocation[s]
+		if !exists {
+			panic("aie")
 		}
-		if rem > 0 {
-			portHandel := base + p*100 + handelPerProc
-			addrHandel := "127.0.0.1:" + strconv.Itoa(portHandel)
-			globalHandels = append(globalHandels, addrHandel)
-			handels = append(handels, baseID)
-			baseID++
-			rem--
+		proc.syncAddr = newLocalAddr()
+		for _, node := range list {
+			node.Address = newLocalAddr()
 		}
-		infos[p] = procInfo{syncAddr: addrSync, ids: handels}
-		fmt.Printf("info[%d] = %s\n", p, infos[p].String())
 	}
-	if baseID != nHandels {
-		panic("aie aie aie")
-	}
-	return infos, globalHandels
 }
 
 // this generates n * 2 addresses: one for handel, one for the sync
