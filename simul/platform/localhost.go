@@ -91,7 +91,7 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 
 	// 2. Run the sync master
 	masterPort := lib.GetFreeUDPPort()
-	masterAddr := net.JoinHostPort("127.0.0.1", masterPort)
+	masterAddr := net.JoinHostPort("127.0.0.1", strconv.Itoa(masterPort))
 	master := lib.NewSyncMaster(masterAddr, r.GetThreshold(), r.Nodes)
 	fmt.Println("[+] Master synchronization daemon launched")
 
