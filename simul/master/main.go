@@ -38,8 +38,7 @@ func main() {
 	runConf := config.Runs[*run]
 	nbOfNodes := runConf.Nodes
 	nbOffline := runConf.Failing
-	active := nbOfNodes - nbOffline
-	master := lib.NewSyncMaster(*masterAddr, active, nbOfNodes)
+	master := lib.NewSyncMaster(*masterAddr, runConf.GetThreshold(), nbOfNodes)
 	fmt.Println("Master: listen on", *masterAddr)
 
 	os.MkdirAll(resultsDir, 0777)
