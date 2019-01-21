@@ -81,10 +81,11 @@ type P2PNode struct {
 	setup        handel.BitSet
 	setupDoneCh  chan bool
 	setupDone    bool
+	threshold    int
 }
 
 // NewP2PNode transforms a lib.Node to a p2p node.
-func NewP2PNode(ctx context.Context, handelNode *lib.Node, n NewRouter, reg P2PRegistry, cons lib.Constructor) (*P2PNode, error) {
+func NewP2PNode(ctx context.Context, handelNode *lib.Node, n NewRouter, reg P2PRegistry, cons lib.Constructor, threshold int) (*P2PNode, error) {
 	secret := handelNode.SecretKey.(lib.SecretKey)
 	pub := handelNode.Identity.PublicKey().(lib.PublicKey)
 	priv := &bn256Priv{
@@ -147,6 +148,7 @@ func NewP2PNode(ctx context.Context, handelNode *lib.Node, n NewRouter, reg P2PR
 		setup:        handel.NewWilffBitset(reg.Size()),
 		resendPeriod: 500 * time.Millisecond,
 		setupDoneCh:  make(chan bool, 1),
+		threshold:    threshold,
 	}
 	node.setup.Set(int(node.id.ID()), true)
 	go node.readNexts()
@@ -241,7 +243,7 @@ func (p *P2PNode) readNexts() {
 
 func (p *P2PNode) incomingSetup(packet *handel.Packet) {
 	p.setup.Set(int(packet.Origin), true)
-	if p.setup.Cardinality() == p.reg.Size() && !p.setupDone {
+	if p.setup.Cardinality() >= p.threshold && !p.setupDone {
 		p.setupDone = true
 		p.setupDoneCh <- true
 	}
