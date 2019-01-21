@@ -19,13 +19,14 @@ import (
 
 func TestGossipMeshy(t *testing.T) {
 	n := 50
+	thr := 48
 	nbOutgoing := 3
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	connector := p2p.NewNeighborConnector()
 	//connector := NewRandomConnector()
 	r := pubsub.NewGossipSub
-	_, nodes := FakeSetup(ctx, n, nbOutgoing, connector, r)
+	_, nodes := FakeSetup(ctx, n, thr, nbOutgoing, connector, r)
 
 	var wg sync.WaitGroup
 	for _, n := range nodes {
@@ -58,7 +59,7 @@ func TestGossipMeshy(t *testing.T) {
 
 }
 
-func FakeSetup(ctx context.Context, n int, max int, c p2p.Connector, r NewRouter) ([]*P2PIdentity, []*P2PNode) {
+func FakeSetup(ctx context.Context, n, thr, max int, c p2p.Connector, r NewRouter) ([]*P2PIdentity, []*P2PNode) {
 	base := 20000
 	addresses := make([]string, n)
 	for i := 0; i < n; i++ {
@@ -79,7 +80,7 @@ func FakeSetup(ctx context.Context, n int, max int, c p2p.Connector, r NewRouter
 		if err != nil {
 			panic(err)
 		}
-		p2pNodes[i], err = NewP2PNode(ctx, node, r, p2pIDs, cons)
+		p2pNodes[i], err = NewP2PNode(ctx, node, r, p2pIDs, cons, thr)
 		if err != nil {
 			panic(err)
 		}
