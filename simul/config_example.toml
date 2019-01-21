@@ -1,7 +1,7 @@
 Network = "udp"
 Curve = "bn256/cf"
 Encoding = "gob"
-MonitorPort = 10000
+MonitorPort = 9980
 MaxTimeout = "2m"
 Retrials = 1
 

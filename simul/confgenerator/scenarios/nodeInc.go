@@ -36,7 +36,7 @@ func (n NodesInc) Generate(proc int, nodesCt []int) lib.Config {
 			Nodes:     nodeCt,
 			Threshold: n.calcThreshold(nodeCt),
 			Failing:   n.failing,
-			Processes: proc,
+			Processes: nodeCt / proc,
 			Handel:    n.defaultHandel,
 		}
 		runs = append(runs, run)
