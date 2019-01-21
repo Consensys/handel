@@ -47,7 +47,7 @@ func NewSyncMaster(addr string, expected, total int) *SyncMaster {
 	s := new(SyncMaster)
 	n.RegisterListener(s)
 	s.exp = expected
-	s.probExp = int(math.Ceil(float64(expected) * 0.95))
+	s.probExp = int(math.Ceil(float64(expected) * 0.995))
 	s.n = n
 	s.total = total
 	s.addr = addr
