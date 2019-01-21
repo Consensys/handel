@@ -65,7 +65,8 @@ func (c *Command) readAndRedirect(r io.Reader, ch chan string) {
 func (c *Command) ReadAll() string {
 	buffOut, err := ioutil.ReadAll(c.stdout)
 	if err != nil {
-		panic("cant read output of command" + err.Error())
+		//panic("cant read output of command" + err.Error())
+		return string(err.Error())
 	}
 	return string(buffOut)
 }

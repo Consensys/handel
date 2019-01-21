@@ -2,6 +2,7 @@ package handel
 
 import (
 	"errors"
+	"fmt"
 	"math"
 )
 
@@ -112,7 +113,8 @@ func (c *binomialPartitioner) IndexAtLevel(globalID int32, level int) (int, erro
 	}
 	id := int(globalID)
 	if id < min || id >= max {
-		return 0, errors.New("globalID outside level's range")
+		return 0,
+			fmt.Errorf("globalID outside level's range. id=%d, min=%d, max=%d, level=%d", id, min, max, level)
 	}
 	return id - min, nil
 }

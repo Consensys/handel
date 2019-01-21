@@ -92,7 +92,7 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 	// 2. Run the sync master
 	masterPort := lib.GetFreeUDPPort()
 	masterAddr := net.JoinHostPort("127.0.0.1", strconv.Itoa(masterPort))
-	master := lib.NewSyncMaster(masterAddr, r.GetThreshold(), r.Nodes)
+	master := lib.NewSyncMaster(masterAddr, r.Nodes - r.Failing, r.Nodes)
 	fmt.Println("[+] Master synchronization daemon launched")
 
 	// 3. Run binaries
@@ -119,6 +119,7 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 			"-run", strconv.Itoa(idx)}...)
 
 		// 3.2 run command
+		fmt.Printf("[+] %d args: %v\n", i, args)
 		commands[i] = NewCommand(l.binPath, args...)
 		go func(j int) {
 			fmt.Printf("[+] Starting node %d.\n", j)
