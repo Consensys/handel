@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math"
 	"os"
 	"strings"
 	"sync/atomic"
@@ -272,7 +271,7 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 
 	//var wg sync.WaitGroup
 
-	slaveDone := make(chan bool, len(slaveNodes))
+	//	slaveDone := make(chan bool, len(slaveNodes))
 
 	for _, n := range slaveNodes {
 		//	wg.Add(1)
@@ -298,26 +297,10 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 			fmt.Println("Close ssh", *slaveNode.PublicIP, *slaveNode.ID)
 			slaveController.Close()
 			//	wg.Done()
-			slaveDone <- true
+			//	slaveDone <- true
 		}(*n)
 	}
 	//	wg.Wait()
-
-	instancesDone := 0
-	instanceThreshold := int(math.Ceil(float64(r.GetThreshold()) / float64(r.Nodes)))
-	fmt.Println("Instance Threshold", instanceThreshold)
-
-loop:
-	for {
-		select {
-		case _ = <-slaveDone:
-			instancesDone++
-			fmt.Println("Slave Instance Finished", instancesDone)
-			if instancesDone >= instanceThreshold {
-				break loop
-			}
-		}
-	}
 	fmt.Println("Waiting for master")
 	<-masterDone
 	master.Close()
@@ -325,6 +308,7 @@ loop:
 }
 
 func (a *awsPlatform) runSlave(inst aws.Instance, idx int, slaveController aws.NodeController) {
+	slaveController.Run(a.slaveCMDS.Kill(), nil)
 	cpyFiles := a.slaveCMDS.CopyRegistryFileFromSharedDirToLocalStorage()
 
 	for i := 0; i < len(cpyFiles); i++ {
@@ -350,16 +334,16 @@ func (a *awsPlatform) runSlave(inst aws.Instance, idx int, slaveController aws.N
 		}
 	}()
 
-	slaveController.Run(a.slaveCMDS.Kill(), nil)
-
 	err := slaveController.Run(cmd, pw)
 	if err != nil {
 		fmt.Println("Error "+*inst.PublicIP, err)
-		panic(err)
+		//	panic(err)
 	}
 }
 
 func (a *awsPlatform) startSlave(inst aws.Instance, idx int, slaveController aws.NodeController) {
+	slaveController.Run(a.slaveCMDS.Kill(), nil)
+
 	cpyFiles := a.slaveCMDS.CopyRegistryFileFromSharedDirToLocalStorage() //.CopyRegistryFileFromSharedDirToLocalStorageQuitSSH()
 
 	for i := 0; i < len(cpyFiles); i++ {
@@ -371,7 +355,6 @@ func (a *awsPlatform) startSlave(inst aws.Instance, idx int, slaveController aws
 
 	cmd := a.slaveCMDS.StartAndQuitSSH(a.masterAddr, a.monitorAddr, inst, idx)
 	fmt.Println("Start Slave", cmd)
-	slaveController.Run(a.slaveCMDS.Kill(), nil)
 	err := slaveController.Start(cmd)
 	if err != nil {
 		fmt.Println("Error "+*inst.PublicIP, err)
