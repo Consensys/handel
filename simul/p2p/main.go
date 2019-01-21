@@ -79,7 +79,7 @@ func Run(a Adaptor) {
 	requireNil(err)
 	// transform into lib.Node
 	libNodes, err := toLibNodes(cons, records)
-	registry, p2pNodes := a.Make(ctx, libNodes, ids, runConf.Extra)
+	registry, p2pNodes := a.Make(ctx, libNodes, ids, runConf.GetThreshold(), runConf.Extra)
 	aggregators := MakeAggregators(ctx, cons, p2pNodes, registry, runConf.GetThreshold(), extractResendPeriod(runConf.Extra))
 
 	// Sync with master - wait for the START signal
