@@ -36,7 +36,7 @@ type awsPlatform struct {
 }
 
 const s3Dir = "pegasysrndbucketvirginiav1"
-const stream_logs_via_ssh = false
+const stream_logs_via_ssh = true
 
 // NewAws creates AWS Platform
 func NewAws(aws aws.Manager, awsConfig *aws.Config) Platform {
