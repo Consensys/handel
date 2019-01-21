@@ -185,7 +185,7 @@ func thresholdIncScenario(dir string, defaultConf lib.Config, handel *lib.Handel
 	for _, thr := range thrs {
 		//nodeIncScenario(defaultConf, handel, "2000Nodes200Inst80.toml")
 		nodesInc := scenarios.NewNodeInc(defaultConf, handel, 3001, 4, 0, thrF(thr))
-		conf := nodesInc.Generate(2, []int{100, 400, 800, 1600, 3000})
+		conf := nodesInc.Generate(2, []int{100, 1000, 2000, 4000})
 		if oneFile {
 			defaultConf.Runs = append(defaultConf.Runs, conf.Runs...)
 		} else {
