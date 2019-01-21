@@ -7,7 +7,7 @@ import (
 )
 
 // GetFreePort returns a free tcp port or panics
-var afterPort = 10000
+var afterPort = 50000
 
 func GetFreePort() int {
 	for i := afterPort + 1; i < afterPort+1000; i++ {
