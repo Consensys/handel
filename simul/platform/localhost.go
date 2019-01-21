@@ -157,7 +157,6 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 		panic("timeout after 2 mn")
 	}
 
-	time.Sleep(500 * time.Millisecond)
 	master.Reset()
 	// 5. Wait all finished - then tell them to quit
 	select {
