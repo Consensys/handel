@@ -7,15 +7,15 @@ import (
 )
 
 // GetFreePort returns a free tcp port or panics
-var afterPort = 50000
+var afterPort = 10000
 
 func GetFreePort() int {
 	for i := afterPort + 1; i < afterPort+1000; i++ {
-		addr, err := net.ResolveTCPAddr("tcp4", "127.0.0.1:"+strconv.Itoa(i))
+		addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:"+strconv.Itoa(i))
 		if err != nil {
 			continue
 		}
-		sock, err := net.ListenTCP("tcp4", addr)
+		sock, err := net.ListenTCP("tcp", addr)
 		if err != nil {
 			continue
 		}
