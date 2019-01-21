@@ -220,10 +220,10 @@ func (c *Config) NewConstructor() Constructor {
 // of the config.
 func (c *Config) NewAllocator() Allocator {
 	switch c.Allocator {
-	case "linear":
-		return new(linearAllocator)
+	case "round":
+		return new(RoundRobin)
 	default:
-		return new(linearAllocator)
+		return new(RoundRobin)
 	}
 }
 

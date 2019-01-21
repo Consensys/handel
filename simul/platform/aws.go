@@ -235,12 +235,17 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 
 	slaveNodes := a.allSlaveNodes[0:min(r.Processes, len(a.allSlaveNodes))]
 	allocator := a.c.NewAllocator()
-	ids := allocator.Allocate(r.Nodes, r.Failing)
-	aws.UpdateInstances(ids, r.Nodes, slaveNodes, a.cons)
+	platforms := make([]lib.Platform, len(slaveNodes))
+	for i := 0; i < len(slaveNodes); i++ {
+		platforms[i] = slaveNodes[i]
+	}
+
+	allocation := allocator.Allocate(platforms, r.Nodes, r.Failing)
+	aws.UpdateInstances(slaveNodes, allocation, a.cons)
 	writeRegFile(r.Nodes, slaveNodes, a.masterCMDS.RegPath)
 	//*** Start Master
 	fmt.Println("[+] Registry file written to local storage(", r.Nodes, " nodes)")
-	fmt.Println("[*] Transfering registry file to S3")
+	fmt.Println("[*] Transferring registry file to S3")
 	transferToS3(a.masterCMDS.RegPath)
 
 	masterStart := a.masterCMDS.Start(
@@ -366,7 +371,7 @@ func makeMasterAndSlaves(allAwsInstances []aws.Instance) (*aws.Instance, []*aws.
 	for _, inst := range allAwsInstances {
 		if inst.Tag == aws.RnDMasterTag {
 			if nbOfMasterIns > 1 {
-				return nil, nil, errors.New("More than one Master instance avaliable")
+				return nil, nil, errors.New("more than one Master instance available")
 			}
 			masterInstance = inst
 			nbOfMasterIns++

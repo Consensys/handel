@@ -22,7 +22,7 @@ type Network struct {
 	enc       network.Encoding
 }
 
-// NewNetwork creates Nework baked by udp protocol
+// NewNetwork creates Network baked by udp protocol
 func NewNetwork(addr string, enc network.Encoding) (*Network, error) {
 	_, port, err := net.SplitHostPort(addr)
 	if err != nil {
