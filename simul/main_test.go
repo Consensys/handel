@@ -13,7 +13,6 @@ import (
 // This test runs the simulation with the `config_example.toml` config file
 // and checks the output / return code
 func TestMainLocalHost(t *testing.T) {
-	t.Skip()
 	resultsDir := "results"
 	configName := "config_example.toml"
 	plat := "localhost"

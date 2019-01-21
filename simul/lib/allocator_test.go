@@ -76,12 +76,9 @@ func TestAllocatorRoundRobin(t *testing.T) {
 		// 0-f, 1-t, 2-t, 3-f, 4-t, 5-t, 6-f
 		// -> plat 0 => 0,2,4,6
 		// -> plat 1 => 1,3,5
-		//{2, 7, 3, fps(fp(p(0), ni(0, false), ni(2, true), ni(4, true), ni(6, false)),
-		//fp(p(1), ni(1, true), ni(3, false), ni(5, true)))},
-		//{2, 7, 3, fps(fp(
-		//p(0), ni(0, false), ni(2, false), ni(4, false), ni(6, true)),
-		//fp(p(1), ni(1, true), ni(3, true), ni(5, true)))},
-		//>>>>>>> dev
+		{2, 7, 3, fps(fp(
+			p(0), ni(0, false), ni(2, false), ni(4, false), ni(6, true)),
+			fp(p(1), ni(1, true), ni(3, true), ni(5, true)))},
 	}
 	allocator := new(RoundRobin)
 	for i, test := range tests {
