@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -27,6 +28,7 @@ type SyncMaster struct {
 	sync.Mutex
 	addr      string
 	exp       int
+	probExp   int // probabilistically expected nb,i.e. 95% of exp
 	total     int
 	n         *udp.Network
 	readys    map[int]bool
@@ -45,6 +47,7 @@ func NewSyncMaster(addr string, expected, total int) *SyncMaster {
 	s := new(SyncMaster)
 	n.RegisterListener(s)
 	s.exp = expected
+	s.probExp = int(math.Ceil(float64(expected) * 0.95))
 	s.n = n
 	s.total = total
 	s.addr = addr
@@ -104,7 +107,11 @@ func (s *SyncMaster) handleReady(incoming *syncMessage) {
 	}
 	fmt.Print(s.String())
 	if len(s.readys) < s.exp {
-		return
+		if len(s.readys) >= s.probExp {
+			fmt.Printf("\n\n\n PROBABLILISTICALLY SYNCED AT 0.95\n\n\n")
+		} else {
+			return
+		}
 	}
 
 	s.done = true
@@ -121,9 +128,10 @@ func (s *SyncMaster) handleReady(incoming *syncMessage) {
 		ids = append(ids, id)
 	}
 	go func() {
+		s.waitAll <- true
 		for i := 0; i < 3; i++ {
 			s.n.Send(ids, packet)
-			s.waitAll <- true
+			time.Sleep(500 * time.Millisecond)
 		}
 	}()
 }
@@ -134,11 +142,11 @@ func (s *SyncMaster) String() string {
 	for id := 0; id < s.total; id++ {
 		_, ok := s.readys[id]
 		if !ok {
-			fmt.Fprintf(&b, "\t- %d -absent-", id)
+			fmt.Fprintf(&b, "\t- %03d -absent-  ", id)
 		} else {
 			//for id, msg := range s.readys {
 			//_, port, _ := net.SplitHostPort(msg.Address)
-			fmt.Fprintf(&b, "\t- %d +finished+", id)
+			fmt.Fprintf(&b, "\t- %03d +finished+", id)
 		}
 		if (id+1)%4 == 0 {
 			fmt.Fprintf(&b, "\n")
