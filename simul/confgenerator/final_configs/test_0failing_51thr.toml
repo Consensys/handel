@@ -1,0 +1,58 @@
+Network = "udp"
+Curve = "bn256"
+Encoding = "gob"
+Allocator = "round"
+MonitorPort = 10000
+Debug = 0
+Simulation = "handel"
+MaxTimeout = "5m"
+Retrials = 1
+ResultFile = ""
+
+[[Runs]]
+  Nodes = 400
+  Threshold = 204
+  Failing = 0
+  Processes = 2
+  [Runs.Handel]
+    Period = "10ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+
+[[Runs]]
+  Nodes = 800
+  Threshold = 408
+  Failing = 0
+  Processes = 2
+  [Runs.Handel]
+    Period = "10ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+
+[[Runs]]
+  Nodes = 1600
+  Threshold = 816
+  Failing = 0
+  Processes = 2
+  [Runs.Handel]
+    Period = "10ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+
+[[Runs]]
+  Nodes = 3000
+  Threshold = 1530
+  Failing = 0
+  Processes = 2
+  [Runs.Handel]
+    Period = "10ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0

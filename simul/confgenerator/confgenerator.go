@@ -43,13 +43,13 @@ func main() {
 	os.MkdirAll(configDir, 0777)
 
 	// 4 instance per proc
-	procF := getProcessF(4)
+	//procF := getProcessF(2)
 
 	thresholdIncScenario(configDir, defaultConf, handel)
 	//nsquareScenario(configDir, defaultConf, handel)
-	failingIncScenario(configDir, defaultConf, handel, procF)
-	timeoutIncScenario(configDir, defaultConf, handel, procF)
-	periodIncScenario(configDir, defaultConf, handel, procF)
+	//failingIncScenario(configDir, defaultConf, handel, procF)
+	//timeoutIncScenario(configDir, defaultConf, handel, procF)
+	//periodIncScenario(configDir, defaultConf, handel, procF)
 }
 
 func nsquareScenario(dir string, defaultConf lib.Config, handel *lib.HandelConfig, procF func(int) int) {
@@ -179,17 +179,17 @@ func failingIncScenario(dir string, defaultConf lib.Config, handel *lib.HandelCo
 func thresholdIncScenario(dir string, defaultConf lib.Config, handel *lib.HandelConfig) {
 
 	// do we want to output in one file or not
-	oneFile := true
+	oneFile := false
 	// various threshold to use
-	thrs := []float64{0.99, 0.75, 0.51, 0.30}
+	thrs := []float64{0.99, 0.75, 0.51}
 	for _, thr := range thrs {
 		//nodeIncScenario(defaultConf, handel, "2000Nodes200Inst80.toml")
-		nodesInc := scenarios.NewNodeInc(defaultConf, handel, 2001, 4, 0, thrF(thr))
-		conf := nodesInc.Generate(400)
+		nodesInc := scenarios.NewNodeInc(defaultConf, handel, 3001, 4, 0, thrF(thr))
+		conf := nodesInc.Generate(2, []int{400, 800, 1600, 3000})
 		if oneFile {
 			defaultConf.Runs = append(defaultConf.Runs, conf.Runs...)
 		} else {
-			fileName := fmt.Sprintf("2000nodes200inc%dthr.toml", int(thr))
+			fileName := fmt.Sprintf("test_0failing_%dthr.toml", int(thr*100))
 			full := filepath.Join(dir, fileName)
 			if err := conf.WriteTo(full); err != nil {
 				panic(err)
