@@ -223,8 +223,8 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 	} else {
 		config = DefaultConfig(r.Size())
 	}
-
-	part := config.NewPartitioner(id.ID(), r)
+	log := config.Logger.With("id", id.ID())
+	part := config.NewPartitioner(id.ID(), r, log)
 	firstBs := config.NewBitSet(1)
 	firstBs.Set(0, true)
 	mySig := &MultiSignature{BitSet: firstBs, Signature: s}
@@ -240,7 +240,7 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 		sig:         s,
 		out:         make(chan MultiSignature, 10000),
 		ticker:      time.NewTicker(config.UpdatePeriod),
-		log:         config.Logger.With("id", id.ID()),
+		log:         log,
 		levels:      createLevels(config, part),
 		ids:         part.Levels(),
 	}

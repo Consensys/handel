@@ -36,7 +36,7 @@ func TestStoreCombined(t *testing.T) {
 
 	for i, test := range tests {
 		t.Logf(" -- test %d --", i)
-		part := NewBinPartitioner(test.id, reg)
+		part := NewBinPartitioner(test.id, reg, DefaultLogger)
 		store := newReplaceStore(part, NewWilffBitset, new(fakeCons))
 		for _, sigs := range test.sigs {
 			store.Store(sigs)
@@ -49,7 +49,7 @@ func TestStoreCombined(t *testing.T) {
 func TestStoreFullSignature(t *testing.T) {
 	n := 8
 	reg := FakeRegistry(n)
-	part := NewBinPartitioner(1, reg)
+	part := NewBinPartitioner(1, reg, DefaultLogger)
 	store := newReplaceStore(part, NewWilffBitset, new(fakeCons))
 	bs1 := NewWilffBitset(1)
 	bs1.Set(0, true)
@@ -69,7 +69,7 @@ func TestStoreFullSignature(t *testing.T) {
 func TestStoreUnsafeCheckMerge(t *testing.T) {
 	n := 8
 	reg := FakeRegistry(n)
-	part := NewBinPartitioner(0, reg)
+	part := NewBinPartitioner(0, reg, DefaultLogger)
 	store := newReplaceStore(part, NewWilffBitset, new(fakeCons))
 
 	// We put a first sig. It should get in.
@@ -136,7 +136,7 @@ func TestStoreUnsafeCheckMerge(t *testing.T) {
 func TestStoreReplace(t *testing.T) {
 	n := 8
 	reg := FakeRegistry(n)
-	part := NewBinPartitioner(1, reg)
+	part := NewBinPartitioner(1, reg, DefaultLogger)
 	sig0 := &incomingSig{level: 0, ms: fullSig(0)}
 	sig1 := &incomingSig{level: 1, ms: fullSig(1)}
 	sig2 := &incomingSig{level: 2, ms: fullSig(2)}

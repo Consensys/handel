@@ -36,7 +36,7 @@ type Config struct {
 	// NewPartitioner returns the Partitioner to use for this Handel round. If
 	// nil, it returns the RandomBinPartitioner. The id is the ID Handel is
 	// responsible for and reg is the global registry of participants.
-	NewPartitioner func(id int32, reg Registry) Partitioner
+	NewPartitioner func(id int32, reg Registry, Logger Logger) Partitioner
 
 	// NewEvaluatorStrategy returns the signature evaluator to use during the
 	// Handel round.
@@ -101,8 +101,8 @@ var DefaultBitSet = func(bitlength int) BitSet { return NewWilffBitset(bitlength
 
 // DefaultPartitioner returns the default implementation of the Partitioner used
 // by Handel, i.e. BinPartitioner.
-var DefaultPartitioner = func(id int32, reg Registry) Partitioner {
-	return NewBinPartitioner(id, reg)
+var DefaultPartitioner = func(id int32, reg Registry, logger Logger) Partitioner {
+	return NewBinPartitioner(id, reg, logger)
 }
 
 // DefaultEvaluatorStrategy returns an evaluator based on the store's own

@@ -51,8 +51,8 @@ func NewTest(keys []SecretKey, pubs []PublicKey, c Constructor, msg []byte, conf
 	reg := NewArrayRegistry(ids)
 	logger := NewKitLogger(lvl.AllowDebug())
 	for i := 0; i < n; i++ {
-		newPartitioner := func(id int32, reg Registry) Partitioner {
-			return NewBinPartitioner(id, reg)
+		newPartitioner := func(id int32, reg Registry, logger Logger) Partitioner {
+			return NewBinPartitioner(id, reg, logger)
 		}
 		conf := *config
 		conf.Logger = logger
