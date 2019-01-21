@@ -193,7 +193,6 @@ func NewSyncSlave(own, master string, ids []int) *SyncSlave {
 	slave.internDone = make(chan bool, 1)
 	slave.sendDone = make(chan bool, 1)
 	go slave.sendReadyState()
-	go slave.waitDone()
 	return slave
 }
 
@@ -226,12 +225,6 @@ func (s *SyncSlave) WaitMaster() chan bool {
 	return s.waitCh
 }
 
-func (s *SyncSlave) waitDone() {
-	<-s.internDone
-	s.sendDone <- true
-	s.waitCh <- true
-}
-
 // NewPacket implements the Listener interface
 func (s *SyncSlave) NewPacket(p *handel.Packet) {
 	s.Lock()
@@ -249,7 +242,10 @@ func (s *SyncSlave) NewPacket(p *handel.Packet) {
 		panic("that should not happen")
 	}
 	s.done = true
-	s.internDone <- true
+
+	close(s.sendDone)
+	s.waitCh <- true
+
 }
 
 // Reset re-initializes the syncslave to its initial state - it sends its status
@@ -258,8 +254,8 @@ func (s *SyncSlave) Reset() {
 	s.Lock()
 	defer s.Unlock()
 	s.done = false
+	s.sendDone = make(chan bool, 1)
 	go s.sendReadyState()
-	go s.waitDone()
 
 }
 
