@@ -6,6 +6,9 @@ import (
 	"time"
 )
 
+
+
+
 // GetFreePort returns a free tcp port or panics
 func GetFreePort() int {
 	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
@@ -25,8 +28,11 @@ func GetFreePort() int {
 }
 
 // GetFreeUDPPort returns a free usable UDP address
+// We need to keep an history of the previous port we
+//  allocated, we do this with this global variable.
+var after = 10000 // fist port that we are trying
 func GetFreeUDPPort() int {
-	for i := 0; i < 1000; i++ {
+	for i := after + 1; i < after + 1000; i++ {
 		udpAddr, err := net.ResolveUDPAddr("udp4", "127.0.0.1:0")
 		if err != nil {
 			continue
