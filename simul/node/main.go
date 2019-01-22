@@ -72,7 +72,7 @@ func main() {
 		// Setup report handel and the id of the logger
 		config := runConf.GetHandelConfig()
 		config.Logger = logger
-		handel := h.NewHandel(network, registry, node.Identity, cons.Handel(), lib.Message, signature, runConf.GetHandelConfig())
+		handel := h.NewHandel(network, registry, node.Identity, cons.Handel(), lib.Message, signature, config)
 		reporter := h.NewReportHandel(handel)
 		handels = append(handels, reporter)
 	}
@@ -121,7 +121,7 @@ func main() {
 			storeMeasure.Record()
 			signatureGen.Record()
 			processingMeasure.Record()
-			logger.Debug("node", id, "sigen", "finished")
+			logger.Info("node", id, "sigen", "finished")
 
 			if err := h.VerifyMultiSignature(lib.Message, &sig, registry, cons.Handel()); err != nil {
 				panic("signature invalid !!")
