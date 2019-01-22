@@ -11,3 +11,10 @@ Simulation = "p2p/udp"
     Nodes = 4
     Threshold = 4
     Processes = 2
+
+[[Runs]]
+    Nodes = 4
+    Threshold = 4
+    Processes = 2
+    [Runs.Extra]
+        AggAndVerify = "1"  
