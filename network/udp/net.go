@@ -51,7 +51,7 @@ func NewNetwork(addr string, enc network.Encoding) (*Network, error) {
 	udpNet := &Network{
 		udpSock:   udpSock,
 		enc:       enc,
-		newPacket: make(chan *handel.Packet, 1),
+		newPacket: make(chan *handel.Packet, 20000),
 		process:   make(chan *handel.Packet, 1),
 		ready:     make(chan bool, 1),
 		done:      make(chan bool, 1),
