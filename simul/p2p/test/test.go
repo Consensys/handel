@@ -28,7 +28,7 @@ func Aggregators(t *testing.T, n, thr int, a p2p.Adaptor, opts p2p.Opts, getPort
 	cons := lib.NewSimulConstructor(bn256.NewConstructor())
 	ctx = context.WithValue(ctx, p2p.CtxKey("Constructor"), cons)
 	reg, p2pNodes := a.Make(ctx, nodes, ids, thr, opts)
-	aggregators := p2p.MakeAggregators(ctx, cons, p2pNodes, reg, thr, defaultResendP)
+	aggregators := p2p.MakeAggregators(ctx, cons, p2pNodes, reg, thr, opts)
 
 	var wg sync.WaitGroup
 	var counter int32
