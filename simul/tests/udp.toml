@@ -9,7 +9,7 @@ Simulation = "p2p/udp"
 
 [[Runs]]
     Nodes = 20
-    Threshold = 40
+    Threshold = 20
     Processes = 2
 
 [[Runs]]

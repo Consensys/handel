@@ -16,7 +16,9 @@ import (
 func TestMainLocalHost(t *testing.T) {
 	resultsDir := "results"
 	baseDir := "tests"
+	//configs := []string{"handel", "gossip", "udp"}
 	configs := []string{"handel", "gossip", "udp"}
+
 	for _, c := range configs {
 
 		configName := c + ".toml"
@@ -49,5 +51,7 @@ func TestMainLocalHost(t *testing.T) {
 			t.Fatalf("timeout in simulation " + configName)
 		}
 		require.FileExists(t, filepath.Join(resultsDir, c+".csv"))
+		cmd.Cmd.Process.Kill()
+		time.Sleep(2 * time.Second)
 	}
 }
