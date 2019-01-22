@@ -210,15 +210,15 @@ func toLibNodes(c lib.Constructor, nr []*lib.NodeRecord) ([]*lib.Node, error) {
 	n := len(nr)
 	nodes := make([]*lib.Node, n)
 	var err error
-	fmt.Printf("toLibNodes: ")
+	//fmt.Printf("toLibNodes: ")
 	for i, record := range nr {
 		nodes[i], err = record.ToNode(c)
-		fmt.Printf("\t-%d: %s \n ", i, nodes[i].Identity.PublicKey().String())
+		//fmt.Printf("\t-%d: %s \n ", i, nodes[i].Identity.PublicKey().String())
 		if err != nil {
 			return nil, err
 		}
 	}
-	fmt.Printf("\n")
+	//fmt.Printf("\n")
 	return nodes, nil
 }
 
