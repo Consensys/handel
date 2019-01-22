@@ -32,6 +32,8 @@ type Stats struct {
 
 	filter DataFilter
 	sync.Mutex
+
+	rcvd int
 }
 
 // NewStats return a Stats with the given defaults values. For example:
@@ -70,6 +72,14 @@ func (s *Stats) Update(m *singleMeasure) {
 		sort.Strings(s.keys)
 	}
 	value.Store(m.Value)
+	s.rcvd++
+}
+
+// Received returns the nmber of updates received for this stats
+func (s *Stats) Received() int {
+	s.Lock()
+	defer s.Unlock()
+	return s.rcvd
 }
 
 // WriteHeader will write the header to the writer

@@ -43,13 +43,45 @@ func main() {
 	os.MkdirAll(configDir, 0777)
 
 	// 4 instance per proc
-	procF := getProcessF(2)
+	procF := getProcessF(1)
 
 	thresholdIncScenario(configDir, defaultConf, handel)
 	nsquareScenario(configDir, defaultConf, handel, procF)
+	libp2pScenario(configDir, defaultConf, handel, procF)
 	//failingIncScenario(configDir, defaultConf, handel, procF)
 	//timeoutIncScenario(configDir, defaultConf, handel, procF)
 	//periodIncScenario(configDir, defaultConf, handel, procF)
+}
+
+func libp2pScenario(dir string, defaultConf lib.Config, handel *lib.HandelConfig, procF func(int) int) {
+	oldSimul := defaultConf.Simulation
+	defer func() { defaultConf.Simulation = oldSimul }()
+
+	defaultConf.Simulation = "p2p/libp2p"
+	nodes := []int{400, 800, 1400, 2000}
+	thrOfN := thrF(0.95)
+	var runs []lib.RunConfig
+	for _, verify := range []string{"0", "1"} {
+		for _, n := range nodes {
+			thr := thrOfN(n)
+			run := lib.RunConfig{
+				Nodes:     n,
+				Threshold: thr,
+				Failing:   0,
+				Processes: procF(n),
+				Handel:    handel,
+				Extra: map[string]string{
+					"AggAndVerify": verify,
+				},
+			}
+			runs = append(runs, run)
+		}
+	}
+	defaultConf.Runs = runs
+	fileName := "2000nodeLibp2pInc.toml"
+	if err := defaultConf.WriteTo(filepath.Join(dir, fileName)); err != nil {
+		panic(err)
+	}
 }
 
 func nsquareScenario(dir string, defaultConf lib.Config, handel *lib.HandelConfig, procF func(int) int) {

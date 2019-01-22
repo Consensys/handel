@@ -26,7 +26,10 @@ func TestSyncer(t *testing.T) {
 	tryWait := func(stateID int, m *SyncMaster, slaves []*SyncSlave) {
 		for i := range slaves {
 			go func(j int) {
-				slaves[j].SignalAll(stateID)
+				//slaves[j].SignalAll(stateID)
+				for _, id := range slaves[j].ids {
+					slaves[j].Signal(stateID, id)
+				}
 				doneSlave <- <-slaves[j].WaitMaster(stateID)
 			}(i)
 		}
