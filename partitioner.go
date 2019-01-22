@@ -56,10 +56,7 @@ type binomialPartitioner struct {
 	bitsize int
 	size    int
 	reg     Registry
-	// mapping for each level of the index of the last node picked for this
-	// level
-	picked map[int]int
-	logger Logger
+	logger  Logger
 }
 
 // NewBinPartitioner returns a binTreePartition using the given ID as its
@@ -70,7 +67,6 @@ func NewBinPartitioner(id int32, reg Registry, logger Logger) Partitioner {
 		reg:     reg,
 		id:      int(id),
 		bitsize: log2(reg.Size()),
-		picked:  make(map[int]int),
 		logger:  logger,
 	}
 }
@@ -353,3 +349,14 @@ func (c *binomialPartitioner) combine(sigs []*incomingSig, nbs func(int) BitSet)
 		},
 	}
 }
+
+/*type partCache struct {*/
+//p Partitioner
+//max int
+//sizes map[int] int
+//}
+
+//func newPartCache(p Partitioner) *partCache {
+//max := p.MaxLevel()
+
+/*}*/
