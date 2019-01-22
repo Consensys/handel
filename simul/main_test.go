@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -52,6 +53,8 @@ func TestMainLocalHost(t *testing.T) {
 		}
 		require.FileExists(t, filepath.Join(resultsDir, c+".csv"))
 		cmd.Cmd.Process.Kill()
+		exec.Command("pkill", "-9", "local.bin").Run()
 		time.Sleep(2 * time.Second)
+
 	}
 }
