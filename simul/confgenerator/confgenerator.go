@@ -43,10 +43,10 @@ func main() {
 	os.MkdirAll(configDir, 0777)
 
 	// 4 instance per proc
-	//procF := getProcessF(2)
+	procF := getProcessF(2)
 
 	thresholdIncScenario(configDir, defaultConf, handel)
-	//nsquareScenario(configDir, defaultConf, handel)
+	nsquareScenario(configDir, defaultConf, handel, procF)
 	//failingIncScenario(configDir, defaultConf, handel, procF)
 	//timeoutIncScenario(configDir, defaultConf, handel, procF)
 	//periodIncScenario(configDir, defaultConf, handel, procF)
@@ -57,6 +57,25 @@ func nsquareScenario(dir string, defaultConf lib.Config, handel *lib.HandelConfi
 	defer func() { defaultConf.Simulation = oldSimul }()
 
 	defaultConf.Simulation = "p2p/udp"
+	nodes := []int{200, 400, 800, 1600, 3000}
+	thrOfN := thrF(0.95)
+	var runs []lib.RunConfig
+	for _, n := range nodes {
+		thr := thrOfN(n)
+		run := lib.RunConfig{
+			Nodes:     n,
+			Threshold: thr,
+			Failing:   0,
+			Processes: procF(n),
+			Handel:    handel,
+		}
+		runs = append(runs, run)
+	}
+	defaultConf.Runs = runs
+	fileName := "3000nodeSquareInc.toml"
+	if err := defaultConf.WriteTo(filepath.Join(dir, fileName)); err != nil {
+		panic(err)
+	}
 }
 
 // periodIncScenario increases the "update" period
@@ -97,7 +116,6 @@ func periodIncScenario(dir string, defaultConf lib.Config, handel *lib.HandelCon
 	if err := defaultConf.WriteTo(filepath.Join(dir, fileName)); err != nil {
 		panic(err)
 	}
-
 }
 
 // scenario that increases the timeout with different failing number of nodes -
