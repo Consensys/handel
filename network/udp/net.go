@@ -52,7 +52,7 @@ func NewNetwork(addr string, enc network.Encoding) (*Network, error) {
 		udpSock:   udpSock,
 		enc:       enc,
 		newPacket: make(chan *handel.Packet, 20000),
-		process:   make(chan *handel.Packet, 1),
+		process:   make(chan *handel.Packet, 100),
 		ready:     make(chan bool, 1),
 		done:      make(chan bool, 1),
 	}
@@ -144,7 +144,9 @@ func (udpNet *Network) loop() {
 	var ready = false
 	send := func() {
 		if pendings.Len() == 0 {
-			ready = true
+			return
+		}
+		if !ready {
 			return
 		}
 		toProcess := pendings.Remove(pendings.Front()).(*handel.Packet)
@@ -163,6 +165,7 @@ func (udpNet *Network) loop() {
 				send()
 			}
 		case <-udpNet.ready:
+			ready = true
 			send()
 		case <-udpNet.done:
 			return

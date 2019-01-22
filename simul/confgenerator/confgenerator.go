@@ -43,7 +43,7 @@ func main() {
 	os.MkdirAll(configDir, 0777)
 
 	// 4 instance per proc
-	procF := getProcessF(1)
+	procF := getProcessF(2)
 
 	thresholdIncScenario(configDir, defaultConf, handel)
 	nsquareScenario(configDir, defaultConf, handel, procF)
@@ -58,60 +58,63 @@ func libp2pScenario(dir string, defaultConf lib.Config, handel *lib.HandelConfig
 	defer func() { defaultConf.Simulation = oldSimul }()
 
 	defaultConf.Simulation = "p2p/libp2p"
-	nodes := []int{400, 800, 1400, 2000}
-	thrOfN := thrF(0.95)
-	var runs []lib.RunConfig
-	for _, verify := range []string{"0", "1"} {
-		for _, n := range nodes {
-			thr := thrOfN(n)
-			run := lib.RunConfig{
-				Nodes:     n,
-				Threshold: thr,
-				Failing:   0,
-				Processes: procF(n),
-				Handel:    handel,
-				Extra: map[string]string{
-					"AggAndVerify": verify,
-				},
+	nodes := []int{100, 1000, 2000}
+	thresholds := []float64{0.51, 0.75, 0.99}
+	for _, thr := range thresholds {
+		for _, verify := range []string{"0", "1"} {
+			var runs []lib.RunConfig
+			for _, n := range nodes {
+				run := lib.RunConfig{
+					Nodes:     n,
+					Threshold: thrF(thr)(n),
+					Failing:   0,
+					Processes: procF(n),
+					Handel:    handel,
+					Extra: map[string]string{
+						"AggAndVerify": verify,
+					},
+				}
+				runs = append(runs, run)
 			}
-			runs = append(runs, run)
+			defaultConf.Runs = runs
+			fileName := fmt.Sprintf("2000node_Libp2pInc_%dthr_agg%s.toml", int(thr*100), verify)
+			if err := defaultConf.WriteTo(filepath.Join(dir, fileName)); err != nil {
+				panic(err)
+			}
+
 		}
-	}
-	defaultConf.Runs = runs
-	fileName := "2000nodeLibp2pInc.toml"
-	if err := defaultConf.WriteTo(filepath.Join(dir, fileName)); err != nil {
-		panic(err)
 	}
 }
 
 func nsquareScenario(dir string, defaultConf lib.Config, handel *lib.HandelConfig, procF func(int) int) {
 	oldSimul := defaultConf.Simulation
 	defer func() { defaultConf.Simulation = oldSimul }()
-
 	defaultConf.Simulation = "p2p/udp"
-	nodes := []int{400, 1000, 2000}
-	thrOfN := thrF(0.95)
-	var runs []lib.RunConfig
-	for _, verify := range []string{"0", "1"} {
-		for _, n := range nodes {
-			thr := thrOfN(n)
-			run := lib.RunConfig{
-				Nodes:     n,
-				Threshold: thr,
-				Failing:   0,
-				Processes: procF(n),
-				Handel:    handel,
-				Extra: map[string]string{
-					"AggAndVerify": verify,
-				},
+	nodes := []int{100, 1000, 2000}
+	thresholds := []float64{0.51, 0.75, 0.99}
+	for _, thr := range thresholds {
+		for _, verify := range []string{"0", "1"} {
+			var runs []lib.RunConfig
+			for _, n := range nodes {
+				run := lib.RunConfig{
+					Nodes:     n,
+					Threshold: thrF(thr)(n),
+					Failing:   0,
+					Processes: procF(n),
+					Handel:    handel,
+					Extra: map[string]string{
+						"AggAndVerify": verify,
+					},
+				}
+				runs = append(runs, run)
 			}
-			runs = append(runs, run)
+			defaultConf.Runs = runs
+			fileName := fmt.Sprintf("2000node_nsquareInc_%dthr_agg%s.toml", int(thr*100), verify)
+			if err := defaultConf.WriteTo(filepath.Join(dir, fileName)); err != nil {
+				panic(err)
+			}
+
 		}
-	}
-	defaultConf.Runs = runs
-	fileName := "2000nodeSquareInc.toml"
-	if err := defaultConf.WriteTo(filepath.Join(dir, fileName)); err != nil {
-		panic(err)
 	}
 }
 
