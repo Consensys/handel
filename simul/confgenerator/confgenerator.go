@@ -57,22 +57,27 @@ func nsquareScenario(dir string, defaultConf lib.Config, handel *lib.HandelConfi
 	defer func() { defaultConf.Simulation = oldSimul }()
 
 	defaultConf.Simulation = "p2p/udp"
-	nodes := []int{200, 400, 800, 1600, 3000}
+	nodes := []int{400, 1000, 2000}
 	thrOfN := thrF(0.95)
 	var runs []lib.RunConfig
-	for _, n := range nodes {
-		thr := thrOfN(n)
-		run := lib.RunConfig{
-			Nodes:     n,
-			Threshold: thr,
-			Failing:   0,
-			Processes: procF(n),
-			Handel:    handel,
+	for _, verify := range []string{"0", "1"} {
+		for _, n := range nodes {
+			thr := thrOfN(n)
+			run := lib.RunConfig{
+				Nodes:     n,
+				Threshold: thr,
+				Failing:   0,
+				Processes: procF(n),
+				Handel:    handel,
+				Extra: map[string]string{
+					"AggAndVerify": verify,
+				},
+			}
+			runs = append(runs, run)
 		}
-		runs = append(runs, run)
 	}
 	defaultConf.Runs = runs
-	fileName := "3000nodeSquareInc.toml"
+	fileName := "2000nodeSquareInc.toml"
 	if err := defaultConf.WriteTo(filepath.Join(dir, fileName)); err != nil {
 		panic(err)
 	}
