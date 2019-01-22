@@ -12,7 +12,7 @@ var baseTCP = 10000
 
 // GetFreeTCPPort returns a free tcp port or panics
 func GetFreeTCPPort() int {
-	for i := baseTCP + 1; i < baseTCP+1000; i++ {
+	for i := baseTCP + 1; i < baseTCP+50000; i++ {
 		addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:"+strconv.Itoa(i))
 		if err != nil {
 			continue
@@ -35,7 +35,7 @@ var baseUDP = 30000
 // We need to keep an history of the previous port we
 //  allocated, we do this with this global variable.
 func GetFreeUDPPort() int {
-	for i := baseUDP + 1; i < baseUDP+1000; i++ {
+	for i := baseUDP + 1; i < baseUDP+30000; i++ {
 		udpAddr, err := net.ResolveUDPAddr("udp4", "127.0.0.1:"+strconv.Itoa(i))
 		if err != nil {
 			continue
