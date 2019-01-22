@@ -21,7 +21,7 @@ func TestUDPNetwork(t *testing.T) {
 	}))
 
 	id2 := handel.NewStaticIdentity(2, "127.0.0.1:3001", nil)
-	n1.Send([]handel.Identity{id2}, &handel.Packet{Origin: 2})
+	n1.Send([]handel.Identity{id2}, &handel.Packet{Origin: 2, MultiSig: []byte{0x01}})
 
 	select {
 	case <-received:
