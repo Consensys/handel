@@ -35,6 +35,7 @@ type SyncMaster struct {
 }
 
 type state struct {
+	sync.Mutex
 	n         handel.Network
 	id        int
 	total     int
@@ -64,6 +65,8 @@ func (s *state) WaitFinish() chan bool {
 }
 
 func (s *state) newMessage(msg *syncMessage) {
+	s.Lock()
+	defer s.Unlock()
 	if msg.State != s.id {
 		panic("this should not happen")
 	}
@@ -102,8 +105,10 @@ func (s *state) newMessage(msg *syncMessage) {
 		ids = append(ids, id)
 	}
 	go func() {
-		if len(s.readys) >= s.exp && !s.done {
-			s.finished <- true
+		if len(s.readys) >= s.probExp {
+			if len(s.finished) == 0 {
+				s.finished <- true
+			}
 			s.done = true
 		}
 		for i := 0; i < retrials; i++ {
