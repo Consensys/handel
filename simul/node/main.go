@@ -79,6 +79,7 @@ func main() {
 
 	// Sync with master - wait for the START signal
 	syncer := lib.NewSyncSlave(*syncAddr, *master, ids)
+	syncer.SignalAll(lib.START)
 	select {
 	case <-syncer.WaitMaster(lib.START):
 		logger.Debug("sync", "finished", "nodes", ids.String())
@@ -126,6 +127,7 @@ func main() {
 			if err := h.VerifyMultiSignature(lib.Message, &sig, registry, cons.Handel()); err != nil {
 				panic("signature invalid !!")
 			}
+			syncer.Signal(lib.END, id)
 		}(i)
 	}
 	wg.Wait()

@@ -275,12 +275,26 @@ func NewSyncSlave(own, master string, ids []int) *SyncSlave {
 const retrials = 5
 const wait = 1 * time.Second
 
-// WaitMaster first signals the master node for this ID and returns the channel
+// WaitMaster first signals the master node for this state and returns the channel
 // that gets signaled when the master sends back a message with the same id.
-func (s *SyncSlave) WaitMaster(id int) chan bool {
-	state := s.getOrCreate(id)
-	go state.signal(s.ids)
+// This signals all ids given in parameter at once in one packet.
+func (s *SyncSlave) WaitMaster(stateID int) chan bool {
+	state := s.getOrCreate(stateID)
 	return state.WaitFinish()
+}
+
+// SignalAll sends a signal for the given state by sending all ids given to the
+// slave in one packet.
+func (s *SyncSlave) SignalAll(stateID int) {
+	state := s.getOrCreate(stateID)
+	go state.signal(s.ids)
+}
+
+// Signal sends an individual signal for the given state signalling only the
+// given ID.
+func (s *SyncSlave) Signal(stateID int, id int) {
+	state := s.getOrCreate(stateID)
+	go state.signal([]int{id})
 }
 
 func (s *SyncSlave) getOrCreate(id int) *slaveState {
