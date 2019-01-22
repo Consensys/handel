@@ -24,9 +24,6 @@ type CtxKey string
 // make
 const MaxCount = 10
 
-// BeaconTimeout represents how much time do we wait to receive the beacon
-const BeaconTimeout = 2 * time.Minute
-
 var configFile = flag.String("config", "", "config file created for the exp.")
 var registryFile = flag.String("registry", "", "registry file based - array registry")
 var ids arrayFlags
@@ -93,7 +90,7 @@ func Run(a Adaptor) {
 			now.Nanosecond())
 
 		fmt.Printf("\n%s [+] %s synced - starting\n", formatted, ids.String())
-	case <-time.After(BeaconTimeout):
+	case <-time.After(config.GetMaxTimeout()):
 		panic("Haven't received beacon in time!")
 	}
 
@@ -154,7 +151,7 @@ func Run(a Adaptor) {
 			now.Nanosecond())
 
 		fmt.Printf("\n%s [+] %s synced - closing shop\n", formatted, ids.String())
-	case <-time.After(BeaconTimeout):
+	case <-time.After(config.GetMaxTimeout()):
 		panic("Haven't received beacon in time!")
 	}
 }
