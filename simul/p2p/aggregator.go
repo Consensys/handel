@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/ConsenSys/handel"
@@ -23,45 +24,52 @@ type Node interface {
 // Aggregator is a struct holding the logic to aggregates all signatures
 // gossiped until it gets the final one
 type Aggregator struct {
+	sync.Mutex
 	Node
-	sig       handel.Signature
-	total     int
-	threshold int
-	rcvd      int
-	out       chan *handel.MultiSignature
-	r         handel.Registry
-	accSig    handel.Signature
-	accBs     handel.BitSet
-	c         handel.Constructor
-	acc       chan []byte
-	done      chan bool
-	resendP   time.Duration
-	tick      *time.Ticker
-	ctx       context.Context
-	procReady chan bool
-	newPacket chan *handel.Packet
+	sig          handel.Signature
+	total        int
+	threshold    int
+	rcvd         int
+	out          chan *handel.MultiSignature
+	r            handel.Registry
+	accSig       handel.Signature
+	accBs        handel.BitSet
+	c            handel.Constructor
+	acc          chan []byte
+	done         chan bool
+	resendP      time.Duration
+	tick         *time.Ticker
+	ctx          context.Context
+	procReady    chan bool
+	newPacket    chan handel.Packet
+	aggAndVerify bool
+	// only used when aggAndVerify is true - aggregate everything then search
+	// for the bad ones
+	indSigs map[int]handel.Signature
 }
 
 // NewAggregator returns an aggregator from the P2PNode
-func NewAggregator(ctx context.Context, n Node, r handel.Registry, c handel.Constructor, sig handel.Signature, threshold int, resendPeriod time.Duration) *Aggregator {
+func NewAggregator(ctx context.Context, n Node, r handel.Registry, c handel.Constructor, sig handel.Signature, threshold int, resendPeriod time.Duration, aggAndVerify bool) *Aggregator {
 	total := r.Size()
 	return &Aggregator{
-		Node:      n,
-		sig:       sig,
-		r:         r,
-		rcvd:      0,
-		c:         c,
-		total:     total,
-		threshold: threshold,
-		accBs:     handel.NewWilffBitset(total),
-		accSig:    c.Signature(),
-		out:       make(chan *handel.MultiSignature, 1),
-		acc:       make(chan []byte, total),
-		done:      make(chan bool, 1),
-		procReady: make(chan bool, 1),
-		newPacket: make(chan *handel.Packet, 10),
-		resendP:   resendPeriod,
-		ctx:       ctx,
+		aggAndVerify: aggAndVerify,
+		Node:         n,
+		sig:          sig,
+		r:            r,
+		rcvd:         0,
+		c:            c,
+		total:        total,
+		threshold:    threshold,
+		accBs:        handel.NewWilffBitset(total),
+		accSig:       c.Signature(),
+		out:          make(chan *handel.MultiSignature, 1),
+		acc:          make(chan []byte, total),
+		done:         make(chan bool, 1),
+		procReady:    make(chan bool, 1),
+		newPacket:    make(chan handel.Packet, 10),
+		resendP:      resendPeriod,
+		ctx:          ctx,
+		indSigs:      make(map[int]handel.Signature),
 	}
 }
 
@@ -110,23 +118,26 @@ func (a *Aggregator) readNexts() {
 	packets := list.New()
 	var ready bool
 	send := func() {
+		if packets.Len() == 0 {
+			ready = true
+			return
+		}
 		p := packets.Remove(packets.Front()).(handel.Packet)
-		a.newPacket <- &p
+		a.newPacket <- p
+		ready = false
 	}
 	for {
 		select {
 		case packet := <-a.Node.Next():
+			if len(packet.MultiSig) == 0 {
+				continue
+			}
 			packets.PushBack(packet)
 			if ready {
 				send()
-				ready = false
 			}
 		case <-a.procReady:
-			if packets.Len() == 0 {
-				ready = true
-			} else {
-				send()
-			}
+			send()
 		case <-a.ctx.Done():
 			return
 		case <-a.done:
@@ -142,12 +153,72 @@ func (a *Aggregator) handleIncoming() {
 		case <-a.done:
 			return
 		case packet := <-a.newPacket:
-			a.verifyPacket(packet)
+			if a.aggAndVerify {
+				a.aggregate(packet)
+			} else {
+				a.verifyPacket(packet)
+			}
 		}
 	}
 }
 
-func (a *Aggregator) verifyPacket(packet *handel.Packet) {
+func (a *Aggregator) aggregate(packet handel.Packet) {
+	defer func() { a.procReady <- true }()
+	if a.accBs.Get(int(packet.Origin)) {
+		fmt.Println("already received - continue")
+		return
+	}
+
+	ms := new(handel.MultiSignature)
+	err := ms.Unmarshal(packet.MultiSig, a.c.Signature(), handel.NewWilffBitset)
+	if err != nil {
+		panic(err)
+	}
+
+	a.Lock()
+	defer a.Unlock()
+	// simply store it  and aggrregate it even if not verified yet
+	a.indSigs[int(packet.Origin)] = ms.Signature
+	a.accSig = a.accSig.Combine(ms.Signature)
+	a.accBs.Set(int(packet.Origin), true)
+	a.rcvd++
+	fmt.Println(a.Node.Identity().ID(), "got sig from", packet.Origin, " -> ", a.rcvd, "/", a.total)
+	// are we done
+	if a.rcvd >= a.threshold {
+		go a.verifyAndDispatch()
+	}
+}
+
+// verify the aggregated signature first, then do a binary lookover if not
+// correct to find the invalid ones then dispatch
+func (a *Aggregator) verifyAndDispatch() {
+	a.Lock()
+	defer a.Unlock()
+	ms := &handel.MultiSignature{
+		Signature: a.accSig,
+		BitSet:    a.accBs,
+	}
+	err := handel.VerifyMultiSignature(lib.Message, ms, a.r, a.c)
+	if err != nil {
+		//panic(" --- aggregator invalid !!")
+		// TODO BINARY SEARCH
+		return
+	}
+	fmt.Println(a.Identity().ID(), " -- Dispatched Signature -- ")
+	copySig := a.c.Signature()
+	buff, _ := a.accSig.MarshalBinary()
+	if err := copySig.UnmarshalBinary(buff); err != nil {
+		panic(err)
+	}
+	a.out <- &handel.MultiSignature{
+		Signature: copySig,
+		BitSet:    a.accBs.Clone(),
+	}
+	//close(a.done)
+	return
+}
+
+func (a *Aggregator) verifyPacket(packet handel.Packet) {
 	defer func() { a.procReady <- true }()
 	//fmt.Printf("aggregator %d received packet from %d\n", a.P2PNode.handelID, packet.Origin)
 	// check if already received

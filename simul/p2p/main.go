@@ -77,7 +77,7 @@ func Run(a Adaptor) {
 	// transform into lib.Node
 	libNodes, err := toLibNodes(cons, records)
 	registry, p2pNodes := a.Make(ctx, libNodes, ids, runConf.GetThreshold(), runConf.Extra)
-	aggregators := MakeAggregators(ctx, cons, p2pNodes, registry, runConf.GetThreshold(), extractResendPeriod(runConf.Extra))
+	aggregators := MakeAggregators(ctx, cons, p2pNodes, registry, runConf.GetThreshold(), runConf.Extra)
 
 	// Sync with master - wait for the START signal
 	syncer := lib.NewSyncSlave(*syncAddr, *master, ids)
@@ -176,7 +176,9 @@ func (i *arrayFlags) Set(value string) error {
 }
 
 // MakeAggregators returns
-func MakeAggregators(ctx context.Context, c lib.Constructor, nodes []Node, reg handel.Registry, threshold int, resendPeriod time.Duration) []*Aggregator {
+func MakeAggregators(ctx context.Context, c lib.Constructor, nodes []Node, reg handel.Registry, threshold int, opts Opts) []*Aggregator {
+	resendPeriod := extractResendPeriod(opts)
+	aggAndVerify := extractAggTechnique(opts)
 	var aggs = make([]*Aggregator, 0, len(nodes))
 	for _, node := range nodes {
 		//i := int(node.Identity().ID())
@@ -185,7 +187,7 @@ func MakeAggregators(ctx context.Context, c lib.Constructor, nodes []Node, reg h
 			fmt.Println(err)
 			panic(err)
 		}
-		agg := NewAggregator(ctx, node, reg, c.Handel(), sig, threshold, resendPeriod)
+		agg := NewAggregator(ctx, node, reg, c.Handel(), sig, threshold, resendPeriod, aggAndVerify)
 		aggs = append(aggs, agg)
 	}
 	return aggs
@@ -234,4 +236,18 @@ func extractResendPeriod(opts Opts) time.Duration {
 		panic(err)
 	}
 	return t
+}
+
+func extractAggTechnique(opts Opts) bool {
+	var out bool
+	v, ok := opts.Int("AggAndVerify")
+	if !ok {
+		v = 0
+	}
+	if v == 0 {
+		out = false
+	} else {
+		out = true
+	}
+	return out
 }
