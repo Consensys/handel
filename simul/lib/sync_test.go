@@ -23,10 +23,11 @@ func TestSyncer(t *testing.T) {
 		defer slaves[i].Stop()
 	}
 
-	tryWait := func(id int, m *SyncMaster, slaves []*SyncSlave) {
+	tryWait := func(stateID int, m *SyncMaster, slaves []*SyncSlave) {
 		for i := range slaves {
 			go func(j int) {
-				doneSlave <- <-slaves[j].WaitMaster(id)
+				slaves[j].SignalAll(stateID)
+				doneSlave <- <-slaves[j].WaitMaster(stateID)
 			}(i)
 		}
 		var masterDone bool
@@ -34,7 +35,7 @@ func TestSyncer(t *testing.T) {
 
 		for {
 			select {
-			case <-master.WaitAll(id):
+			case <-master.WaitAll(stateID):
 				masterDone = true
 			case <-doneSlave:
 				slavesDone++

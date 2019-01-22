@@ -81,6 +81,7 @@ func Run(a Adaptor) {
 
 	// Sync with master - wait for the START signal
 	syncer := lib.NewSyncSlave(*syncAddr, *master, ids)
+	syncer.SignalAll(lib.START)
 	select {
 	case <-syncer.WaitMaster(lib.START):
 		now := time.Now()
@@ -126,6 +127,7 @@ func Run(a Adaptor) {
 			if err := h.VerifyMultiSignature(lib.Message, sig, registry, cons.Handel()); err != nil {
 				panic("signature invalid !!")
 			}
+			syncer.Signal(lib.END, int(id))
 		}(i)
 	}
 

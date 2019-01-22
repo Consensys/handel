@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ConsenSys/handel/simul/platform"
 	"github.com/stretchr/testify/require"
@@ -14,30 +15,43 @@ import (
 // and checks the output / return code
 func TestMainLocalHost(t *testing.T) {
 	resultsDir := "results"
-	configName := "config_example.toml"
-	plat := "localhost"
-	cmd := platform.NewCommand("go", "run", "main.go",
-		"-config", configName,
-		"-platform", plat)
-	chLine := cmd.LineOutput()
-	foundCh := make(chan bool, 1)
-	go func() {
-		found := false
-		for line := range chLine {
-			fmt.Println(line)
-			if strings.Contains(line, "success") {
-				foundCh <- true
-				found = true
+	baseDir := "tests"
+	//configs := []string{"handel", "gossip", "udp"}
+	configs := []string{"handel", "gossip", "udp"}
+
+	for _, c := range configs {
+
+		configName := c + ".toml"
+		fullPath := filepath.Join(baseDir, configName)
+		plat := "localhost"
+		cmd := platform.NewCommand("go", "run", "main.go",
+			"-config", fullPath,
+			"-platform", plat)
+		chLine := cmd.LineOutput()
+		foundCh := make(chan bool, 1)
+		go func() {
+			found := false
+			for line := range chLine {
+				fmt.Println(line)
+				if strings.Contains(line, "success") {
+					foundCh <- true
+					found = true
+				}
 			}
+			if !found {
+				foundCh <- false
+			}
+		}()
+		err := cmd.Cmd.Run()
+		require.NoError(t, err)
+		select {
+		case out := <-foundCh:
+			require.True(t, out)
+		case <-time.After(1 * time.Minute):
+			t.Fatalf("timeout in simulation " + configName)
 		}
-		if !found {
-			foundCh <- false
-		}
-	}()
-	err := cmd.Cmd.Run()
-	require.NoError(t, err)
-
-	require.True(t, <-foundCh)
-
-	require.FileExists(t, filepath.Join(resultsDir, "config_example.csv"))
+		require.FileExists(t, filepath.Join(resultsDir, c+".csv"))
+		cmd.Cmd.Process.Kill()
+		time.Sleep(2 * time.Second)
+	}
 }
