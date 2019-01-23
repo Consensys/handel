@@ -79,6 +79,9 @@ func TestAllocatorRoundRobin(t *testing.T) {
 		{2, 7, 3, fps(fp(
 			p(0), ni(0, false), ni(2, false), ni(4, false), ni(6, true)),
 			fp(p(1), ni(1, true), ni(3, true), ni(5, true)))},
+		{2000, 4000, 40, nil},
+		{2000, 4000, 1000, nil},
+		{2000, 4000, 1960, nil},
 	}
 	allocator := new(RoundRobin)
 	for i, test := range tests {
@@ -86,6 +89,9 @@ func TestAllocatorRoundRobin(t *testing.T) {
 		fmt.Printf(" -- test %d -- \n", i)
 		plats := ps(test.plats)
 		res := allocator.Allocate(plats, test.total, test.offline)
+		if test.expected == nil {
+			continue
+		}
 		require.Equal(t, test.expected, res)
 	}
 }

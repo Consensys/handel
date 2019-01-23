@@ -231,7 +231,7 @@ func requireNil(err error) {
 func extractResendPeriod(opts Opts) time.Duration {
 	str, ok := opts.String("ResendPeriod")
 	if !ok {
-		str = "1s"
+		str = "200ms"
 	}
 	t, err := time.ParseDuration(str)
 	if err != nil {
