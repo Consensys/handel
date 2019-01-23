@@ -13,13 +13,17 @@ func (p *PlatString) String() string {
 	return string(*p)
 }
 
-func TestAllocatorRoundRobin(t *testing.T) {
+func TestAllocator(t *testing.T) {
 	type allocTest struct {
-		plats    int
-		total    int
-		offline  int
-		expected map[string][]*NodeInfo
+		allocator Allocator
+		plats     int
+		total     int
+		offline   int
+		expected  map[string][]*NodeInfo
 	}
+
+	robin := new(RoundRobin)
+	random := NewRoundRandomOffline()
 
 	// create one platform from the integer
 	p := func(n int) Platform {
@@ -65,30 +69,31 @@ func TestAllocatorRoundRobin(t *testing.T) {
 	// golint not complaining of unused variable in this case
 
 	var tests = []allocTest{
-		// everything on the same platform
-		{1, 5, 0, fp(p(0), ni(0, true), ni(1, true), ni(2, true), ni(3, true), ni(4, true))},
+		// everything on the same platfor/*m*/
+		{robin, 1, 5, 0, fp(p(0), ni(0, true), ni(1, true), ni(2, true), ni(3, true), ni(4, true))},
 		// everything on two platform
-		{2, 5, 0, fps(fp(p(0), ni(0, true), ni(2, true), ni(4, true)), fp(p(1), ni(1, true), ni(3, true)))},
+		{robin, 2, 5, 0, fps(fp(p(0), ni(0, true), ni(2, true), ni(4, true)), fp(p(1), ni(1, true), ni(3, true)))},
 		// 2 failing nodes on the same platform
-		{1, 5, 2, fp(
+		{robin, 1, 5, 2, fp(
 			p(0), ni(0, false), ni(1, true), ni(2, false), ni(3, true), ni(4, true))},
 		// 3 failing nodes on two different platform
 		// 0-f, 1-t, 2-t, 3-f, 4-t, 5-t, 6-f
 		// -> plat 0 => 0,2,4,6
 		// -> plat 1 => 1,3,5
-		{2, 7, 3, fps(fp(
+		{robin, 2, 7, 3, fps(fp(
 			p(0), ni(0, false), ni(2, false), ni(4, false), ni(6, true)),
 			fp(p(1), ni(1, true), ni(3, true), ni(5, true)))},
-		{2000, 4000, 40, nil},
-		{2000, 4000, 1000, nil},
-		{2000, 4000, 1960, nil},
+		{robin, 2000, 4000, 40, nil},
+		{robin, 2000, 4000, 1000, nil},
+		{robin, 2000, 4000, 1960, nil},
+		{random, 2000, 4000, 1000, nil},
+		{random, 2000, 4000, 1960, nil},
 	}
-	allocator := new(RoundRobin)
 	for i, test := range tests {
 		t.Logf(" -- test %d --", i)
 		fmt.Printf(" -- test %d -- \n", i)
 		plats := ps(test.plats)
-		res := allocator.Allocate(plats, test.total, test.offline)
+		res := test.allocator.Allocate(plats, test.total, test.offline)
 		if test.expected == nil {
 			continue
 		}
