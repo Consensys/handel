@@ -332,6 +332,8 @@ const (
 	START = iota
 	// END id
 	END
+	// P2P id
+	P2P
 )
 
 // syncMessage is what is sent between a SyncMaster and a SyncSlave

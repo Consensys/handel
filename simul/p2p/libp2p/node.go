@@ -10,6 +10,7 @@ import (
 	"log"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ConsenSys/handel"
@@ -349,6 +350,7 @@ func getRouter(opts map[string]string) NewRouter {
 }
 
 type proxyReporter struct {
+	sync.Mutex
 	metrics.Reporter
 	bytesSent int64
 	bytesRcvd int64
@@ -359,17 +361,23 @@ func newProxyReporter() *proxyReporter {
 }
 
 func (p *proxyReporter) LogRecvMessage(i int64) {
+	p.Lock()
 	p.bytesRcvd += i
+	p.Unlock()
 	p.Reporter.LogRecvMessage(i)
 }
 
 func (p *proxyReporter) LogSentMessage(i int64) {
+	p.Lock()
 	p.bytesSent += i
+	p.Unlock()
 	p.Reporter.LogRecvMessage(i)
 }
 
 // Values implement the monitor.Counter interface
 func (p *proxyReporter) Values() map[string]float64 {
+	p.Lock()
+	defer p.Unlock()
 	return map[string]float64{
 		// XXX round up  here might be problem
 		"sentBytes": float64(p.bytesSent),

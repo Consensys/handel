@@ -71,6 +71,7 @@ func (udpNet *Network) Stop() {
 	if udpNet.quit {
 		return
 	}
+	udpNet.udpSock.Close()
 	udpNet.quit = true
 	close(udpNet.done)
 }
