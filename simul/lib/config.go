@@ -51,7 +51,7 @@ type Config struct {
 	// valid value: "gob" (default)
 	Encoding string
 	// which allocator to use when experimenting failing nodes
-	// valid value: "linear" (default)
+	// valid value: "round" (default) or "random"
 	Allocator string
 	// which is the port to send measurements to
 	MonitorPort int
@@ -224,6 +224,8 @@ func (c *Config) NewAllocator() Allocator {
 	switch c.Allocator {
 	case "round":
 		return new(RoundRobin)
+	case "random":
+		return NewRoundRandomOffline()
 	default:
 		return new(RoundRobin)
 	}
