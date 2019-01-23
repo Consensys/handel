@@ -64,18 +64,18 @@ func (r *RoundRobin) Allocate(plats []Platform, total, offline int) map[string][
 			list := out[s]
 			for idx, ni := range list {
 				if ni.ID != -1 {
-					// already allocated
-					continue
+					continue // already allocated
 				}
 				list[idx].ID = i
 				if i == nextOffline && offline > 0 {
 					list[idx].Active = false
-					nextOffline = (nextOffline + bucketOffline) % total
+					nextOffline += bucketOffline
 					offline--
-					/*if nextOffline <= i || nextOffline >= total {*/
-					//fmt.Printf("i %d - nextOffline %d\n", i, nextOffline)
-					//panic("internal error")
-					/*}*/
+					if offline > 0 && (nextOffline <= i || nextOffline >= total) {
+						err := fmt.Errorf("allocator error: offline=%d, i=%d, nextOffline %d\n",
+							offline, i, nextOffline)
+						panic(err)
+					}
 				} else {
 					list[idx].Active = true
 				}
