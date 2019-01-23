@@ -95,13 +95,13 @@ func NewP2PNode(ctx context.Context, handelNode *lib.Node, n NewRouter, reg P2PR
 		pub:       &bn256Pub{PublicKey: pub, newSig: cons.Signature},
 	}
 	fullAddr := handelNode.Address()
-	ip, port, err := net.SplitHostPort(fullAddr)
+	_, port, err := net.SplitHostPort(fullAddr)
 	if err != nil {
 		return nil, err
 	}
 	reporter := newProxyReporter()
 	opts := []libp2p.Option{
-		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/%s/tcp/%s", ip, port)),
+		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/%s/tcp/%s", "0.0.0.0", port)),
 		libp2p.DisableRelay(),
 		libp2p.Identity(priv),
 		libp2p.NoSecurity,
