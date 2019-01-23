@@ -35,6 +35,8 @@ type UDPNetwork struct {
 	ready     chan bool
 	done      chan bool
 	buff      []*handel.Packet
+	sent      int
+	rcvd      int
 }
 
 type delayedPacket struct {
@@ -135,6 +137,7 @@ func (udpNet *UDPNetwork) Stop() {
 	if udpNet.quit {
 		return
 	}
+	udpNet.udpSock.Close()
 	udpNet.quit = true
 	close(udpNet.done)
 }
@@ -148,6 +151,9 @@ func (udpNet *UDPNetwork) RegisterListener(listener h.Listener) {
 
 //Send sends a packet to supplied identities
 func (udpNet *UDPNetwork) Send(identities []h.Identity, packet *h.Packet) {
+	udpNet.Lock()
+	udpNet.sent += len(identities)
+	udpNet.Unlock()
 	for _, id := range identities {
 		udpNet.send(id, packet)
 	}
@@ -242,6 +248,7 @@ func (udpNet *UDPNetwork) loop() {
 func (udpNet *UDPNetwork) getListeners() []handel.Listener {
 	udpNet.RLock()
 	defer udpNet.RUnlock()
+	udpNet.rcvd++
 	return udpNet.listeners
 }
 
@@ -264,5 +271,15 @@ func (udpNet *UDPNetwork) dispatchLoop() {
 			// we say we're ready to analyze more
 			udpNet.ready <- true
 		}
+	}
+}
+
+// Values implements the monitor.CounterMeasure interface
+func (udpNet *Network) Values() map[string]float64 {
+	udpNet.RLock()
+	defer udpNet.RUnlock()
+	return map[string]float64{
+		"sent": float64(udpNet.sent),
+		"rcvd": float64(udpNet.rcvd),
 	}
 }

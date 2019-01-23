@@ -10,6 +10,7 @@ import (
 	"log"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ConsenSys/handel"
@@ -18,6 +19,7 @@ import (
 	"github.com/ConsenSys/handel/simul/lib"
 	libp2p "github.com/libp2p/go-libp2p"
 	host "github.com/libp2p/go-libp2p-host"
+	metrics "github.com/libp2p/go-libp2p-metrics"
 	p2pnet "github.com/libp2p/go-libp2p-net"
 	peer "github.com/libp2p/go-libp2p-peer"
 	pstore "github.com/libp2p/go-libp2p-peerstore"
@@ -82,6 +84,7 @@ type P2PNode struct {
 	setupDoneCh  chan bool
 	setupDone    bool
 	threshold    int
+	reporter     *proxyReporter
 }
 
 // NewP2PNode transforms a lib.Node to a p2p node.
@@ -93,15 +96,17 @@ func NewP2PNode(ctx context.Context, handelNode *lib.Node, n NewRouter, reg P2PR
 		pub:       &bn256Pub{PublicKey: pub, newSig: cons.Signature},
 	}
 	fullAddr := handelNode.Address()
-	ip, port, err := net.SplitHostPort(fullAddr)
+	_, port, err := net.SplitHostPort(fullAddr)
 	if err != nil {
 		return nil, err
 	}
+	reporter := newProxyReporter()
 	opts := []libp2p.Option{
-		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/%s/tcp/%s", ip, port)),
+		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/%s/tcp/%s", "0.0.0.0", port)),
 		libp2p.DisableRelay(),
 		libp2p.Identity(priv),
 		libp2p.NoSecurity,
+		libp2p.BandwidthReporter(reporter),
 	}
 	basicHost, err := libp2p.New(ctx, opts...)
 	if err != nil {
@@ -149,6 +154,7 @@ func NewP2PNode(ctx context.Context, handelNode *lib.Node, n NewRouter, reg P2PR
 		resendPeriod: 500 * time.Millisecond,
 		setupDoneCh:  make(chan bool, 1),
 		threshold:    threshold,
+		reporter:     reporter,
 	}
 	node.setup.Set(int(node.id.ID()), true)
 	go node.readNexts()
@@ -249,6 +255,12 @@ func (p *P2PNode) incomingSetup(packet *handel.Packet) {
 	}
 }
 
+// Values implements the monitor.Counter interface
+// TODO
+func (p *P2PNode) Values() map[string]float64 {
+	return p.reporter.Values()
+}
+
 func (p *P2PNode) ping(p2 *P2PIdentity) error {
 	s, err := p.h.NewStream(context.Background(), p2.id, ping)
 	if err != nil {
@@ -335,4 +347,40 @@ func getRouter(opts map[string]string) NewRouter {
 		n = pubsub.NewGossipSub
 	}
 	return n
+}
+
+type proxyReporter struct {
+	sync.Mutex
+	metrics.Reporter
+	bytesSent int64
+	bytesRcvd int64
+}
+
+func newProxyReporter() *proxyReporter {
+	return &proxyReporter{Reporter: metrics.NewBandwidthCounter()}
+}
+
+func (p *proxyReporter) LogRecvMessage(i int64) {
+	p.Lock()
+	p.bytesRcvd += i
+	p.Unlock()
+	p.Reporter.LogRecvMessage(i)
+}
+
+func (p *proxyReporter) LogSentMessage(i int64) {
+	p.Lock()
+	p.bytesSent += i
+	p.Unlock()
+	p.Reporter.LogRecvMessage(i)
+}
+
+// Values implement the monitor.Counter interface
+func (p *proxyReporter) Values() map[string]float64 {
+	p.Lock()
+	defer p.Unlock()
+	return map[string]float64{
+		// XXX round up  here might be problem
+		"sentBytes": float64(p.bytesSent),
+		"rcvdBytes": float64(p.bytesRcvd),
+	}
 }

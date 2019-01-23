@@ -95,7 +95,8 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 	a.c = c
 
 	// Compile binaries
-	a.pack("github.com/ConsenSys/handel/simul/node", c, CMDS.SlaveBinPath)
+	a.pack(c.GetBinaryPath(), c, CMDS.SlaveBinPath)
+	//a.pack("github.com/ConsenSys/handel/simul/node", c, CMDS.SlaveBinPath)
 	a.pack("github.com/ConsenSys/handel/simul/master", c, CMDS.MasterBinPath)
 
 	// write config

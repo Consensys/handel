@@ -7,6 +7,7 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ConsenSys/handel/simul/lib"
@@ -59,6 +60,20 @@ func main() {
 	mon := monitor.NewMonitor(10000, stats)
 	go mon.Listen()
 
+	if strings.Contains(config.Simulation, "libp2p") {
+		fmt.Println(" MASTER --->> SYNCING P2P ")
+		select {
+		case <-master.WaitAll(lib.P2P):
+			fmt.Printf("[+] Master full synchronization done.\n")
+
+		case <-time.After(time.Duration(*timeOut) * time.Minute):
+			msg := fmt.Sprintf("timeout after %d mn", *timeOut)
+			fmt.Println(msg)
+			panic(fmt.Sprintf("timeout after %d mn", *timeOut))
+		}
+		fmt.Println(" MASTER --->> SYNCING P2P DONE ")
+	}
+
 	select {
 	case <-master.WaitAll(lib.START):
 		fmt.Printf("[+] Master full synchronization done.\n")
@@ -72,8 +87,8 @@ func main() {
 	select {
 	case <-master.WaitAll(lib.END):
 		fmt.Printf("[+] Master - finished synchronization done.\n")
-	case <-time.After(time.Duration(*timeOut) * time.Minute):
-		msg := fmt.Sprintf("timeout after %d mn", *timeOut)
+	case <-time.After(time.Duration(25) * time.Second):
+		msg := fmt.Sprintf("timeout after %d sec", 25)
 		fmt.Println(msg)
 		panic(msg)
 	}
