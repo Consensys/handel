@@ -82,6 +82,7 @@ func main() {
 		stats.WriteHeader(csvFile)
 	}
 	stats.WriteValues(csvFile)
+	fmt.Printf("[+] -- MASTER monitor received %d measurements --\n", stats.Received())
 	mon.Stop()
 }
 

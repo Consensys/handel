@@ -24,9 +24,6 @@ type CtxKey string
 // make
 const MaxCount = 10
 
-// BeaconTimeout represents how much time do we wait to receive the beacon
-const BeaconTimeout = 2 * time.Minute
-
 var configFile = flag.String("config", "", "config file created for the exp.")
 var registryFile = flag.String("registry", "", "registry file based - array registry")
 var ids arrayFlags
@@ -80,10 +77,11 @@ func Run(a Adaptor) {
 	// transform into lib.Node
 	libNodes, err := toLibNodes(cons, records)
 	registry, p2pNodes := a.Make(ctx, libNodes, ids, runConf.GetThreshold(), runConf.Extra)
-	aggregators := MakeAggregators(ctx, cons, p2pNodes, registry, runConf.GetThreshold(), extractResendPeriod(runConf.Extra))
+	aggregators := MakeAggregators(ctx, cons, p2pNodes, registry, runConf.GetThreshold(), runConf.Extra)
 
 	// Sync with master - wait for the START signal
 	syncer := lib.NewSyncSlave(*syncAddr, *master, ids)
+	syncer.SignalAll(lib.START)
 	select {
 	case <-syncer.WaitMaster(lib.START):
 		now := time.Now()
@@ -93,7 +91,7 @@ func Run(a Adaptor) {
 			now.Nanosecond())
 
 		fmt.Printf("\n%s [+] %s synced - starting\n", formatted, ids.String())
-	case <-time.After(BeaconTimeout):
+	case <-time.After(config.GetMaxTimeout()):
 		panic("Haven't received beacon in time!")
 	}
 
@@ -129,6 +127,7 @@ func Run(a Adaptor) {
 			if err := h.VerifyMultiSignature(lib.Message, sig, registry, cons.Handel()); err != nil {
 				panic("signature invalid !!")
 			}
+			syncer.Signal(lib.END, int(id))
 		}(i)
 	}
 
@@ -154,7 +153,7 @@ func Run(a Adaptor) {
 			now.Nanosecond())
 
 		fmt.Printf("\n%s [+] %s synced - closing shop\n", formatted, ids.String())
-	case <-time.After(BeaconTimeout):
+	case <-time.After(config.GetMaxTimeout()):
 		panic("Haven't received beacon in time!")
 	}
 }
@@ -179,7 +178,9 @@ func (i *arrayFlags) Set(value string) error {
 }
 
 // MakeAggregators returns
-func MakeAggregators(ctx context.Context, c lib.Constructor, nodes []Node, reg handel.Registry, threshold int, resendPeriod time.Duration) []*Aggregator {
+func MakeAggregators(ctx context.Context, c lib.Constructor, nodes []Node, reg handel.Registry, threshold int, opts Opts) []*Aggregator {
+	resendPeriod := extractResendPeriod(opts)
+	aggAndVerify := extractAggTechnique(opts)
 	var aggs = make([]*Aggregator, 0, len(nodes))
 	for _, node := range nodes {
 		//i := int(node.Identity().ID())
@@ -188,7 +189,7 @@ func MakeAggregators(ctx context.Context, c lib.Constructor, nodes []Node, reg h
 			fmt.Println(err)
 			panic(err)
 		}
-		agg := NewAggregator(ctx, node, reg, c.Handel(), sig, threshold, resendPeriod)
+		agg := NewAggregator(ctx, node, reg, c.Handel(), sig, threshold, resendPeriod, aggAndVerify)
 		aggs = append(aggs, agg)
 	}
 	return aggs
@@ -209,15 +210,15 @@ func toLibNodes(c lib.Constructor, nr []*lib.NodeRecord) ([]*lib.Node, error) {
 	n := len(nr)
 	nodes := make([]*lib.Node, n)
 	var err error
-	fmt.Printf("toLibNodes: ")
+	//fmt.Printf("toLibNodes: ")
 	for i, record := range nr {
 		nodes[i], err = record.ToNode(c)
-		fmt.Printf("\t-%d: %s \n ", i, nodes[i].Identity.PublicKey().String())
+		//fmt.Printf("\t-%d: %s \n ", i, nodes[i].Identity.PublicKey().String())
 		if err != nil {
 			return nil, err
 		}
 	}
-	fmt.Printf("\n")
+	//fmt.Printf("\n")
 	return nodes, nil
 }
 
@@ -237,4 +238,18 @@ func extractResendPeriod(opts Opts) time.Duration {
 		panic(err)
 	}
 	return t
+}
+
+func extractAggTechnique(opts Opts) bool {
+	var out bool
+	v, ok := opts.Int("AggAndVerify")
+	if !ok {
+		v = 0
+	}
+	if v == 0 {
+		out = false
+	} else {
+		out = true
+	}
+	return out
 }

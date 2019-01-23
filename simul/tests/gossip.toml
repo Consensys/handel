@@ -6,7 +6,6 @@ MaxTimeout = "2m"
 Retrials = 1
 Simulation = "p2p/libp2p"
 
-
 [[Runs]]
     Nodes = 40
     Threshold = 30

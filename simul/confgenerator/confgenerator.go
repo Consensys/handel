@@ -43,20 +43,79 @@ func main() {
 	os.MkdirAll(configDir, 0777)
 
 	// 4 instance per proc
-	//procF := getProcessF(2)
+	procF := getProcessF(2)
 
 	thresholdIncScenario(configDir, defaultConf, handel)
-	//nsquareScenario(configDir, defaultConf, handel)
+	nsquareScenario(configDir, defaultConf, handel, procF)
+	libp2pScenario(configDir, defaultConf, handel, procF)
 	//failingIncScenario(configDir, defaultConf, handel, procF)
 	//timeoutIncScenario(configDir, defaultConf, handel, procF)
 	//periodIncScenario(configDir, defaultConf, handel, procF)
 }
 
-func nsquareScenario(dir string, defaultConf lib.Config, handel *lib.HandelConfig, procF func(int) int) {
+func libp2pScenario(dir string, defaultConf lib.Config, handel *lib.HandelConfig, procF func(int) int) {
 	oldSimul := defaultConf.Simulation
 	defer func() { defaultConf.Simulation = oldSimul }()
 
+	defaultConf.Simulation = "p2p/libp2p"
+	nodes := []int{100, 1000, 2000}
+	thresholds := []float64{0.51, 0.75, 0.99}
+	for _, thr := range thresholds {
+		for _, verify := range []string{"0", "1"} {
+			var runs []lib.RunConfig
+			for _, n := range nodes {
+				run := lib.RunConfig{
+					Nodes:     n,
+					Threshold: thrF(thr)(n),
+					Failing:   0,
+					Processes: procF(n),
+					Handel:    handel,
+					Extra: map[string]string{
+						"AggAndVerify": verify,
+					},
+				}
+				runs = append(runs, run)
+			}
+			defaultConf.Runs = runs
+			fileName := fmt.Sprintf("2000node_Libp2pInc_%dthr_agg%s.toml", int(thr*100), verify)
+			if err := defaultConf.WriteTo(filepath.Join(dir, fileName)); err != nil {
+				panic(err)
+			}
+
+		}
+	}
+}
+
+func nsquareScenario(dir string, defaultConf lib.Config, handel *lib.HandelConfig, procF func(int) int) {
+	oldSimul := defaultConf.Simulation
+	defer func() { defaultConf.Simulation = oldSimul }()
 	defaultConf.Simulation = "p2p/udp"
+	nodes := []int{100, 1000, 2000}
+	thresholds := []float64{0.51, 0.75, 0.99}
+	for _, thr := range thresholds {
+		for _, verify := range []string{"0", "1"} {
+			var runs []lib.RunConfig
+			for _, n := range nodes {
+				run := lib.RunConfig{
+					Nodes:     n,
+					Threshold: thrF(thr)(n),
+					Failing:   0,
+					Processes: procF(n),
+					Handel:    handel,
+					Extra: map[string]string{
+						"AggAndVerify": verify,
+					},
+				}
+				runs = append(runs, run)
+			}
+			defaultConf.Runs = runs
+			fileName := fmt.Sprintf("2000node_nsquareInc_%dthr_agg%s.toml", int(thr*100), verify)
+			if err := defaultConf.WriteTo(filepath.Join(dir, fileName)); err != nil {
+				panic(err)
+			}
+
+		}
+	}
 }
 
 // periodIncScenario increases the "update" period
@@ -97,7 +156,6 @@ func periodIncScenario(dir string, defaultConf lib.Config, handel *lib.HandelCon
 	if err := defaultConf.WriteTo(filepath.Join(dir, fileName)); err != nil {
 		panic(err)
 	}
-
 }
 
 // scenario that increases the timeout with different failing number of nodes -

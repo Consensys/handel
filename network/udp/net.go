@@ -2,6 +2,8 @@ package udp
 
 import (
 	"bufio"
+	"container/list"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -20,6 +22,11 @@ type Network struct {
 	listeners []h.Listener
 	quit      bool
 	enc       network.Encoding
+	newPacket chan *handel.Packet
+	process   chan *handel.Packet
+	ready     chan bool
+	done      chan bool
+	buff      []*handel.Packet
 }
 
 // NewNetwork creates Network baked by udp protocol
@@ -41,9 +48,17 @@ func NewNetwork(addr string, enc network.Encoding) (*Network, error) {
 		return nil, err
 	}
 
-	listeners := []h.Listener{}
-	udpNet := &Network{sync.RWMutex{}, udpSock, listeners, false, enc}
+	udpNet := &Network{
+		udpSock:   udpSock,
+		enc:       enc,
+		newPacket: make(chan *handel.Packet, 20000),
+		process:   make(chan *handel.Packet, 100),
+		ready:     make(chan bool, 1),
+		done:      make(chan bool, 1),
+	}
 	go udpNet.handler()
+	go udpNet.loop()
+	go udpNet.dispatchLoop()
 	return udpNet, nil
 }
 
@@ -51,7 +66,11 @@ func NewNetwork(addr string, enc network.Encoding) (*Network, error) {
 func (udpNet *Network) Stop() {
 	udpNet.Lock()
 	defer udpNet.Unlock()
+	if udpNet.quit {
+		return
+	}
 	udpNet.quit = true
+	close(udpNet.done)
 }
 
 //RegisterListener registers listener for processing incoming packets
@@ -115,16 +134,69 @@ func (udpNet *Network) handler() {
 			log.Println(err)
 			continue
 		}
-		udpNet.dispatch(packet)
+		//udpNet.dispatch(packet)
+		udpNet.newPacket <- packet
 	}
 }
 
-func (udpNet *Network) dispatch(p *handel.Packet) {
+func (udpNet *Network) loop() {
+	pendings := list.New()
+	var ready = false
+	send := func() {
+		if pendings.Len() == 0 {
+			return
+		}
+		if !ready {
+			return
+		}
+		toProcess := pendings.Remove(pendings.Front()).(*handel.Packet)
+		udpNet.process <- toProcess
+		ready = false
+	}
+	for {
+		select {
+		case newPacket := <-udpNet.newPacket:
+			if len(newPacket.MultiSig) == 0 {
+				fmt.Printf(" -- empty packet -- \n")
+				continue
+			}
+			pendings.PushBack(newPacket)
+			if ready {
+				send()
+			}
+		case <-udpNet.ready:
+			ready = true
+			send()
+		case <-udpNet.done:
+			return
+		}
+	}
+}
+
+func (udpNet *Network) getListeners() []handel.Listener {
 	udpNet.RLock()
-	listeners := udpNet.listeners
-	udpNet.RUnlock()
-	for _, listener := range listeners {
-		//fmt.Printf("%s -> dispatching packet to listener %p!\n", udpNet.udpSock.LocalAddr().String(), listener)
-		listener.NewPacket(p)
+	defer udpNet.RUnlock()
+	return udpNet.listeners
+}
+
+func (udpNet *Network) dispatchLoop() {
+	dispatch := func(p *handel.Packet) {
+		listeners := udpNet.getListeners()
+		for _, listener := range listeners {
+			listener.NewPacket(p)
+		}
+	}
+
+	udpNet.ready <- true
+	for {
+		select {
+		case <-udpNet.done:
+			return
+		case newPacket := <-udpNet.process:
+			// new packet to analyze
+			dispatch(newPacket)
+			// we say we're ready to analyze more
+			udpNet.ready <- true
+		}
 	}
 }
