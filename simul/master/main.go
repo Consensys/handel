@@ -72,8 +72,8 @@ func main() {
 	select {
 	case <-master.WaitAll(lib.END):
 		fmt.Printf("[+] Master - finished synchronization done.\n")
-	case <-time.After(time.Duration(25) * time.Second):
-		msg := fmt.Sprintf("timeout after %d sec", 25)
+	case <-time.After(time.Duration(45) * time.Second):
+		msg := fmt.Sprintf("timeout after %d sec", 45)
 		fmt.Println(msg)
 	}
 

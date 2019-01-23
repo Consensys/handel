@@ -36,7 +36,7 @@ type awsPlatform struct {
 }
 
 const s3Dir = "pegasysrndbucketvirginiav1"
-const stream_logs_via_ssh = true
+const stream_logs_via_ssh = false
 
 // NewAws creates AWS Platform
 func NewAws(aws aws.Manager, awsConfig *aws.Config) Platform {
@@ -95,7 +95,10 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 	a.c = c
 
 	// Compile binaries
-	a.pack("github.com/ConsenSys/handel/simul/node", c, CMDS.SlaveBinPath)
+
+	a.pack(a.c.GetBinaryPath(), c, CMDS.SlaveBinPath)
+
+	//a.pack("github.com/ConsenSys/handel/simul/node", c, CMDS.SlaveBinPath)
 	a.pack("github.com/ConsenSys/handel/simul/master", c, CMDS.MasterBinPath)
 
 	// write config
@@ -192,6 +195,7 @@ loop:
 		select {
 		case inst := <-instChan:
 			a.allSlaveNodes = append(a.allSlaveNodes, &inst)
+			fmt.Println("Instances configured", len(a.allSlaveNodes))
 			if len(a.allSlaveNodes) == len(slaveInstances) {
 				break loop
 			}
