@@ -380,6 +380,8 @@ func (p *proxyReporter) Values() map[string]float64 {
 	defer p.Unlock()
 	return map[string]float64{
 		// XXX round up here might be problem
+		"sent":      0.0,
+		"rcvd":      0.0,
 		"sentBytes": float64(p.bytesSent),
 		"rcvdBytes": float64(p.bytesRcvd),
 	}
