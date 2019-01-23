@@ -30,7 +30,7 @@ type SyncMaster struct {
 	exp     int
 	probExp int // probabilistically expected nb,i.e. 95% of exp
 	total   int
-	n       *udp.Network
+	n       udp.Network
 	states  map[int]*state
 }
 
@@ -193,7 +193,7 @@ type SyncSlave struct {
 	sync.Mutex
 	own    string
 	master string
-	net    *udp.Network
+	net    udp.Network
 	ids    []int
 	states map[int]*slaveState
 }

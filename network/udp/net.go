@@ -8,15 +8,23 @@ import (
 	"log"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/ConsenSys/handel"
 	h "github.com/ConsenSys/handel"
 	"github.com/ConsenSys/handel/network"
 )
 
-// Network is a handel.Network implementation using UDP as its transport layer
+type Network interface {
+	Send(identities  []h.Identity, packet *h.Packet)
+	RegisterListener(listener h.Listener)
+	getListeners() []handel.Listener
+	Stop()
+}
+
+// UDPNetwork is a handel.Network implementation using UDP as its transport layer
 // listens on 0.0.0.0
-type Network struct {
+type UDPNetwork struct {
 	sync.RWMutex
 	udpSock   *net.UDPConn
 	listeners []h.Listener
@@ -29,8 +37,65 @@ type Network struct {
 	buff      []*handel.Packet
 }
 
+type delayedPacket struct {
+	toSendAt	time.Time
+	identities []h.Identity
+	data		h.Packet
+}
+
+type DelayedUDPNetwork struct {
+	network Network
+	delay time.Duration
+	in chan *delayedPacket
+}
+
+func (n *DelayedUDPNetwork) Send(identities  []h.Identity, packet *h.Packet) {
+	n.in <- &delayedPacket{time.Now().Add(n.delay), identities,*packet}
+}
+
+func  (n *DelayedUDPNetwork) backgroundSend() {
+	for dp := range n.in {
+		delta := dp.toSendAt.Sub(time.Now())
+		if delta.Nanoseconds() > time.Millisecond.Nanoseconds() {
+			// Not really useful to sleep for less than 1ms
+			time.Sleep(delta)
+		}
+		n.network.Send(dp.identities, &dp.data)
+	}
+}
+
+func (n *DelayedUDPNetwork) Stop() {
+	n.network.Stop()
+	close(n.in)
+}
+
+func (n *DelayedUDPNetwork) RegisterListener(listener h.Listener) {
+	n.network.RegisterListener(listener)
+}
+
+func (n *DelayedUDPNetwork) getListeners() []handel.Listener{
+	return n.network.getListeners()
+}
+
+func NewDelayedUDPNetwork(delay time.Duration, addr string, enc network.Encoding) (*DelayedUDPNetwork, error) {
+	n, err := NewNetwork(addr, enc)
+	if err != nil {
+		return nil, err
+	}
+
+	res :=  &DelayedUDPNetwork{
+		n,
+		delay,
+		make(chan *delayedPacket, 10000),
+	}
+
+	go res.backgroundSend()
+
+	return res, nil
+}
+
 // NewNetwork creates Network baked by udp protocol
-func NewNetwork(addr string, enc network.Encoding) (*Network, error) {
+func NewNetwork(addr string, enc network.Encoding) (Network, error) {
 	_, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, err
@@ -48,7 +113,7 @@ func NewNetwork(addr string, enc network.Encoding) (*Network, error) {
 		return nil, err
 	}
 
-	udpNet := &Network{
+	udpNet := &UDPNetwork{
 		udpSock:   udpSock,
 		enc:       enc,
 		newPacket: make(chan *handel.Packet, 20000),
@@ -56,6 +121,7 @@ func NewNetwork(addr string, enc network.Encoding) (*Network, error) {
 		ready:     make(chan bool, 1),
 		done:      make(chan bool, 1),
 	}
+
 	go udpNet.handler()
 	go udpNet.loop()
 	go udpNet.dispatchLoop()
@@ -63,7 +129,7 @@ func NewNetwork(addr string, enc network.Encoding) (*Network, error) {
 }
 
 // Stop closes
-func (udpNet *Network) Stop() {
+func (udpNet *UDPNetwork) Stop() {
 	udpNet.Lock()
 	defer udpNet.Unlock()
 	if udpNet.quit {
@@ -74,20 +140,20 @@ func (udpNet *Network) Stop() {
 }
 
 //RegisterListener registers listener for processing incoming packets
-func (udpNet *Network) RegisterListener(listener h.Listener) {
+func (udpNet *UDPNetwork) RegisterListener(listener h.Listener) {
 	udpNet.Lock()
 	defer udpNet.Unlock()
 	udpNet.listeners = append(udpNet.listeners, listener)
 }
 
 //Send sends a packet to supplied identities
-func (udpNet *Network) Send(identities []h.Identity, packet *h.Packet) {
+func (udpNet *UDPNetwork) Send(identities []h.Identity, packet *h.Packet) {
 	for _, id := range identities {
 		udpNet.send(id, packet)
 	}
 }
 
-func (udpNet *Network) send(identity h.Identity, packet *h.Packet) {
+func (udpNet *UDPNetwork) send(identity h.Identity, packet *h.Packet) {
 	addr := identity.Address()
 	udpAddr, err := net.ResolveUDPAddr("udp4", addr)
 	if err != nil {
@@ -115,7 +181,7 @@ func (udpNet *Network) send(identity h.Identity, packet *h.Packet) {
 	//fmt.Printf("%s -> sending packet to %s\n", udpSock.LocalAddr().String(), addr)
 }
 
-func (udpNet *Network) handler() {
+func (udpNet *UDPNetwork) handler() {
 	enc := udpNet.enc
 	for {
 		//udpNet.quit and udpNet.listeners have to be guarded by a read lock
@@ -139,7 +205,7 @@ func (udpNet *Network) handler() {
 	}
 }
 
-func (udpNet *Network) loop() {
+func (udpNet *UDPNetwork) loop() {
 	pendings := list.New()
 	var ready = false
 	send := func() {
@@ -173,13 +239,13 @@ func (udpNet *Network) loop() {
 	}
 }
 
-func (udpNet *Network) getListeners() []handel.Listener {
+func (udpNet *UDPNetwork) getListeners() []handel.Listener {
 	udpNet.RLock()
 	defer udpNet.RUnlock()
 	return udpNet.listeners
 }
 
-func (udpNet *Network) dispatchLoop() {
+func (udpNet *UDPNetwork) dispatchLoop() {
 	dispatch := func(p *handel.Packet) {
 		listeners := udpNet.getListeners()
 		for _, listener := range listeners {

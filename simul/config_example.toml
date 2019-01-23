@@ -1,4 +1,4 @@
-Network = "udp"
+Network = "delayed_udp"
 Curve = "bn256/cf"
 Encoding = "gob"
 MonitorPort = 9980

@@ -10,7 +10,7 @@ import (
 )
 
 func TestUDPNetwork(t *testing.T) {
-	n1, err := NewNetwork("127.0.0.1:3000", network.NewGOBEncoding())
+	n1, err := NewDelayedUDPNetwork(1*time.Millisecond, "127.0.0.1:3000", network.NewGOBEncoding())
 	require.NoError(t, err)
 	n2, err := NewNetwork("127.0.0.1:3001", network.NewGOBEncoding())
 	require.NoError(t, err)

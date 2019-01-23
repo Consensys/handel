@@ -174,6 +174,8 @@ func (c *Config) selectNetwork(id handel.Identity) (handel.Network, error) {
 	switch c.Network {
 	case "udp":
 		return udp.NewNetwork(id.Address(), encoding)
+	case "delayed_udp":
+		return udp.NewDelayedUDPNetwork(2000* time.Millisecond, id.Address(), encoding)
 	case "quic-test-insecure":
 		cfg := quic.NewInsecureTestConfig()
 		return quic.NewNetwork(id.Address(), encoding, cfg)
