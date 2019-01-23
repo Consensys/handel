@@ -210,10 +210,18 @@ func (udpNet *Network) dispatchLoop() {
 
 // Values implements the monitor.CounterMeasure interface
 func (udpNet *Network) Values() map[string]float64 {
+	fmt.Println(" -------- UDPNETWORK VALUES +++++++++++")
 	udpNet.RLock()
 	defer udpNet.RUnlock()
-	return map[string]float64{
+	toSend := map[string]float64{
 		"sent": float64(udpNet.sent),
 		"rcvd": float64(udpNet.rcvd),
 	}
+	counter, ok := udpNet.enc.(*network.CounterEncoding)
+	if ok {
+		for k, v := range counter.Values() {
+			toSend[k] = v
+		}
+	}
+	return toSend
 }

@@ -187,15 +187,20 @@ func (c *Config) selectNetwork(id handel.Identity) (handel.Network, error) {
 
 // NewEncoding returns the corresponding network encoding
 func (c *Config) NewEncoding() network.Encoding {
-	if c.Encoding == "" {
-		c.Encoding = "gob"
+	newEnc := func() network.Encoding {
+
+		if c.Encoding == "" {
+			c.Encoding = "gob"
+		}
+		switch c.Encoding {
+		case "gob":
+			return network.NewGOBEncoding()
+		default:
+			panic("not implemented yet")
+		}
 	}
-	switch c.Encoding {
-	case "gob":
-		return network.NewGOBEncoding()
-	default:
-		panic("not implemented yet")
-	}
+	encoding := newEnc()
+	return network.NewCounterEncoding(encoding)
 }
 
 // NewConstructor returns a Constructor that is using the curve denoted by the
