@@ -222,6 +222,8 @@ func (c *Config) NewAllocator() Allocator {
 	switch c.Allocator {
 	case "round":
 		return new(RoundRobin)
+	case "random":
+		return NewRoundRandomOffline()
 	default:
 		return new(RoundRobin)
 	}
