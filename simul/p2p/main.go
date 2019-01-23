@@ -105,6 +105,7 @@ func Run(a Adaptor) {
 			id := agg.Identity().ID()
 			//fmt.Println(" --- LAUNCHING agg j = ", j, " vs pk = ", agg.Identity().PublicKey().String())
 			signatureGen := monitor.NewTimeMeasure("sigen")
+			netMeasure := monitor.NewCounterMeasure("net", agg.Node)
 			go agg.Start()
 			// Wait for final signatures !
 			enough := false
@@ -124,6 +125,7 @@ func Run(a Adaptor) {
 				}
 			}
 			signatureGen.Record()
+			netMeasure.Record()
 			if err := h.VerifyMultiSignature(lib.Message, sig, registry, cons.Handel()); err != nil {
 				panic("signature invalid !!")
 			}

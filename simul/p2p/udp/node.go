@@ -7,6 +7,7 @@ import (
 	"github.com/ConsenSys/handel/network"
 	"github.com/ConsenSys/handel/network/udp"
 	"github.com/ConsenSys/handel/simul/lib"
+	"github.com/ConsenSys/handel/simul/monitor"
 	"github.com/ConsenSys/handel/simul/p2p"
 )
 
@@ -74,4 +75,9 @@ func (n *Node) NewPacket(p *handel.Packet) {
 func (n *Node) Connect(id handel.Identity) error {
 	// no connection with UDP
 	return nil
+}
+
+// Values implement the monitor.Counter interface
+func (n *Node) Values() map[string]float64 {
+	return n.Network.(monitor.Counter).Values()
 }

@@ -10,10 +10,12 @@ import (
 
 	"github.com/ConsenSys/handel"
 	"github.com/ConsenSys/handel/simul/lib"
+	"github.com/ConsenSys/handel/simul/monitor"
 )
 
 // Node is an interface to be used by an Aggregator
 type Node interface {
+	monitor.Counter
 	Identity() handel.Identity
 	SecretKey() lib.SecretKey
 	Diffuse(*handel.Packet)

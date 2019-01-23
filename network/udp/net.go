@@ -27,6 +27,8 @@ type Network struct {
 	ready     chan bool
 	done      chan bool
 	buff      []*handel.Packet
+	sent      int
+	rcvd      int
 }
 
 // NewNetwork creates Network baked by udp protocol
@@ -82,6 +84,9 @@ func (udpNet *Network) RegisterListener(listener h.Listener) {
 
 //Send sends a packet to supplied identities
 func (udpNet *Network) Send(identities []h.Identity, packet *h.Packet) {
+	udpNet.Lock()
+	udpNet.sent += len(identities)
+	udpNet.Unlock()
 	for _, id := range identities {
 		udpNet.send(id, packet)
 	}
@@ -176,6 +181,7 @@ func (udpNet *Network) loop() {
 func (udpNet *Network) getListeners() []handel.Listener {
 	udpNet.RLock()
 	defer udpNet.RUnlock()
+	udpNet.rcvd++
 	return udpNet.listeners
 }
 
@@ -198,5 +204,15 @@ func (udpNet *Network) dispatchLoop() {
 			// we say we're ready to analyze more
 			udpNet.ready <- true
 		}
+	}
+}
+
+// Values implements the monitor.CounterMeasure interface
+func (udpNet *Network) Values() map[string]float64 {
+	udpNet.RLock()
+	defer udpNet.RUnlock()
+	return map[string]float64{
+		"sent": float64(udpNet.sent),
+		"rcvd": float64(udpNet.rcvd),
 	}
 }

@@ -249,6 +249,12 @@ func (p *P2PNode) incomingSetup(packet *handel.Packet) {
 	}
 }
 
+// Values implements the monitor.Counter interface
+// TODO
+func (p *P2PNode) Values() map[string]float64 {
+	return map[string]float64{}
+}
+
 func (p *P2PNode) ping(p2 *P2PIdentity) error {
 	s, err := p.h.NewStream(context.Background(), p2.id, ping)
 	if err != nil {
