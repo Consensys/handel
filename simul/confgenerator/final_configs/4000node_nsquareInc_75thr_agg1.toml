@@ -1,0 +1,192 @@
+Network = "udp"
+Curve = "bn256"
+Encoding = "gob"
+Allocator = "random"
+MonitorPort = 10000
+Debug = 0
+Simulation = "p2p/udp"
+MaxTimeout = "5m"
+Retrials = 1
+ResultFile = ""
+
+[[Runs]]
+  Nodes = 100
+  Threshold = 75
+  Failing = 0
+  Processes = 50
+  [Runs.Handel]
+    Period = "10ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+  [Runs.Extra]
+    AggAndVerify = "1"
+
+[[Runs]]
+  Nodes = 300
+  Threshold = 225
+  Failing = 0
+  Processes = 150
+  [Runs.Handel]
+    Period = "10ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+  [Runs.Extra]
+    AggAndVerify = "1"
+
+[[Runs]]
+  Nodes = 500
+  Threshold = 375
+  Failing = 0
+  Processes = 250
+  [Runs.Handel]
+    Period = "10ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+  [Runs.Extra]
+    AggAndVerify = "1"
+
+[[Runs]]
+  Nodes = 1000
+  Threshold = 750
+  Failing = 0
+  Processes = 500
+  [Runs.Handel]
+    Period = "10ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+  [Runs.Extra]
+    AggAndVerify = "1"
+
+[[Runs]]
+  Nodes = 1500
+  Threshold = 1125
+  Failing = 0
+  Processes = 750
+  [Runs.Handel]
+    Period = "10ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+  [Runs.Extra]
+    AggAndVerify = "1"
+
+[[Runs]]
+  Nodes = 2000
+  Threshold = 1500
+  Failing = 0
+  Processes = 1000
+  [Runs.Handel]
+    Period = "10ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+  [Runs.Extra]
+    AggAndVerify = "1"
+
+[[Runs]]
+  Nodes = 2500
+  Threshold = 1875
+  Failing = 0
+  Processes = 1250
+  [Runs.Handel]
+    Period = "10ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+  [Runs.Extra]
+    AggAndVerify = "1"
+
+[[Runs]]
+  Nodes = 3000
+  Threshold = 2250
+  Failing = 0
+  Processes = 1500
+  [Runs.Handel]
+    Period = "10ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+  [Runs.Extra]
+    AggAndVerify = "1"
+
+[[Runs]]
+  Nodes = 4000
+  Threshold = 3000
+  Failing = 0
+  Processes = 2000
+  [Runs.Handel]
+    Period = "10ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+  [Runs.Extra]
+    AggAndVerify = "1"
+
+[[Runs]]
+  Nodes = 5000
+  Threshold = 3750
+  Failing = 0
+  Processes = 2500
+  [Runs.Handel]
+    Period = "10ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+  [Runs.Extra]
+    AggAndVerify = "1"
+
+[[Runs]]
+  Nodes = 6000
+  Threshold = 4500
+  Failing = 0
+  Processes = 3000
+  [Runs.Handel]
+    Period = "10ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+  [Runs.Extra]
+    AggAndVerify = "1"
+
+[[Runs]]
+  Nodes = 3000
+  Threshold = 2250
+  Failing = 0
+  Processes = 1500
+  [Runs.Handel]
+    Period = "10ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+  [Runs.Extra]
+    AggAndVerify = "1"
+
+[[Runs]]
+  Nodes = 4000
+  Threshold = 3000
+  Failing = 0
+  Processes = 2000
+  [Runs.Handel]
+    Period = "10ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+  [Runs.Extra]
+    AggAndVerify = "1"
