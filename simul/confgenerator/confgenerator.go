@@ -45,12 +45,12 @@ func main() {
 	// 2 handel per instance
 	fixedProcesses := getProcessF(2)
 	//  1 handel per instance up until 2000 where we go with 2
-	adaptiveProcesses := adaptiveGetProcessF(2, 2000)
+	//adaptiveProcesses := adaptiveGetProcessF(2, 2000)
 	// some scenario can add higher nodes
-	baseNodes := []int{100, 500, 1000, 1500, 2000}
+	baseNodes := []int{100, 300, 500, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000}
 
 	// one threshold increase with fixed
-	thresholdIncScenario2(configDir, defaultConf, handel, baseNodes, fixedProcesses)
+	thresholdIncScenario2(configDir, defaultConf, handel, baseNodes, fixedProcesses)/*
 	// one threshold increase with adaptive process ->
 	thresholdIncScenario2(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
 	// we can go to 2000 hopefully with failing nodes
@@ -58,9 +58,9 @@ func main() {
 	// since we go high, we need adaptive
 	nsquareScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
 	libp2pScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
-
-	timeoutIncScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
-	periodIncScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
+*/
+	//timeoutIncScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
+	//periodIncScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
 }
 
 func libp2pScenario(dir string, defaultConf lib.Config, handel *lib.HandelConfig, baseNodes []int, procF func(int) int) {
@@ -247,7 +247,7 @@ func thresholdIncScenario2(dir string, defaultConf lib.Config, handel *lib.Hande
 	// just to see we dont have side effects when only waiting on 51% - since
 	// it's the last step of handel
 	thrs := []float64{0.51, 0.75, 0.99}
-	nodeList := append(baseNodes, []int{3000, 4000}...)
+	nodeList := baseNodes// append(baseNodes, []int{3000, 4000}...)
 	for _, thr := range thrs {
 		var runs []lib.RunConfig
 		for _, nodes := range nodeList {
