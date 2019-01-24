@@ -188,12 +188,18 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 		}(*slave)
 	}
 
+	dt := time.Now()
+	fmt.Println("Waiting for instances: ", dt.String())
 loop:
 	for {
 		select {
 		case inst := <-instChan:
 			a.allSlaveNodes = append(a.allSlaveNodes, &inst)
+			dt := time.Now()
+			fmt.Println("Current time: ", dt.String())
+			fmt.Println("Instances len", len(a.allSlaveNodes), len(slaveInstances))
 			if len(a.allSlaveNodes) == len(slaveInstances) {
+				fmt.Println("All nodes configured")
 				break loop
 			}
 		case <-time.After(a.confTimeout):
@@ -201,6 +207,7 @@ loop:
 			break loop
 		}
 	}
+	fmt.Println("Closing master")
 	master.Close()
 	return nil
 }
@@ -211,6 +218,7 @@ func configureSlave(slaveNodeController aws.NodeController, slaveCmds map[int]st
 	}
 	defer slaveNodeController.Close()
 	slaveNodeController.Run(kill, nil)
+
 	for idx := 0; idx < len(slaveCmds); idx++ {
 		err := slaveNodeController.Run(slaveCmds[idx], nil)
 		if err != nil {
@@ -287,7 +295,9 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 			}
 
 			if err := slaveController.Init(); err != nil {
-				panic(err)
+				fmt.Println(err)
+				return
+				//panic(err)
 			}
 
 			if stream_logs_via_ssh {
