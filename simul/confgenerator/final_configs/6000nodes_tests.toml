@@ -9,11 +9,12 @@ MaxTimeout = "5m"
 Retrials = 1
 ResultFile = ""
 
+
 [[Runs]]
-  Nodes = 100
-  Threshold = 99
+  Nodes = 5000
+  Threshold = 2550
   Failing = 0
-  Processes = 50
+  Processes = 2500
   [Runs.Handel]
     Period = "10ms"
     UpdateCount = 1
@@ -22,10 +23,10 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
 
 [[Runs]]
-  Nodes = 300
-  Threshold = 297
+  Nodes = 6000
+  Threshold = 3060
   Failing = 0
-  Processes = 150
+  Processes = 3000
   [Runs.Handel]
     Period = "10ms"
     UpdateCount = 1
@@ -34,10 +35,10 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
 
 [[Runs]]
-  Nodes = 500
-  Threshold = 495
+  Nodes = 5000
+  Threshold = 4950
   Failing = 0
-  Processes = 250
+  Processes = 2500
   [Runs.Handel]
     Period = "10ms"
     UpdateCount = 1
@@ -46,10 +47,10 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
 
 [[Runs]]
-  Nodes = 1000
-  Threshold = 990
+  Nodes = 6000
+  Threshold = 5940
   Failing = 0
-  Processes = 500
+  Processes = 3000
   [Runs.Handel]
     Period = "10ms"
     UpdateCount = 1
@@ -58,10 +59,10 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
 
 [[Runs]]
-  Nodes = 1500
-  Threshold = 1485
+  Nodes = 5000
+  Threshold = 2550
   Failing = 0
-  Processes = 750
+  Processes = 2500
   [Runs.Handel]
     Period = "10ms"
     UpdateCount = 1
@@ -70,50 +71,13 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
 
 [[Runs]]
-  Nodes = 2000
-  Threshold = 1980
+  Nodes = 6000
+  Threshold = 3060
   Failing = 0
-  Processes = 1000
+  Processes = 3000
   [Runs.Handel]
     Period = "10ms"
     UpdateCount = 1
     NodeCount = 10
     Timeout = "50ms"
     UnsafeSleepTimeOnSigVerify = 0
-
-[[Runs]]
-  Nodes = 2500
-  Threshold = 2475
-  Failing = 0
-  Processes = 1250
-  [Runs.Handel]
-    Period = "10ms"
-    UpdateCount = 1
-    NodeCount = 10
-    Timeout = "50ms"
-    UnsafeSleepTimeOnSigVerify = 0
-
-[[Runs]]
-  Nodes = 3000
-  Threshold = 2970
-  Failing = 0
-  Processes = 1500
-  [Runs.Handel]
-    Period = "10ms"
-    UpdateCount = 1
-    NodeCount = 10
-    Timeout = "50ms"
-    UnsafeSleepTimeOnSigVerify = 0
-
-[[Runs]]
-  Nodes = 4000
-  Threshold = 3960
-  Failing = 0
-  Processes = 2000
-  [Runs.Handel]
-    Period = "10ms"
-    UpdateCount = 1
-    NodeCount = 10
-    Timeout = "50ms"
-    UnsafeSleepTimeOnSigVerify = 0
-

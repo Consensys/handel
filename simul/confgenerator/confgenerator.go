@@ -50,7 +50,7 @@ func main() {
 	baseNodes := []int{100, 300, 500, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000}
 
 	// one threshold increase with fixed
-	thresholdIncScenario2(configDir, defaultConf, handel, baseNodes, fixedProcesses)/*
+	thresholdIncScenario2(configDir, defaultConf, handel, baseNodes, fixedProcesses) /*
 	// one threshold increase with adaptive process ->
 	thresholdIncScenario2(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
 	// we can go to 2000 hopefully with failing nodes
@@ -247,7 +247,7 @@ func thresholdIncScenario2(dir string, defaultConf lib.Config, handel *lib.Hande
 	// just to see we dont have side effects when only waiting on 51% - since
 	// it's the last step of handel
 	thrs := []float64{0.51, 0.75, 0.99}
-	nodeList := baseNodes// append(baseNodes, []int{3000, 4000}...)
+	nodeList := baseNodes // append(baseNodes, []int{3000, 4000}...)
 	for _, thr := range thrs {
 		var runs []lib.RunConfig
 		for _, nodes := range nodeList {
@@ -320,10 +320,8 @@ func adaptiveGetProcessF(instancePerProc, threshold int) func(int) int {
 
 func getProcessF(instancePerProc int) func(int) int {
 	return func(nodes int) int {
-		if nodes >= 2000 {
-			nbProc := float64(nodes) / float64(instancePerProc)
-			return int(math.Ceil(nbProc))
-		}
+		nbProc := float64(nodes) / float64(instancePerProc)
+		return int(math.Ceil(nbProc))
 		return nodes
 	}
 }

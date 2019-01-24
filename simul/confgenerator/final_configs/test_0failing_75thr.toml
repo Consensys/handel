@@ -11,7 +11,7 @@ ResultFile = ""
 
 [[Runs]]
   Nodes = 100
-  Threshold = 75
+  Threshold = 51
   Failing = 0
   Processes = 50
   [Runs.Handel]
@@ -22,8 +22,32 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
 
 [[Runs]]
+  Nodes = 300
+  Threshold = 153
+  Failing = 0
+  Processes = 150
+  [Runs.Handel]
+    Period = "10ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+
+[[Runs]]
+  Nodes = 500
+  Threshold = 255
+  Failing = 0
+  Processes = 250
+  [Runs.Handel]
+    Period = "10ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+
+[[Runs]]
   Nodes = 1000
-  Threshold = 750
+  Threshold = 510
   Failing = 0
   Processes = 500
   [Runs.Handel]
@@ -34,8 +58,20 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
 
 [[Runs]]
+  Nodes = 1500
+  Threshold = 765
+  Failing = 0
+  Processes = 750
+  [Runs.Handel]
+    Period = "10ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+
+[[Runs]]
   Nodes = 2000
-  Threshold = 1500
+  Threshold = 1020
   Failing = 0
   Processes = 1000
   [Runs.Handel]
@@ -46,8 +82,32 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
 
 [[Runs]]
+  Nodes = 2500
+  Threshold = 1275
+  Failing = 0
+  Processes = 1250
+  [Runs.Handel]
+    Period = "10ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+
+[[Runs]]
+  Nodes = 3000
+  Threshold = 1530
+  Failing = 0
+  Processes = 1500
+  [Runs.Handel]
+    Period = "10ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+
+[[Runs]]
   Nodes = 4000
-  Threshold = 3000
+  Threshold = 2040
   Failing = 0
   Processes = 2000
   [Runs.Handel]
@@ -56,3 +116,4 @@ ResultFile = ""
     NodeCount = 10
     Timeout = "50ms"
     UnsafeSleepTimeOnSigVerify = 0
+
