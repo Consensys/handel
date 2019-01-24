@@ -1,26 +1,31 @@
 #!/usr/bin/env python
 
-## This script expects multiple .csv file as arguments
+## This script reads the files and plots bars 
 ##
 import sys
-from lib import read_datafiles
+from lib import *
 
 import pandas as pd
 import matplotlib.pyplot as plt
 
-columns = ["sigen_wall_avg"]
+column = "sigen_wall_avg"
 
 files = sys.argv[1:]
 datas = read_datafiles()
 
-first = datas[files[0]]
-# print(datas[first].groupby(by=columns))
 
-x = first["totalNbOfNodes"]
-y = first["sigen_wall_avg"].map(lambda x: x * 1000)
+for f,v in datas.items():
+    x = v["totalNbOfNodes"]
+    y = v[column].map(lambda x: x * 1000)
+    print("file %s -> %d data points on sigen_wall_avg" % (f,len(y)))
+    label = input("Label for file %s: " % f)
+    if label == "":
+        label = f
 
-print(x)
-print(y)
+    plot(x,y,"-",label,allColors.popleft())
 
-plt.plot(x,y)
+plt.legend(fontsize=fs_label)
+plt.ylabel("signature generation (ms)",fontsize=fs_label)
+plt.xlabel("nodes",fontsize=fs_label)
+plt.yscale('log')
 plt.show()

@@ -3,6 +3,7 @@ from numpy import genfromtxt
 import pandas as pd
 import os
 import sys
+from collections import deque
 
 destination = "../figures/"
 show = True
@@ -14,6 +15,8 @@ green = ["#557555", "#C5E1C5", "s", 10]
 yellow = ["#8f8a5a", "#fffaca", "v", 11]
 red = ["#8f5252", "#ffc2c2", "D", 9]
 purple = ["#52528f", "#c2c2ff", "o", 10]
+
+allColors = deque([green,red,purple,yellow])
 
 fs_label = 15
 fs_axis = 15
