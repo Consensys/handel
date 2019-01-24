@@ -45,6 +45,9 @@ type state struct {
 	addresses map[string]bool
 	finished  chan bool
 	done      bool
+	fullDone  bool // true only when exp received - to stop sending out
+	ticker    *time.Ticker
+	doneCh    chan bool
 }
 
 func newState(net handel.Network, id, total, exp, probExp int) *state {
@@ -57,6 +60,8 @@ func newState(net handel.Network, id, total, exp, probExp int) *state {
 		readys:    make(map[int]bool),
 		addresses: make(map[string]bool),
 		finished:  make(chan bool, 1),
+		ticker:    time.NewTicker(wait),
+		doneCh:    make(chan bool, 1),
 	}
 }
 
@@ -92,31 +97,45 @@ func (s *state) newMessage(msg *syncMessage) {
 		}
 	}
 
-	// send the messagesssss
-	outgoing := &syncMessage{State: s.id}
-	buff, err := outgoing.ToBytes()
-	if err != nil {
-		panic(err)
+	// start sending if we were not before
+	if !s.done {
+		s.done = true
+		s.finished <- true
+		go s.sendLoop()
 	}
-	packet := &handel.Packet{MultiSig: buff}
-	ids := make([]handel.Identity, 0, len(s.addresses))
-	for address := range s.addresses {
-		id := handel.NewStaticIdentity(0, address, nil)
-		ids = append(ids, id)
-	}
-	go func() {
-		if len(s.readys) >= s.probExp {
-			if len(s.finished) == 0 {
-				s.finished <- true
-			}
-			s.done = true
-		}
-		for i := 0; i < retrials; i++ {
-			s.n.Send(ids, packet)
-			time.Sleep(1 * time.Second)
-		}
-	}()
 
+	// only stop when we got all signature, after 5 sec
+	if len(s.readys) >= s.exp && !s.fullDone {
+		s.fullDone = true
+		go func() {
+			time.Sleep(5 * time.Second)
+			s.ticker.Stop()
+			s.doneCh <- true
+		}()
+	}
+}
+
+func (s *state) sendLoop() {
+	for {
+		select {
+		case <-s.doneCh:
+			return
+		case <-s.ticker.C:
+		}
+
+		outgoing := &syncMessage{State: s.id}
+		buff, err := outgoing.ToBytes()
+		if err != nil {
+			panic(err)
+		}
+		packet := &handel.Packet{MultiSig: buff}
+		ids := make([]handel.Identity, 0, len(s.addresses))
+		for address := range s.addresses {
+			id := handel.NewStaticIdentity(0, address, nil)
+			ids = append(ids, id)
+		}
+		s.n.Send(ids, packet)
+	}
 }
 
 func (s *state) String() string {
@@ -207,6 +226,8 @@ type slaveState struct {
 	sent     bool
 	finished chan bool
 	done     bool
+	ticker   *time.Ticker
+	doneCh   chan bool
 }
 
 func newSlaveState(n handel.Network, master, addr string, id int) *slaveState {
@@ -216,6 +237,8 @@ func newSlaveState(n handel.Network, master, addr string, id int) *slaveState {
 		master:   master,
 		addr:     addr,
 		finished: make(chan bool, 1),
+		ticker:   time.NewTicker(wait),
+		doneCh:   make(chan bool, 1),
 	}
 }
 
@@ -224,7 +247,7 @@ func (s *slaveState) WaitFinish() chan bool {
 }
 
 func (s *slaveState) signal(ids []int) {
-	for i := 0; i < retrials; i++ {
+	send := func() {
 		msg := &syncMessage{State: s.id, IDs: ids, Address: s.addr}
 		buff, err := msg.ToBytes()
 		if err != nil {
@@ -233,24 +256,22 @@ func (s *slaveState) signal(ids []int) {
 		packet := &handel.Packet{MultiSig: buff}
 		id := handel.NewStaticIdentity(0, s.master, nil)
 		s.n.Send([]handel.Identity{id}, packet)
-		time.Sleep(wait)
-		if s.isDone() {
-			return
-		}
 	}
-}
-
-func (s *slaveState) isDone() bool {
-	s.Lock()
-	defer s.Unlock()
-	return s.done
+	send()
+	for {
+		select {
+		case <-s.doneCh:
+			return
+		case <-s.ticker.C:
+		}
+		send()
+	}
 }
 
 func (s *slaveState) newMessage(msg *syncMessage) {
 	if msg.State != s.id {
 		panic("this is not normal")
 	}
-
 	s.Lock()
 	defer s.Unlock()
 	if s.done {
@@ -258,6 +279,7 @@ func (s *slaveState) newMessage(msg *syncMessage) {
 	}
 	s.done = true
 	s.finished <- true
+	close(s.doneCh)
 }
 
 // NewSyncSlave returns a Sync to use as a node in the system to synchronize
@@ -277,8 +299,7 @@ func NewSyncSlave(own, master string, ids []int) *SyncSlave {
 	return slave
 }
 
-const retrials = 5
-const wait = 1 * time.Second
+const wait = 500 * time.Millisecond
 
 // WaitMaster first signals the master node for this state and returns the channel
 // that gets signaled when the master sends back a message with the same id.

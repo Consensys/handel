@@ -2,7 +2,6 @@ package network
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"sync"
 
@@ -55,7 +54,6 @@ func (c *CounterEncoding) Decode(r io.Reader) (*handel.Packet, error) {
 
 // Values implements the monitor.Counter interface
 func (c *CounterEncoding) Values() map[string]float64 {
-	fmt.Printf(" ----------- COUNTER ENCODING \n\n\n\n\n\n\n")
 	c.RLock()
 	defer c.RUnlock()
 	return map[string]float64{
