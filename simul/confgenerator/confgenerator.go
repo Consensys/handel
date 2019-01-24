@@ -57,7 +57,7 @@ func main() {
 	//// we can go to 2000 hopefully with failing nodes
 	//// since we go high, we need adaptive
 	//nsquareScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
-	/*libp2pScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)*/
+	libp2pScenario(configDir, defaultConf, handel, baseNodes, fixedProcesses)
 	//timeoutIncScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
 	//periodIncScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
 }
@@ -83,6 +83,7 @@ func libp2pScenario(dir string, defaultConf lib.Config, handel *lib.HandelConfig
 						"AggAndVerify": verify,
 					},
 				}
+				fmt.Println(" n = ", n, " => process = ", procF(n))
 				runs = append(runs, run)
 			}
 			defaultConf.Runs = runs
