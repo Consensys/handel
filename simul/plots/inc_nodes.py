@@ -16,7 +16,7 @@ datas = read_datafiles()
 first = datas[files[0]]
 # print(datas[first].groupby(by=columns))
 
-x = first["nodes"]
+x = first["totalNbOfNodes"]
 y = first["sigen_wall_avg"].map(lambda x: x * 1000)
 
 print(x)
