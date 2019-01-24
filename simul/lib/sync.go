@@ -108,7 +108,7 @@ func (s *state) newMessage(msg *syncMessage) {
 	if len(s.readys) >= s.exp && !s.fullDone {
 		s.fullDone = true
 		go func() {
-			time.Sleep(5 * time.Second)
+			time.Sleep(5 * time.Minute)
 			s.ticker.Stop()
 			s.doneCh <- true
 		}()
@@ -140,15 +140,15 @@ func (s *state) sendLoop() {
 
 func (s *state) String() string {
 	var b bytes.Buffer
-	fmt.Fprintf(&b, "Sync Master ID %d received %d/%d status\n", s.id, len(s.readys), s.exp)
+	fmt.Fprintf(&b, "Sync Master ID %d received %d/%d (prob. %d) status\n", s.id, len(s.readys), s.exp, s.probExp)
 	for id := 0; id < s.total; id++ {
 		_, ok := s.readys[id]
 		if !ok {
-			fmt.Fprintf(&b, "\t- %03d -absent-  ", id)
+			//fmt.Fprintf(&b, "\t- %03d -absent-  ", id)
 		} else {
 			//for id, msg := range s.readys {
 			//_, port, _ := net.SplitHostPort(msg.Address)
-			fmt.Fprintf(&b, "\t- %03d +finished+", id)
+			//fmt.Fprintf(&b, "\t- %03d +finished+", id)
 		}
 		if (id+1)%4 == 0 {
 			fmt.Fprintf(&b, "\n")
