@@ -30,6 +30,25 @@ import (
 const topicName = "handel"
 const ping = "/echo/1.0.0"
 
+func topicsFromRegistry(reg handel.Registry) []string {
+	var topics = make([]string, reg.Size())
+	for i := 0; i < reg.Size(); i++ {
+		id, ok := reg.Identity(i)
+		if !ok {
+			panic("this should never happen")
+		}
+		if id == nil {
+			panic("thatshould noooooooooo")
+		}
+		topics[i] = topicFromID(id)
+	}
+	return topics
+}
+
+func topicFromID(i handel.Identity) string {
+	return fmt.Sprintf("%s-%d", topicName, i.ID())
+}
+
 // NewRouter is a type to designate router creation factory
 type NewRouter func(context.Context, host.Host, ...pubsub.Option) (*pubsub.PubSub, error)
 
@@ -68,6 +87,7 @@ func NewP2PIdentity(id h.Identity, c lib.Constructor) (*P2PIdentity, error) {
 // P2PNode represents the libp2p version of a node - with a host.Host and
 // pubsub.PubSub structure.
 type P2PNode struct {
+	sync.Mutex
 	ctx          context.Context
 	id           handel.Identity
 	handelID     int32
@@ -75,7 +95,8 @@ type P2PNode struct {
 	priv         *bn256Priv
 	h            host.Host
 	g            *pubsub.PubSub
-	s            *pubsub.Subscription
+	subs         []*pubsub.Subscription
+	myTopic      string
 	reg          P2PRegistry
 	ch           chan handel.Packet
 	resendPeriod time.Duration
@@ -137,8 +158,9 @@ func NewP2PNode(ctx context.Context, handelNode *lib.Node, n NewRouter, reg P2PR
 	if err != nil {
 		return nil, err
 	}
+	myTopic := topicFromID(handelNode.Identity)
 
-	subscription, err := router.Subscribe(topicName)
+	//subscription, err := router.Subscribe(topicName)
 	node := &P2PNode{
 		ctx:          ctx,
 		enc:          network.NewGOBEncoding(),
@@ -147,7 +169,6 @@ func NewP2PNode(ctx context.Context, handelNode *lib.Node, n NewRouter, reg P2PR
 		priv:         priv,
 		h:            basicHost,
 		g:            router,
-		s:            subscription,
 		reg:          reg,
 		ch:           make(chan handel.Packet, reg.Size()),
 		setup:        handel.NewWilffBitset(reg.Size()),
@@ -155,13 +176,28 @@ func NewP2PNode(ctx context.Context, handelNode *lib.Node, n NewRouter, reg P2PR
 		setupDoneCh:  make(chan bool, 1),
 		threshold:    threshold,
 		reporter:     reporter,
+		myTopic:      myTopic,
 	}
 	node.setup.Set(int(node.id.ID()), true)
-	go node.readNexts()
 	return node, err
 }
 
 var setupPacket = &handel.Packet{Level: 255}
+
+// SubscribeToAll subscribes to all the topics
+func (p *P2PNode) SubscribeToAll() {
+	topics := topicsFromRegistry(&p.reg)
+	subscriptions := make([]*pubsub.Subscription, len(topics))
+	for i, topic := range topics {
+		subscription, err := p.g.Subscribe(topic)
+		if err != nil {
+			panic(err)
+		}
+		subscriptions[i] = subscription
+	}
+	p.subs = subscriptions
+	p.launchReadRoutines()
+}
 
 // WaitAllSetup periodically do the following:
 // - sends out its setup message on the topic
@@ -206,7 +242,7 @@ func (p *P2PNode) Diffuse(packet *handel.Packet) {
 		fmt.Println(err)
 		panic(err)
 	}
-	if err := p.g.Publish(topicName, b.Bytes()); err != nil {
+	if err := p.g.Publish(p.myTopic, b.Bytes()); err != nil {
 		fmt.Println(err)
 		panic(err)
 	}
@@ -227,9 +263,16 @@ func (p *P2PNode) SecretKey() lib.SecretKey {
 	return p.priv.SecretKey
 }
 
-func (p *P2PNode) readNexts() {
+func (p *P2PNode) launchReadRoutines() {
+	for _, sub := range p.subs {
+		//fmt.Println(p.Identity().ID(), " - subscribing / listening to topic ", sub.Topic())
+		go p.readNexts(sub)
+	}
+}
+
+func (p *P2PNode) readNexts(s *pubsub.Subscription) {
 	for {
-		pbMsg, err := p.s.Next(context.Background())
+		pbMsg, err := s.Next(p.ctx)
 		if err != nil {
 			fmt.Println(" -- err:", err)
 			return
@@ -248,6 +291,8 @@ func (p *P2PNode) readNexts() {
 }
 
 func (p *P2PNode) incomingSetup(packet *handel.Packet) {
+	p.Lock()
+	defer p.Unlock()
 	p.setup.Set(int(packet.Origin), true)
 	if p.setup.Cardinality() >= p.threshold && !p.setupDone {
 		p.setupDone = true
@@ -339,7 +384,7 @@ func getRouter(opts map[string]string) NewRouter {
 	var n NewRouter
 	switch strings.ToLower(str) {
 	case "flood":
-		fmt.Println("using flood router")
+		//fmt.Println("using flood router")
 		n = pubsub.NewFloodSub
 	case "gossip":
 		n = pubsub.NewGossipSub

@@ -41,5 +41,9 @@ func MakeP2P(ctx context.Context, nodes lib.NodeList, ids []int, threshold int, 
 			ns = append(ns, p2pNode)
 		}
 	}
+
+	for _, node := range ns {
+		node.(*P2PNode).SubscribeToAll()
+	}
 	return &registry, ns
 }

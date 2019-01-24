@@ -12,9 +12,7 @@ import (
 )
 
 func main() {
-
 	flag.Parse()
-
 	maker := p2p.AdaptorFunc(MakeP2P)
 	maker = p2p.WithPostFunc(maker, func(r handel.Registry, nodes []p2p.Node) {
 		config := lib.LoadConfig(*p2p.ConfigFile)
