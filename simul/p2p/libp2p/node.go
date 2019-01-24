@@ -274,7 +274,7 @@ func (p *P2PNode) readNexts(s *pubsub.Subscription) {
 	for {
 		pbMsg, err := s.Next(p.ctx)
 		if err != nil {
-			fmt.Println(" -- err:", err)
+			//fmt.Println(" -- err:", err)
 			return
 		}
 		packet, err := p.enc.Decode(bytes.NewBuffer(pbMsg.Data))
