@@ -103,7 +103,7 @@ func (a *Aggregator) Start() {
 			select {
 			case <-a.tick.C:
 				a.Diffuse(packet)
-				fmt.Printf("%d gossips signature %s\n", a.Node.Identity().ID(), hex.EncodeToString(msBuff[len(msBuff)-1-16:len(msBuff)-1]))
+				//fmt.Printf("%d gossips signature %s\n", a.Node.Identity().ID(), hex.EncodeToString(msBuff[len(msBuff)-1-16:len(msBuff)-1]))
 			case <-a.ctx.Done():
 				return
 			case <-a.done:
@@ -187,7 +187,7 @@ func (a *Aggregator) aggregate(packet handel.Packet) {
 	//fmt.Println(a.Node.Identity().ID(), "got sig from", packet.Origin, " -> ", a.rcvd, "/", a.total)
 	// are we done
 	if a.rcvd >= a.threshold {
-		fmt.Printf("%d got ENOUGH SIGS %d/%d\n", a.Node.Identity().ID(), a.rcvd, a.threshold)
+		//fmt.Printf("%d got ENOUGH SIGS %d/%d\n", a.Node.Identity().ID(), a.rcvd, a.threshold)
 		go a.verifyAndDispatch()
 	}
 }
@@ -207,7 +207,7 @@ func (a *Aggregator) verifyAndDispatch() {
 		// TODO BINARY SEARCH
 		return
 	}
-	fmt.Println(a.Identity().ID(), " -- Dispatched Signature -- ")
+	//fmt.Println(a.Identity().ID(), " -- Dispatched Signature -- ")
 	copySig := a.c.Signature()
 	buff, _ := a.accSig.MarshalBinary()
 	if err := copySig.UnmarshalBinary(buff); err != nil {
@@ -226,7 +226,7 @@ func (a *Aggregator) verifyPacket(packet handel.Packet) {
 	//fmt.Printf("aggregator %d received packet from %d\n", a.P2PNode.handelID, packet.Origin)
 	// check if already received
 	if a.accBs.Get(int(packet.Origin)) {
-		fmt.Println("already received - continue")
+		//fmt.Println("already received - continue")
 		return
 	}
 
@@ -253,7 +253,7 @@ func (a *Aggregator) verifyPacket(packet handel.Packet) {
 	a.accSig = a.accSig.Combine(ms.Signature)
 	a.accBs.Set(int(packet.Origin), true)
 	a.rcvd++
-	fmt.Println(a.Node.Identity().ID(), " got sig from", packet.Origin, " -> ", a.rcvd, "/", a.total)
+	//fmt.Println(a.Node.Identity().ID(), " got sig from", packet.Origin, " -> ", a.rcvd, "/", a.total)
 	// are we done ?
 	if a.rcvd >= a.threshold {
 		//fmt.Println("looping OUUUTTTT")
