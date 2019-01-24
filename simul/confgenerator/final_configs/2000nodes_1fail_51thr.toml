@@ -20,3 +20,26 @@ ResultFile = ""
     NodeCount = 10
     Timeout = "50ms"
     UnsafeSleepTimeOnSigVerify = 0
+[[Runs]]
+  Nodes = 2000
+  Threshold = 1010
+  Failing = 500
+  Processes = 1000
+  [Runs.Handel]
+    Period = "10ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+[[Runs]]
+  Nodes = 2000
+  Threshold = 1010
+  Failing = 990
+  Processes = 1000
+  [Runs.Handel]
+    Period = "10ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+
