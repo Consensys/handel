@@ -23,7 +23,7 @@ func main() {
 		MonitorPort: 10000,
 		MaxTimeout:  "5m",
 		Retrials:    1,
-		Allocator:   "round",
+		Allocator:   "random",
 		Simulation:  "handel",
 		Debug:       0,
 	}
@@ -51,14 +51,14 @@ func main() {
 
 	// one threshold increase with fixed
 	thresholdIncScenario2(configDir, defaultConf, handel, baseNodes, fixedProcesses) /*
-	// one threshold increase with adaptive process ->
-	thresholdIncScenario2(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
-	// we can go to 2000 hopefully with failing nodes
-	failingIncScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
-	// since we go high, we need adaptive
-	nsquareScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
-	libp2pScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
-*/
+		// one threshold increase with adaptive process ->
+		thresholdIncScenario2(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
+		// we can go to 2000 hopefully with failing nodes
+		failingIncScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
+		// since we go high, we need adaptive
+		nsquareScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
+		libp2pScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
+	*/
 	//timeoutIncScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
 	//periodIncScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
 }

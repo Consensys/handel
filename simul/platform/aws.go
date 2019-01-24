@@ -170,7 +170,7 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 	var counter int32
 	for _, slave := range slaveInstances {
 		// TODO This might become a problem for large number of slaves,
-		// limit numebr of go-routines running concurrently if this is the case
+		// limit number of go-routines running concurrently if this is the case
 		go func(slave aws.Instance) {
 			slaveNodeController, err := aws.NewSSHNodeController(*slave.PublicIP, a.pemBytes, a.awsConfig.SSHUser)
 			if err != nil {
@@ -234,6 +234,54 @@ func (a *awsPlatform) Cleanup() error {
 	return nil
 }
 
+func (a *awsPlatform) getBalancedOnRegionNode(size int) ([]*aws.Instance) {
+	if size >= len(a.allSlaveNodes) {
+		return a.allSlaveNodes
+	}
+
+	// First, let's find how many regions we have
+	al := make(map[string]int)
+	for _, i := range a.allSlaveNodes {
+		_, ok := al[i.Region]
+		if !ok {
+			al[i.Region] = 0
+		}
+	}
+
+	var numberOfRegion = len(al)
+	fmt.Println("You have %d instances in %d regions", len(a.allSlaveNodes), numberOfRegion)
+
+	target := size / numberOfRegion
+	var res []*aws.Instance
+	var saved []*aws.Instance
+	for _, i := range a.allSlaveNodes {
+		cur := al[i.Region]
+		if cur < target {
+			al[i.Region] = cur + 1
+			res = append(res, i)
+		} else {
+			saved = append(saved, i)
+		}
+	}
+
+	// It's not well balanced, we're adding the node without any selection
+	if len(res) < size {
+		for _, i := range saved {
+			res = append(res, i)
+			if len(res) == size {
+				break
+			}
+		}
+	}
+
+	if len(res) != size {
+		err := fmt.Errorf("bad size: wanted %d, done %d", size, len(res))
+		panic(err)
+	}
+
+	return res
+}
+
 func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 	fmt.Println("Start run", idx)
 	//Create master controller
@@ -242,7 +290,7 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 		panic(err)
 	}
 
-	slaveNodes := a.allSlaveNodes[0:min(r.Processes, len(a.allSlaveNodes))]
+	slaveNodes := a.getBalancedOnRegionNode(min(r.Processes, len(a.allSlaveNodes)))
 	allocator := a.c.NewAllocator()
 	platforms := make([]lib.Platform, len(slaveNodes))
 	for i := 0; i < len(slaveNodes); i++ {
