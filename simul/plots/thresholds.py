@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 ## This script generates the graph that compares handel signature
-## generation time with different thresholds
+## generation time with different level timeouts
 ##
 import sys
 from lib import *
