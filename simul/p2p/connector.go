@@ -49,7 +49,7 @@ func (*neighbor) Connect(node Node, reg handel.Registry, max int) error {
 		if err := node.Connect(id); err != nil {
 			return err
 		}
-		fmt.Printf("node %d connected to %d\n", nodeID, baseID)
+		//fmt.Printf("node %d connected to %d\n", nodeID, baseID)
 		baseID++
 	}
 	return nil

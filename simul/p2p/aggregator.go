@@ -167,7 +167,7 @@ func (a *Aggregator) handleIncoming() {
 func (a *Aggregator) aggregate(packet handel.Packet) {
 	defer func() { a.procReady <- true }()
 	if a.accBs.Get(int(packet.Origin)) {
-		fmt.Println("already received - continue")
+		//fmt.Println("already received - continue")
 		return
 	}
 
