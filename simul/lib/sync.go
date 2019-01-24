@@ -151,7 +151,7 @@ func (s *state) String() string {
 			//fmt.Fprintf(&b, "\t- %03d +finished+", id)
 		}
 		if (id+1)%4 == 0 {
-			fmt.Fprintf(&b, "\n")
+			//fmt.Fprintf(&b, "\n")
 		}
 	}
 	fmt.Fprintf(&b, "\n")
