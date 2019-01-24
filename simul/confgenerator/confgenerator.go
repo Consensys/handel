@@ -47,7 +47,7 @@ func main() {
 	//  1 handel per instance up until 2000 where we go with 2
 	//adaptiveProcesses := adaptiveGetProcessF(2, 2000)
 	// some scenario can add higher nodes
-	baseNodes := []int{100, 300, 500, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000}
+	baseNodes := []int{100, 300, 500, 1000, 1500, 2000, 2500, 3000, 4000}
 
 	// one threshold increase with fixed
 	thresholdIncScenario2(configDir, defaultConf, handel, baseNodes, fixedProcesses)
@@ -56,7 +56,7 @@ func main() {
 	//thresholdIncScenario2(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
 	//// we can go to 2000 hopefully with failing nodes
 	//// since we go high, we need adaptive
-	//nsquareScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
+	nsquareScenario(configDir, defaultConf, handel, baseNodes, fixedProcesses)
 	libp2pScenario(configDir, defaultConf, handel, baseNodes, fixedProcesses)
 	//timeoutIncScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
 	//periodIncScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
@@ -67,7 +67,8 @@ func libp2pScenario(dir string, defaultConf lib.Config, handel *lib.HandelConfig
 	defer func() { defaultConf.Simulation = oldSimul }()
 
 	defaultConf.Simulation = "p2p/libp2p"
-	nodes := append(baseNodes, 3000, 4000)
+	//nodes := append(baseNodes, 3000, 4000)
+	nodes := baseNodes
 	thresholds := []float64{0.51, 0.75, 0.99}
 	for _, thr := range thresholds {
 		for _, verify := range []string{"1"} {
@@ -101,7 +102,8 @@ func nsquareScenario(dir string, defaultConf lib.Config, handel *lib.HandelConfi
 	defer func() { defaultConf.Simulation = oldSimul }()
 
 	defaultConf.Simulation = "p2p/udp"
-	nodes := append(baseNodes, 3000, 4000)
+	//nodes := append(baseNodes, 3000, 4000)
+	nodes := baseNodes
 	thresholds := []float64{0.51, 0.75, 0.99}
 	for _, thr := range thresholds {
 		for _, verify := range []string{"1"} {
@@ -247,6 +249,7 @@ func thresholdIncScenario2(dir string, defaultConf lib.Config, handel *lib.Hande
 	// it's the last step of handel
 	thrs := []float64{0.51, 0.75, 0.99}
 	nodeList := baseNodes // append(baseNodes, []int{3000, 4000}...)
+	baseNodes = append(baseNodes, 5000, 6000)
 	for _, thr := range thrs {
 		var runs []lib.RunConfig
 		for _, nodes := range nodeList {
