@@ -105,7 +105,7 @@ func TestMultiRegionManager(t *testing.T) {
 	}
 
 	for _, inst := range manager.Instances() {
-		regMap[inst.region] = regMap[inst.region] - 1
+		regMap[inst.Region] = regMap[inst.Region] - 1
 	}
 
 	for _, v := range regMap {
