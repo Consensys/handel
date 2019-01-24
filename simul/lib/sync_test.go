@@ -50,7 +50,7 @@ func TestSyncer(t *testing.T) {
 			}
 		}
 	}
-	tryWait(START, master, slaves)
-	time.Sleep(50 * time.Millisecond)
-	//tryWait(END, master, slaves)
+	go tryWait(START, master, slaves)
+	tryWait(END, master, slaves)
+	tryWait(5, master, slaves)
 }
