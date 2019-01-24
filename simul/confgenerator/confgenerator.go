@@ -50,15 +50,14 @@ func main() {
 	baseNodes := []int{100, 300, 500, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000}
 
 	// one threshold increase with fixed
-	thresholdIncScenario2(configDir, defaultConf, handel, baseNodes, fixedProcesses) /*
-		// one threshold increase with adaptive process ->
-		thresholdIncScenario2(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
-		// we can go to 2000 hopefully with failing nodes
-		failingIncScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
-		// since we go high, we need adaptive
-		nsquareScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
-		libp2pScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
-	*/
+	thresholdIncScenario2(configDir, defaultConf, handel, baseNodes, fixedProcesses)
+	failingIncScenario(configDir, defaultConf, handel, baseNodes, fixedProcesses)
+	/* // one threshold increase with adaptive process ->*/
+	//thresholdIncScenario2(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
+	//// we can go to 2000 hopefully with failing nodes
+	//// since we go high, we need adaptive
+	//nsquareScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
+	/*libp2pScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)*/
 	//timeoutIncScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
 	//periodIncScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
 }
@@ -219,7 +218,6 @@ func failingIncScenario(dir string, defaultConf lib.Config, handel *lib.HandelCo
 	thr := 0.51
 	// various percentages  of failing nodes
 	failings := []float64{0.01, 0.25, 0.49}
-
 	for _, fail := range failings {
 		var runs []lib.RunConfig
 		for _, nodes := range baseNodes {
@@ -322,7 +320,6 @@ func getProcessF(instancePerProc int) func(int) int {
 	return func(nodes int) int {
 		nbProc := float64(nodes) / float64(instancePerProc)
 		return int(math.Ceil(nbProc))
-		return nodes
 	}
 }
 
