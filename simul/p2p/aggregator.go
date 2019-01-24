@@ -97,7 +97,7 @@ func (a *Aggregator) Start() {
 	a.tick = time.NewTicker(a.resendP)
 	go func() {
 		// diffuse it right away once
-		fmt.Printf("%d gossips signature %s - pk = %s\n", a.Node.Identity().ID(), hex.EncodeToString(msBuff[len(msBuff)-1-16:len(msBuff)-1]), a.Identity().PublicKey().String())
+		//fmt.Printf("%d gossips signature %s - pk = %s\n", a.Node.Identity().ID(), hex.EncodeToString(msBuff[len(msBuff)-1-16:len(msBuff)-1]), a.Identity().PublicKey().String())
 		a.Diffuse(packet)
 		for {
 			select {
