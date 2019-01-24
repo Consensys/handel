@@ -15,7 +15,7 @@ type Instance struct {
 	// State: running, pending, stopped
 	State *string
 	//EC2 Instance region
-	region string
+	Region string
 	// EC2 Instance TAG
 	Tag string
 

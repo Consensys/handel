@@ -97,7 +97,7 @@ func (a *Aggregator) Start() {
 	a.tick = time.NewTicker(a.resendP)
 	go func() {
 		// diffuse it right away once
-		fmt.Printf("%d gossips signature %s - pk = %s\n", a.Node.Identity().ID(), hex.EncodeToString(msBuff[len(msBuff)-1-16:len(msBuff)-1]), a.Identity().PublicKey().String())
+		//fmt.Printf("%d gossips signature %s - pk = %s\n", a.Node.Identity().ID(), hex.EncodeToString(msBuff[len(msBuff)-1-16:len(msBuff)-1]), a.Identity().PublicKey().String())
 		a.Diffuse(packet)
 		for {
 			select {
@@ -184,9 +184,10 @@ func (a *Aggregator) aggregate(packet handel.Packet) {
 	a.accSig = a.accSig.Combine(ms.Signature)
 	a.accBs.Set(int(packet.Origin), true)
 	a.rcvd++
-	fmt.Println(a.Node.Identity().ID(), "got sig from", packet.Origin, " -> ", a.rcvd, "/", a.total)
+	//fmt.Println(a.Node.Identity().ID(), "got sig from", packet.Origin, " -> ", a.rcvd, "/", a.total)
 	// are we done
 	if a.rcvd >= a.threshold {
+		fmt.Printf("%d got ENOUGH SIGS %d/%d\n", a.Node.Identity().ID(), a.rcvd, a.threshold)
 		go a.verifyAndDispatch()
 	}
 }

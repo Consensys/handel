@@ -3,18 +3,20 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ConsenSys/handel"
 	"github.com/ConsenSys/handel/simul/lib"
 	"github.com/ConsenSys/handel/simul/p2p"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
 )
 
 // MakeP2P returns the constructor for the libp2p node
 func MakeP2P(ctx context.Context, nodes lib.NodeList, ids []int, threshold int, opts p2p.Opts) (handel.Registry, []p2p.Node) {
 	total := len(nodes)
-	//pubsub.GossipSubHistoryLength = total
-	//pubsub.GossipSubHistoryGossip = total
-	//pubsub.GossipSubHeartbeatInterval = 500 * time.Millisecond
+	pubsub.GossipSubHistoryLength = total * 2
+	pubsub.GossipSubHistoryGossip = total * 2
+	pubsub.GossipSubHeartbeatInterval = 700 * time.Millisecond
 	cons := ctx.Value(p2p.CtxKey("Constructor")).(lib.Constructor)
 	var router = getRouter(opts)
 	var registry = P2PRegistry(make([]*P2PIdentity, total))
