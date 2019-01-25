@@ -29,7 +29,7 @@ func main() {
 	}
 
 	handel := &lib.HandelConfig{
-		Period:      "10ms",
+		Period:      "50ms",
 		UpdateCount: 1,
 		NodeCount:   10,
 		Timeout:     "50ms",
@@ -50,6 +50,9 @@ func main() {
 	//baseNodes := []int{100, 300, 500, 1000, 1500, 2000, 2500,4000 3000, 4000}
 	baseNodes := []int{100, 300, 500, 1000, 1500, 2000}
 
+	nodeCountScenario(configDir, defaultConf, handel, baseNodes, getProcessF(1))
+	updateCountScenario(configDir, defaultConf, handel, baseNodes, getProcessF(1))
+	practicalScenario(configDir, defaultConf, handel, baseNodes, getProcessF(1))
 	// one threshold increase with fixed
 	thresholdIncScenario2(configDir, defaultConf, handel, baseNodes, fixedProcesses)
 	failingIncScenario(configDir, defaultConf, handel, baseNodes, fixedProcesses)
@@ -62,7 +65,95 @@ func main() {
 	timeoutIncScenario(configDir, defaultConf, handel, baseNodes, fixedProcesses)
 	periodIncScenario(configDir, defaultConf, handel, baseNodes, fixedProcesses)
 }
+func nodeCountScenario(dir string, defaultConf lib.Config, handel *lib.HandelConfig, baseNodes []int, procF func(int) int) {
+	nodes := baseNodes
+	thr := 0.99
+	failing := 0
+	counts := []int{1, 10, 20}
 
+	for _, count := range counts {
+		var runs []lib.RunConfig
+		for _, node := range nodes {
+			handelConf := &lib.HandelConfig{
+				Period:                     handel.Period,
+				UpdateCount:                handel.UpdateCount,
+				NodeCount:                  count,
+				Timeout:                    handel.Timeout,
+				UnsafeSleepTimeOnSigVerify: handel.UnsafeSleepTimeOnSigVerify,
+			}
+
+			run := lib.RunConfig{
+				Nodes:     node,
+				Threshold: thrF(thr)(node),
+				Failing:   failing,
+				Processes: procF(node),
+				Handel:    handelConf,
+			}
+			runs = append(runs, run)
+		}
+		defaultConf.Runs = runs
+		fileName := fmt.Sprintf("2000node_count%d.toml", count)
+		if err := defaultConf.WriteTo(filepath.Join(dir, fileName)); err != nil {
+			panic(err)
+		}
+	}
+}
+func updateCountScenario(dir string, defaultConf lib.Config, handel *lib.HandelConfig, baseNodes []int, procF func(int) int) {
+	nodes := baseNodes
+	thr := 0.99
+	failing := 0
+	updates := []int{1, 10, 20}
+
+	for _, update := range updates {
+		var runs []lib.RunConfig
+		for _, node := range nodes {
+			handelConf := &lib.HandelConfig{
+				Period:                     handel.Period,
+				UpdateCount:                update,
+				NodeCount:                  handel.NodeCount,
+				Timeout:                    handel.Timeout,
+				UnsafeSleepTimeOnSigVerify: handel.UnsafeSleepTimeOnSigVerify,
+			}
+
+			run := lib.RunConfig{
+				Nodes:     node,
+				Threshold: thrF(thr)(node),
+				Failing:   failing,
+				Processes: procF(node),
+				Handel:    handelConf,
+			}
+			runs = append(runs, run)
+		}
+		defaultConf.Runs = runs
+		fileName := fmt.Sprintf("2000node_update%d.toml", update)
+		if err := defaultConf.WriteTo(filepath.Join(dir, fileName)); err != nil {
+			panic(err)
+		}
+	}
+}
+func practicalScenario(dir string, defaultConf lib.Config, handel *lib.HandelConfig, baseNodes []int, procF func(int) int) {
+	nodes := append(baseNodes, 3000, 4000)
+	thr := 0.66
+	failing := 0.25
+
+	var runs []lib.RunConfig
+	for _, node := range nodes {
+		run := lib.RunConfig{
+			Nodes:     node,
+			Threshold: thrF(thr)(node),
+			Failing:   thrF(failing)(node),
+			Processes: procF(node),
+			Handel:    handel,
+		}
+		runs = append(runs, run)
+	}
+	defaultConf.Runs = runs
+	fileName := fmt.Sprintf("4000node_handel_real.toml")
+	if err := defaultConf.WriteTo(filepath.Join(dir, fileName)); err != nil {
+		panic(err)
+	}
+
+}
 func libp2pScenario(dir string, defaultConf lib.Config, handel *lib.HandelConfig, baseNodes []int, procF func(int) int) {
 	oldSimul := defaultConf.Simulation
 	defer func() { defaultConf.Simulation = oldSimul }()
