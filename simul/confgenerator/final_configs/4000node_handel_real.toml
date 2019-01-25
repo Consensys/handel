@@ -85,7 +85,7 @@ ResultFile = ""
   Nodes = 3000
   Threshold = 1980
   Failing = 750
-  Processes = 3000
+  Processes = 2000
   [Runs.Handel]
     Period = "50ms"
     UpdateCount = 1
@@ -97,7 +97,7 @@ ResultFile = ""
   Nodes = 4000
   Threshold = 2640
   Failing = 1000
-  Processes = 4000
+  Processes = 2000
   [Runs.Handel]
     Period = "50ms"
     UpdateCount = 1
