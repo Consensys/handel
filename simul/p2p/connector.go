@@ -47,7 +47,8 @@ func (*neighbor) Connect(node Node, reg handel.Registry, max int) error {
 			return errors.New("h-- identity not found")
 		}
 		if err := node.Connect(id); err != nil {
-			return err
+			fmt.Println(nodeID, " error connecting to ", id, ":", err)
+			continue
 		}
 		//fmt.Printf("node %d connected to %d\n", nodeID, baseID)
 		baseID++
@@ -75,7 +76,8 @@ func (*random) Connect(node Node, reg handel.Registry, max int) error {
 		}
 
 		if err := node.Connect(identity); err != nil {
-			return err
+			fmt.Println(node.Identity().ID(), "error connecting to ", identity.ID(), ":", err)
+			continue
 		}
 		//fmt.Printf(" %d -", identity.Identity.ID())
 	}
