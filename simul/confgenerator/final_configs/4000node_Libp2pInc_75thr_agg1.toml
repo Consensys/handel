@@ -22,6 +22,7 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
   [Runs.Extra]
     AggAndVerify = "1"
+    Count = "20"
 
 [[Runs]]
   Nodes = 300
@@ -36,6 +37,7 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
   [Runs.Extra]
     AggAndVerify = "1"
+    Count = "20"
 
 [[Runs]]
   Nodes = 500
@@ -50,6 +52,8 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
   [Runs.Extra]
     AggAndVerify = "1"
+    Count = "25"
+
 
 [[Runs]]
   Nodes = 1000
@@ -64,6 +68,7 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
   [Runs.Extra]
     AggAndVerify = "1"
+    Count = "25"
 
 [[Runs]]
   Nodes = 1500
@@ -78,6 +83,7 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
   [Runs.Extra]
     AggAndVerify = "1"
+    Count = "30"
 
 [[Runs]]
   Nodes = 2000
@@ -92,6 +98,7 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
   [Runs.Extra]
     AggAndVerify = "1"
+    Count = "30"
 
 [[Runs]]
   Nodes = 2500
@@ -106,6 +113,7 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
   [Runs.Extra]
     AggAndVerify = "1"
+    Count = "35"
 
 [[Runs]]
   Nodes = 3000
@@ -120,6 +128,7 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
   [Runs.Extra]
     AggAndVerify = "1"
+    Count = "35"
 
 [[Runs]]
   Nodes = 4000
@@ -134,6 +143,7 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
   [Runs.Extra]
     AggAndVerify = "1"
+    Count = "35"
 
 [[Runs]]
   Nodes = 5000
@@ -148,6 +158,8 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
   [Runs.Extra]
     AggAndVerify = "1"
+    Count = "40"
+
 
 [[Runs]]
   Nodes = 6000
@@ -162,31 +174,4 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
   [Runs.Extra]
     AggAndVerify = "1"
-
-[[Runs]]
-  Nodes = 3000
-  Threshold = 2250
-  Failing = 0
-  Processes = 1500
-  [Runs.Handel]
-    Period = "10ms"
-    UpdateCount = 1
-    NodeCount = 10
-    Timeout = "50ms"
-    UnsafeSleepTimeOnSigVerify = 0
-  [Runs.Extra]
-    AggAndVerify = "1"
-
-[[Runs]]
-  Nodes = 4000
-  Threshold = 3000
-  Failing = 0
-  Processes = 2000
-  [Runs.Handel]
-    Period = "10ms"
-    UpdateCount = 1
-    NodeCount = 10
-    Timeout = "50ms"
-    UnsafeSleepTimeOnSigVerify = 0
-  [Runs.Extra]
-    AggAndVerify = "1"
+    Count = "40"

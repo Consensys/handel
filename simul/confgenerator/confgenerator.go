@@ -47,7 +47,8 @@ func main() {
 	//  1 handel per instance up until 2000 where we go with 2
 	//adaptiveProcesses := adaptiveGetProcessF(2, 2000)
 	// some scenario can add higher nodes
-	baseNodes := []int{100, 300, 500, 1000, 1500, 2000, 2500, 3000, 4000}
+	//baseNodes := []int{100, 300, 500, 1000, 1500, 2000, 2500,4000 3000, 4000}
+	baseNodes := []int{100, 300, 500, 1000, 1500, 2000}
 
 	// one threshold increase with fixed
 	thresholdIncScenario2(configDir, defaultConf, handel, baseNodes, fixedProcesses)
@@ -58,8 +59,8 @@ func main() {
 	//// since we go high, we need adaptive
 	nsquareScenario(configDir, defaultConf, handel, baseNodes, fixedProcesses)
 	libp2pScenario(configDir, defaultConf, handel, baseNodes, fixedProcesses)
-	//timeoutIncScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
-	//periodIncScenario(configDir, defaultConf, handel, baseNodes, adaptiveProcesses)
+	timeoutIncScenario(configDir, defaultConf, handel, baseNodes, fixedProcesses)
+	periodIncScenario(configDir, defaultConf, handel, baseNodes, fixedProcesses)
 }
 
 func libp2pScenario(dir string, defaultConf lib.Config, handel *lib.HandelConfig, baseNodes []int, procF func(int) int) {

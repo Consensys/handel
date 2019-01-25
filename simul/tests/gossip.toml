@@ -12,7 +12,7 @@ Simulation = "p2p/libp2p"
     Processes = 2
     [Runs.Extra]
         Connector = "neighbor"
-        Count = "5"
+        Count = "10"
 
 [[Runs]]
     Nodes = 20
