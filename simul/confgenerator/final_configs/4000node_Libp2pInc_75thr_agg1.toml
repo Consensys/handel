@@ -37,7 +37,7 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
   [Runs.Extra]
     AggAndVerify = "1"
-    Count = "20"
+    Count = "30"
 
 [[Runs]]
   Nodes = 500
@@ -52,7 +52,7 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
   [Runs.Extra]
     AggAndVerify = "1"
-    Count = "25"
+    Count = "35"
 
 
 [[Runs]]
@@ -68,7 +68,7 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
   [Runs.Extra]
     AggAndVerify = "1"
-    Count = "25"
+    Count = "40"
 
 [[Runs]]
   Nodes = 1500
@@ -83,7 +83,7 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
   [Runs.Extra]
     AggAndVerify = "1"
-    Count = "30"
+    Count = "45"
 
 [[Runs]]
   Nodes = 2000
@@ -98,7 +98,7 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
   [Runs.Extra]
     AggAndVerify = "1"
-    Count = "30"
+    Count = "50"
 
 [[Runs]]
   Nodes = 2500
@@ -113,7 +113,7 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
   [Runs.Extra]
     AggAndVerify = "1"
-    Count = "35"
+    Count = "55"
 
 [[Runs]]
   Nodes = 3000
@@ -128,7 +128,7 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
   [Runs.Extra]
     AggAndVerify = "1"
-    Count = "35"
+    Count = "60"
 
 [[Runs]]
   Nodes = 4000
@@ -143,7 +143,7 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
   [Runs.Extra]
     AggAndVerify = "1"
-    Count = "35"
+    Count = "65"
 
 [[Runs]]
   Nodes = 5000
@@ -158,7 +158,7 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
   [Runs.Extra]
     AggAndVerify = "1"
-    Count = "40"
+    Count = "70"
 
 
 [[Runs]]
@@ -174,4 +174,4 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
   [Runs.Extra]
     AggAndVerify = "1"
-    Count = "40"
+    Count = "75"
