@@ -47,7 +47,7 @@ def read_datafiles(files):
     # datas will contain all data to read organized by
     # filename : <panda's output>
     datas = {}
-    for fileName in sys.argv[1:]:
+    for fileName in files:
         datas[fileName] = pd.read_csv(fileName)
         print("read %s : %d columns" % (fileName, len(datas[fileName].columns)))
     

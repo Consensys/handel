@@ -19,12 +19,8 @@ threshold = "51"
 expectedNodes = 2000
 nodes = None
 
-files = sys.argv[1:]
-if len(files) > 1:
-    print("error: should have only one file")
-    sys.exit(1)
-
-datas = read_datafiles()
+files = {"csv/handel_2000_failing.csv": "handel"}
+datas = read_datafiles(files)
 
 for f,v in datas.items():
     nodes = v[nodeColumn].max() # should be 2000
@@ -35,15 +31,15 @@ for f,v in datas.items():
     x = v[failingColumn].map(lambda x: int((x/nodes) * 100))
     y = v[sigColumn]
     print("file %s -> %d data points on %s" % (f,len(y),sigColumn))
-    label = input("Label for file %s: " % f)
+    label = files[f]
     if label == "":
-        label = f
+        label = input("Label for file %s: " % f)
 
     plot(x,y,"-",label,allColors.popleft())
 
 plt.legend(fontsize=fs_label)
 plt.ylabel("signature generation",fontsize=fs_label)
 plt.xlabel("failing nodes in %",fontsize=fs_label)
-plt.yscale('log')
+# plt.yscale('log')
 plt.title("Time for 51% signature with varying failing nodes")
 plt.show()
