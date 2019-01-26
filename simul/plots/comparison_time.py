@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 ## This script generate the graphs that compares handel, nsquare 
-## and libp2p together.
+## and libp2p together for the signature generation time
 ##
 import sys
 from lib import *
@@ -34,5 +34,6 @@ for f,v in datas.items():
 plt.legend(fontsize=fs_label)
 plt.ylabel("signature generation (ms)",fontsize=fs_label)
 plt.xlabel("nodes",fontsize=fs_label)
+plt.title("Signature generation time - comparative baseline",fontsize=fs_label)
 # plt.yscale('log')
 plt.show()
