@@ -52,7 +52,7 @@ func main() {
 
 	nodeCountScenario(configDir, defaultConf, handel, baseNodes, getProcessF(1))
 	updateCountScenario(configDir, defaultConf, handel, baseNodes, getProcessF(1))
-	practicalScenario(configDir, defaultConf, handel, baseNodes, getProcessF(1))
+	practicalScenario(configDir, defaultConf, handel, baseNodes, thresholdProcessF(2000))
 	// one threshold increase with fixed
 	thresholdIncScenario2(configDir, defaultConf, handel, baseNodes, fixedProcesses)
 	failingIncScenario(configDir, defaultConf, handel, baseNodes, fixedProcesses)
@@ -132,7 +132,7 @@ func updateCountScenario(dir string, defaultConf lib.Config, handel *lib.HandelC
 	}
 }
 func practicalScenario(dir string, defaultConf lib.Config, handel *lib.HandelConfig, baseNodes []int, procF func(int) int) {
-	nodes := append(baseNodes, 3000, 4000)
+	nodes := append(baseNodes, 2500, 3000, 3500, 4000)
 	thr := 0.66
 	failing := 0.25
 
@@ -401,6 +401,15 @@ func thresholdIncScenario2(dir string, defaultConf lib.Config, handel *lib.Hande
 func thrF(t float64) func(int) int {
 	return func(n int) int {
 		return scenarios.CalcThreshold(n, t)
+	}
+}
+
+func thresholdProcessF(threshold int) func(int) int {
+	return func(nodes int) int {
+		if nodes < threshold {
+			return nodes
+		}
+		return threshold
 	}
 }
 
