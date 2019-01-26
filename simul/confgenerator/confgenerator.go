@@ -176,7 +176,7 @@ func libp2pScenario(dir string, defaultConf lib.Config, handel *lib.HandelConfig
 						"AggAndVerify": verify,
 					},
 				}
-				fmt.Println(" n = ", n, " => process = ", procF(n))
+				//fmt.Println(" n = ", n, " => process = ", procF(n))
 				runs = append(runs, run)
 			}
 			defaultConf.Runs = runs
@@ -310,15 +310,17 @@ func timeoutIncScenario(dir string, defaultConf lib.Config, handel *lib.HandelCo
 // failingIncScenario increases the number of failing nodes with two different
 // threshold.
 func failingIncScenario(dir string, defaultConf lib.Config, handel *lib.HandelConfig, baseNodes []int, procF func(int) int) {
-	thr := 0.51
+	thr := 0.50
+	//nodes := append(baseNodes,3000,4000)
+	baseNodes = []int{2000, 3000, 4000}
 	// various percentages  of failing nodes
 	failings := []float64{0.01, 0.25, 0.49}
 	for _, fail := range failings {
 		var runs []lib.RunConfig
 		for _, nodes := range baseNodes {
 			failing := thrF(fail)(nodes)
-			//fmt.Printf("failing %d for %d nodes\n", failing, nodes)
-			threshold := thrF(thr)(nodes - failing)
+			threshold := thrF(thr)(nodes)
+			fmt.Printf("failing %d ,thr %d for %d nodes\n", failing, threshold, nodes)
 			run := lib.RunConfig{
 				Nodes:     nodes,
 				Threshold: threshold,
@@ -329,7 +331,7 @@ func failingIncScenario(dir string, defaultConf lib.Config, handel *lib.HandelCo
 			runs = append(runs, run)
 		}
 		defaultConf.Runs = runs
-		fileName := fmt.Sprintf("2000nodes_%dfail_%dthr.toml", int(fail*100), int(thr*100))
+		fileName := fmt.Sprintf("4000nodes_%dfail_%dthr.toml", int(fail*100), int(thr*100))
 		if err := defaultConf.WriteTo(filepath.Join(dir, fileName)); err != nil {
 			panic(err)
 		}
