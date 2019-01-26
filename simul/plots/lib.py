@@ -39,8 +39,8 @@ def save_pdf(name):
     if show:
         plt.show()
 
-def read_datafiles():
-    if len(sys.argv) == 1:
+def read_datafiles(files):
+    if len(files) < 1:
         print("expect csv file arguments")
         sys.exit(1)
 

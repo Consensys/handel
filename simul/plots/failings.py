@@ -1,0 +1,49 @@
+#!/usr/bin/env python
+
+## This script generate the graphs that compares handel signature 
+## generation with different number of failing nodes for a fixed 
+## number of total nodes, and a fixed threshold 51%
+##
+import sys
+from lib import *
+
+import pandas as pd
+import matplotlib.pyplot as plt
+
+sigColumn = "sigen_wall_avg"
+nodeColumn = "totalNbOfNodes"
+failingColumn = "failing"
+
+## threshold of signatures required
+threshold = "51"
+expectedNodes = 2000
+nodes = None
+
+files = sys.argv[1:]
+if len(files) > 1:
+    print("error: should have only one file")
+    sys.exit(1)
+
+datas = read_datafiles()
+
+for f,v in datas.items():
+    nodes = v[nodeColumn].max() # should be 2000
+    if int(v[nodeColumn].mean()) != expectedNodes:
+        print("error : nodes should be 2000")
+        sys.exit(1)
+
+    x = v[failingColumn].map(lambda x: int((x/nodes) * 100))
+    y = v[sigColumn]
+    print("file %s -> %d data points on %s" % (f,len(y),sigColumn))
+    label = input("Label for file %s: " % f)
+    if label == "":
+        label = f
+
+    plot(x,y,"-",label,allColors.popleft())
+
+plt.legend(fontsize=fs_label)
+plt.ylabel("signature generation",fontsize=fs_label)
+plt.xlabel("failing nodes in %",fontsize=fs_label)
+plt.yscale('log')
+plt.title("Time for 51% signature with varying failing nodes")
+plt.show()
