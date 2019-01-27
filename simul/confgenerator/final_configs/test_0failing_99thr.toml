@@ -15,7 +15,7 @@ ResultFile = ""
   Failing = 0
   Processes = 50
   [Runs.Handel]
-    Period = "10ms"
+    Period = "50ms"
     UpdateCount = 1
     NodeCount = 10
     Timeout = "50ms"
@@ -27,7 +27,7 @@ ResultFile = ""
   Failing = 0
   Processes = 150
   [Runs.Handel]
-    Period = "10ms"
+    Period = "50ms"
     UpdateCount = 1
     NodeCount = 10
     Timeout = "50ms"
@@ -39,7 +39,7 @@ ResultFile = ""
   Failing = 0
   Processes = 250
   [Runs.Handel]
-    Period = "10ms"
+    Period = "50ms"
     UpdateCount = 1
     NodeCount = 10
     Timeout = "50ms"
@@ -51,7 +51,7 @@ ResultFile = ""
   Failing = 0
   Processes = 500
   [Runs.Handel]
-    Period = "10ms"
+    Period = "50ms"
     UpdateCount = 1
     NodeCount = 10
     Timeout = "50ms"
@@ -63,7 +63,7 @@ ResultFile = ""
   Failing = 0
   Processes = 750
   [Runs.Handel]
-    Period = "10ms"
+    Period = "50ms"
     UpdateCount = 1
     NodeCount = 10
     Timeout = "50ms"
@@ -75,7 +75,7 @@ ResultFile = ""
   Failing = 0
   Processes = 1000
   [Runs.Handel]
-    Period = "10ms"
+    Period = "50ms"
     UpdateCount = 1
     NodeCount = 10
     Timeout = "50ms"
@@ -87,7 +87,7 @@ ResultFile = ""
   Failing = 0
   Processes = 1250
   [Runs.Handel]
-    Period = "10ms"
+    Period = "50ms"
     UpdateCount = 1
     NodeCount = 10
     Timeout = "50ms"
@@ -99,7 +99,7 @@ ResultFile = ""
   Failing = 0
   Processes = 1500
   [Runs.Handel]
-    Period = "10ms"
+    Period = "50ms"
     UpdateCount = 1
     NodeCount = 10
     Timeout = "50ms"
@@ -111,7 +111,7 @@ ResultFile = ""
   Failing = 0
   Processes = 2000
   [Runs.Handel]
-    Period = "10ms"
+    Period = "50ms"
     UpdateCount = 1
     NodeCount = 10
     Timeout = "50ms"
