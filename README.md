@@ -9,4 +9,4 @@ You can find the [slides](https://docs.google.com/presentation/d/1fL0mBF5At4ojW0
 
 Most development is done in the `dev` branch and a first release will be released in Q1 2019.
 
-In the meantime, you can check the `HACKING.md` file to know more about the generic interface used to plug Handel over different networks, curves, and topology.
+In the meantime, you can check the [HACKING.md](https://github.com/ConsenSys/handel/blob/master/HACKING.md) file to know more about the generic interface used to plug Handel over different networks, curves, and topology.
