@@ -16,16 +16,16 @@ failingColumn = "failing"
 
 ## threshold of signatures required
 threshold = "51"
-expectedNodes = 2000
+expectedNodes = 4000
 nodes = None
 
-files = {"csv/handel_2000_failing.csv": "handel"}
+files = {"csv/handel_4000_failing.csv": "handel"}
 datas = read_datafiles(files)
 
 for f,v in datas.items():
     nodes = v[nodeColumn].max() # should be 2000
     if int(v[nodeColumn].mean()) != expectedNodes:
-        print("error : nodes should be 2000")
+        print("error : nodes should be " + str(expectedNodes))
         sys.exit(1)
 
     x = v[failingColumn].map(lambda x: int((x/nodes) * 100))
@@ -41,5 +41,5 @@ plt.legend(fontsize=fs_label)
 plt.ylabel("KBytes ",fontsize=fs_label)
 plt.xlabel("failing nodes in %",fontsize=fs_label)
 # plt.yscale('log')
-plt.title("Outgoing network consumption for 51% signature with varying failing nodes- TO REDO !!!!")
+plt.title("Outgoing network consumption for 51% signature threshold over 4000 nodes") 
 plt.show()

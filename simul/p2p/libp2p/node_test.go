@@ -20,7 +20,7 @@ import (
 func TestGossipMeshy(t *testing.T) {
 	n := 50
 	thr := 48
-	nbOutgoing := 3
+	nbOutgoing := 10
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	connector := p2p.NewNeighborConnector()

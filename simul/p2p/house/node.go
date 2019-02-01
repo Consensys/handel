@@ -46,11 +46,30 @@ type gossipState struct {
 	// bitset of peers we have transmitted the message
 	sentTo        handel.BitSet
 	retransmitted int
+	fanout        int
+	// id of the node holding this state
+	ourID int32
+	// id of the sender of the gossip message
+	senderID int32
 }
 
 // Update returns a list of IDs to send the returned gossip as well.
 func (g *gossipState) Update() (*Gossip, []int) {
-	return nil, nil
+	// find the ones not sent to yet
+	ids := make([]int, 0, g.fanout)
+	size := g.sentTo.BitLength()
+	for len(ids) < g.fanout {
+		i := rand.Intn(size)
+		if g.sentTo.Get(i) {
+			continue
+		}
+		if int32(i) == g.ourID {
+			continue
+		}
+		g.sentTo.Set(i, true)
+		ids = append(ids, i)
+	}
+	return g.gossip, ids
 }
 
 type topic struct {
@@ -68,7 +87,7 @@ type topic struct {
 	isDone  bool
 }
 
-func newState(ourID int32, topicID string, size, fanout int, period time.Duration,
+func newTopic(ourID int32, topicID string, size, fanout int, period time.Duration,
 	fn func([]int32, *Gossip)) *topic {
 	s := &topic{
 		ourID:   ourID,
@@ -259,7 +278,7 @@ func (n *Node) getOrCreate(topicID string) *topic {
 	defer n.Unlock()
 	state, exists := n.topics[topicID]
 	if !exists {
-		state = newState(n.Identity().ID(), topicID, n.reg.Size(), n.fanout, n.period, n.sendGossip)
+		state = newTopic(n.Identity().ID(), topicID, n.reg.Size(), n.fanout, n.period, n.sendGossip)
 		n.topics[topicID] = state
 	}
 	return state
