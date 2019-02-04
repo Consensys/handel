@@ -207,6 +207,7 @@ func (m *SigBLS) String() string {
 // hashedMessage returns the message hashed to G1
 // XXX: this should be fixed as to have a method that maps a message
 // (potentially a digest) to a point WITHOUT knowing the corresponding scalar.
+// see issue: https://github.com/ConsenSys/handel/issues/122
 func hashedMessage(msg []byte) (*bn256.G1, error) {
 	h := Hash()
 	h.Write(msg)
