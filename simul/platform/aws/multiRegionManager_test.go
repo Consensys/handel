@@ -46,7 +46,7 @@ func makeManager(n int, reg string) Manager {
 		inst := Instance{
 			ID:     aws.String(string(n) + reg),
 			State:  aws.String(stopped),
-			region: reg,
+			Region: reg,
 		}
 		instances = append(instances, inst)
 	}
