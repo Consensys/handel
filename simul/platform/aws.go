@@ -36,7 +36,7 @@ type awsPlatform struct {
 }
 
 const s3Dir = "pegasysrndbucketvirginiav1"
-const stream_logs_via_ssh = true
+const stream_logs_via_ssh = false
 
 // NewAws creates AWS Platform
 func NewAws(aws aws.Manager, awsConfig *aws.Config) Platform {
@@ -116,6 +116,7 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 		return err
 	}
 
+	//	slaveInstances = slaveInstances[0:2005]
 	cons := c.NewConstructor()
 	a.cons = cons
 	masterAddr := aws.GenRemoteAddress(*masterInstance.PublicIP, 5000)
@@ -136,6 +137,7 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 	fmt.Println()
 	fmt.Println("[+] Avaliable Slave Instances:")
 
+	//slaveInstances = slaveInstances[0:50]
 	for i, inst := range slaveInstances {
 		fmt.Println("	 [-] Instance ", i, *inst.ID, *inst.State, *inst.PublicIP)
 	}
@@ -178,7 +180,7 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 			}
 			fmt.Println("    - Configuring Slave", *slave.PublicIP)
 			if err := configureSlave(slaveNodeController, slaveCmds, a.slaveCMDS.Kill()); err != nil {
-				fmt.Println("  Problem with Slave", *slave.PublicIP, err)
+				fmt.Println("  Problem with Slave", *slave.PublicIP, slave.Region, err)
 			} else {
 				instChan <- slave
 			}
@@ -234,7 +236,7 @@ func (a *awsPlatform) Cleanup() error {
 	return nil
 }
 
-func (a *awsPlatform) getBalancedOnRegionNode(size int) ([]*aws.Instance) {
+func (a *awsPlatform) getBalancedOnRegionNode(size int) []*aws.Instance {
 	if size >= len(a.allSlaveNodes) {
 		return a.allSlaveNodes
 	}
@@ -373,7 +375,9 @@ func (a *awsPlatform) runSlave(inst aws.Instance, idx int, slaveController aws.N
 	for i := 0; i < len(cpyFiles); i++ {
 		fmt.Println(*inst.PublicIP, cpyFiles[i])
 		if err := slaveController.Run(cpyFiles[i], nil); err != nil {
-			panic(err)
+			fmt.Println("Error", *inst.PublicIP, err)
+			//			panic(err)
+			return
 		}
 	}
 
@@ -408,6 +412,8 @@ func (a *awsPlatform) startSlave(inst aws.Instance, idx int, slaveController aws
 	for i := 0; i < len(cpyFiles); i++ {
 		fmt.Println(*inst.PublicIP, cpyFiles[i])
 		if err := slaveController.Run(cpyFiles[i], nil); err != nil {
+			fmt.Println("Slave Error", inst.Region, *inst.PublicIP)
+			//return
 			panic(err)
 		}
 	}

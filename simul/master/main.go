@@ -69,7 +69,6 @@ func main() {
 		case <-time.After(time.Duration(*timeOut) * time.Minute):
 			msg := fmt.Sprintf("timeout after %d mn", *timeOut)
 			fmt.Println(msg)
-			panic(fmt.Sprintf("timeout after %d mn", *timeOut))
 		}
 		fmt.Println(" MASTER --->> SYNCING P2P DONE ")
 	}
@@ -81,7 +80,6 @@ func main() {
 	case <-time.After(time.Duration(*timeOut) * time.Minute):
 		msg := fmt.Sprintf("timeout after %d mn", *timeOut)
 		fmt.Println(msg)
-		panic(fmt.Sprintf("timeout after %d mn", *timeOut))
 	}
 
 	select {
@@ -90,8 +88,9 @@ func main() {
 	case <-time.After(time.Duration(25) * time.Second):
 		msg := fmt.Sprintf("timeout after %d sec", 25)
 		fmt.Println(msg)
-		panic(msg)
 	}
+
+	fmt.Println("Writting to", csvName)
 
 	if *run == 0 {
 		stats.WriteHeader(csvFile)

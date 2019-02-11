@@ -11,7 +11,7 @@ ResultFile = ""
 
 [[Runs]]
   Nodes = 100
-  Threshold = 51
+  Threshold = 99
   Failing = 0
   Processes = 50
   [Runs.Handel]
@@ -22,11 +22,11 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
   [Runs.Extra]
     AggAndVerify = "1"
-    Count = "20"
+    Router = "gossip"
 
 [[Runs]]
   Nodes = 300
-  Threshold = 153
+  Threshold = 297
   Failing = 0
   Processes = 150
   [Runs.Handel]
@@ -37,11 +37,11 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
   [Runs.Extra]
     AggAndVerify = "1"
-    Count = "20"
+    Router = "gossip"
 
 [[Runs]]
   Nodes = 500
-  Threshold = 255
+  Threshold = 495
   Failing = 0
   Processes = 250
   [Runs.Handel]
@@ -52,11 +52,11 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
   [Runs.Extra]
     AggAndVerify = "1"
-    Count = "20"
+    Router = "gossip"
 
 [[Runs]]
   Nodes = 1000
-  Threshold = 510
+  Threshold = 990
   Failing = 0
   Processes = 500
   [Runs.Handel]
@@ -67,11 +67,11 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
   [Runs.Extra]
     AggAndVerify = "1"
-    Count = "25"
+    Router = "gossip"
 
 [[Runs]]
   Nodes = 1500
-  Threshold = 765
+  Threshold = 1485
   Failing = 0
   Processes = 750
   [Runs.Handel]
@@ -82,11 +82,11 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
   [Runs.Extra]
     AggAndVerify = "1"
-    Count = "30"
+    Router = "gossip"
 
 [[Runs]]
   Nodes = 2000
-  Threshold = 1020
+  Threshold = 1980
   Failing = 0
   Processes = 1000
   [Runs.Handel]
@@ -97,49 +97,4 @@ ResultFile = ""
     UnsafeSleepTimeOnSigVerify = 0
   [Runs.Extra]
     AggAndVerify = "1"
-    Count = "30"
-
-[[Runs]]
-  Nodes = 2500
-  Threshold = 1275
-  Failing = 0
-  Processes = 1250
-  [Runs.Handel]
-    Period = "10ms"
-    UpdateCount = 1
-    NodeCount = 10
-    Timeout = "50ms"
-    UnsafeSleepTimeOnSigVerify = 0
-  [Runs.Extra]
-    AggAndVerify = "1"
-    Count = "35"
-
-[[Runs]]
-  Nodes = 3000
-  Threshold = 1530
-  Failing = 0
-  Processes = 1500
-  [Runs.Handel]
-    Period = "10ms"
-    UpdateCount = 1
-    NodeCount = 10
-    Timeout = "50ms"
-    UnsafeSleepTimeOnSigVerify = 0
-  [Runs.Extra]
-    AggAndVerify = "1"
-    Count = "35"
-
-[[Runs]]
-  Nodes = 4000
-  Threshold = 2040
-  Failing = 0
-  Processes = 2000
-  [Runs.Handel]
-    Period = "10ms"
-    UpdateCount = 1
-    NodeCount = 10
-    Timeout = "50ms"
-    UnsafeSleepTimeOnSigVerify = 0
-  [Runs.Extra]
-    AggAndVerify = "1"
-    Count = "35"
+    Router = "gossip"

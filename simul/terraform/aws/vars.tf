@@ -19,7 +19,7 @@ variable "instance_type" {
 
 variable "number_of_instances_per_region" {
   description = "number of EC2 instances per region"
-  default = 2
+  default = 1
 }
 
 variable "ami" {

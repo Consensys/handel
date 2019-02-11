@@ -20,6 +20,20 @@ resource "aws_security_group" "eu-west-1" {
   }
 
   ingress {
+    from_port = 0
+    to_port = 0
+    protocol = -1
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port = 22
+    to_port = 22
+    protocol = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
       from_port   = 0
       to_port     = 65535
       protocol    = "udp"
@@ -69,6 +83,13 @@ resource "aws_security_group" "ap-south-1" {
     from_port = 22
     to_port = 22
     protocol = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port = 0
+    to_port = 0
+    protocol = -1
     cidr_blocks = ["0.0.0.0/0"]
   }
 
@@ -131,6 +152,13 @@ resource "aws_security_group" "us-east-1" {
       cidr_blocks = ["0.0.0.0/0"]
     }
 
+  ingress {
+      from_port = 0
+      to_port = 0
+      protocol = -1
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+
   egress {
     from_port = 0
     to_port = 0
@@ -179,6 +207,13 @@ resource "aws_security_group" "ap-northeast-2" {
       from_port   = 0
       to_port     = 65535
       protocol    = "udp"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+
+  ingress {
+      from_port = 0
+      to_port = 0
+      protocol = -1
       cidr_blocks = ["0.0.0.0/0"]
     }
 
@@ -235,6 +270,13 @@ resource "aws_security_group" "ap-southeast-1" {
       cidr_blocks = ["0.0.0.0/0"]
     }
 
+  ingress {
+      from_port = 0
+      to_port = 0
+      protocol = -1
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+
   egress {
     from_port = 0
     to_port = 0
@@ -286,6 +328,13 @@ resource "aws_security_group" "ap-southeast-2" {
       cidr_blocks = ["0.0.0.0/0"]
     }
 
+  ingress {
+      from_port = 0
+      to_port = 0
+      protocol = -1
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+
   egress {
     from_port = 0
     to_port = 0
@@ -334,6 +383,13 @@ resource "aws_security_group" "ap-northeast-1" {
       from_port   = 0
       to_port     = 65535
       protocol    = "udp"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+
+  ingress {
+      from_port = 0
+      to_port = 0
+      protocol = -1
       cidr_blocks = ["0.0.0.0/0"]
     }
 
@@ -389,6 +445,13 @@ resource "aws_security_group" "ca-central-1" {
       cidr_blocks = ["0.0.0.0/0"]
     }
 
+  ingress {
+      from_port = 0
+      to_port = 0
+      protocol = -1
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+
   egress {
     from_port = 0
     to_port = 0
@@ -441,6 +504,13 @@ resource "aws_security_group" "eu-central-1" {
       cidr_blocks = ["0.0.0.0/0"]
     }
 
+    ingress {
+      from_port = 0
+      to_port = 0
+      protocol = -1
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+
   egress {
     from_port = 0
     to_port = 0
@@ -490,6 +560,13 @@ resource "aws_security_group" "eu-west-2" {
       from_port   = 0
       to_port     = 65535
       protocol    = "udp"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+
+    ingress {
+      from_port = 0
+      to_port = 0
+      protocol = -1
       cidr_blocks = ["0.0.0.0/0"]
     }
 
