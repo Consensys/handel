@@ -30,10 +30,18 @@ for f,v in datas.items():
     print("x = ",x)
     print("y = ",y)
     plot(x,y,"-",label,allColors.popleft())
+    xMax = x.max()
+    yMax = y.max()
+    xCoordText = xMax - (xMax * 0.07) 
+    ## 10% higher
+    yCoordText = yMax + (yMax * 0.02 )
+    plt.annotate("%d ms" % yMax,xy=(xMax,yMax),xycoords='data',
+            xytext=(xCoordText,yCoordText),textcoords='data',fontsize=fs_label)
+
 
 plt.legend(fontsize=fs_label)
 plt.ylabel("signature generation (ms)",fontsize=fs_label)
-plt.xlabel("nodes",fontsize=fs_label)
+plt.xlabel("Handel nodes",fontsize=fs_label)
 plt.title("Signature generation time - comparative baseline",fontsize=fs_label)
 # plt.yscale('log')
 plt.show()
