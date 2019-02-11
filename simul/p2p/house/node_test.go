@@ -1,17 +1,6 @@
 package house
 
-import (
-	"context"
-	"fmt"
-	"strconv"
-	"testing"
-	"time"
-
-	bn256 "github.com/ConsenSys/handel/bn256/cf"
-	"github.com/ConsenSys/handel/simul/lib"
-	"github.com/ConsenSys/handel/simul/p2p"
-)
-
+/*
 func TestHouseHandel(t *testing.T) {
 	n := 40
 	fanout := 5
@@ -172,3 +161,4 @@ func FakeSetup(ctx context.Context, n, fanout int, period time.Duration) ([]*lib
 
 	return nodes, hnodes, nil
 }
+*/
