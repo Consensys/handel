@@ -251,7 +251,7 @@ func (a *awsPlatform) getBalancedOnRegionNode(size int) []*aws.Instance {
 	}
 
 	var numberOfRegion = len(al)
-	fmt.Println("You have %d instances in %d regions", len(a.allSlaveNodes), numberOfRegion)
+	fmt.Printf("You have %d instances in %d regions", len(a.allSlaveNodes), numberOfRegion)
 
 	target := size / numberOfRegion
 	var res []*aws.Instance
