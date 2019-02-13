@@ -13,4 +13,4 @@ Simulation = "p2p/libp2p"
     Processes = 3
     [Runs.Extra]
         Connector = "random"
-        Count = "30"
+        Count = "10"
