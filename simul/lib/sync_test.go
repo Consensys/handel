@@ -14,13 +14,13 @@ func TestSyncer(t *testing.T) {
 	}
 	n := len(slaveAddrs) * 2 // 2 nodes per instances
 	master := NewSyncMaster(masterAddr, n, n)
-	defer master.Stop()
+	//defer master.Stop()
 
 	var slaves = make([]*SyncSlave, len(slaveAddrs))
 	doneSlave := make(chan bool, len(slaveAddrs))
 	for i, addr := range slaveAddrs {
 		slaves[i] = NewSyncSlave(addr, masterAddr, []int{i * 2, i*2 + 1})
-		defer slaves[i].Stop()
+		//defer slaves[i].Stop()
 	}
 
 	tryWait := func(stateID int, m *SyncMaster, slaves []*SyncSlave) {
@@ -50,7 +50,7 @@ func TestSyncer(t *testing.T) {
 			}
 		}
 	}
-	tryWait(START, master, slaves)
-	time.Sleep(50 * time.Millisecond)
+	go tryWait(START, master, slaves)
 	tryWait(END, master, slaves)
+	tryWait(5, master, slaves)
 }

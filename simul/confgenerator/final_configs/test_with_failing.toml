@@ -12,7 +12,7 @@ ResultFile = ""
 
 [[Runs]]
   Nodes = 4000
-  Threshold = 3960
+  Threshold = 3940
   Failing = 40
   Processes = 2000
   [Runs.Handel]
@@ -21,6 +21,7 @@ ResultFile = ""
     NodeCount = 10
     Timeout = "50ms"
     UnsafeSleepTimeOnSigVerify = 0
+
 [[Runs]]
   Nodes = 4000
   Threshold = 3000
@@ -32,6 +33,7 @@ ResultFile = ""
     NodeCount = 10
     Timeout = "50ms"
     UnsafeSleepTimeOnSigVerify = 0
+
 [[Runs]]
   Nodes = 4000
   Threshold = 2040
@@ -69,7 +71,7 @@ ResultFile = ""
 
 [[Runs]]
   Nodes = 4000
-  Threshold = 2040
+  Threshold = 2000
   Failing = 1960
   Processes = 2000
   [Runs.Handel]

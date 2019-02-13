@@ -33,6 +33,7 @@ func (l *localPlatform) Configure(c *lib.Config) error {
 	l.confPath = "/tmp/local.conf"
 	// Compile binaries
 	pack := c.GetBinaryPath()
+	//cmd := NewCommand("go", "build", "-o", l.binPath, "-race", pack)
 	cmd := NewCommand("go", "build", "-o", l.binPath, pack)
 	if err := cmd.Run(); err != nil {
 		fmt.Println("command output -> " + cmd.ReadAll())
@@ -148,6 +149,17 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 	l.Lock()
 	l.cmds = commands
 	l.Unlock()
+
+	if strings.Contains(l.c.Simulation, "libp2p") {
+		fmt.Println(" LOCALHOST --->> SYNCING P2P ")
+		select {
+		case <-master.WaitAll(lib.P2P):
+			fmt.Printf("[+] Master full synchronization done.\n")
+		case <-time.After(5 * time.Minute):
+			panic("timeout after 2 mn")
+		}
+		fmt.Println(" LOCALHOST --->> SYNCING P2P DONE ")
+	}
 
 	// 4. Wait for the master to have synced up every node
 	select {

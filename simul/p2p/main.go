@@ -24,17 +24,17 @@ type CtxKey string
 // make
 const MaxCount = 10
 
-var configFile = flag.String("config", "", "config file created for the exp.")
+var ConfigFile = flag.String("config", "", "config file created for the exp.")
 var registryFile = flag.String("registry", "", "registry file based - array registry")
-var ids arrayFlags
+var Ids arrayFlags
 
 var run = flag.Int("run", -1, "which RunConfig should we run")
-var master = flag.String("master", "", "master address to synchronize")
-var syncAddr = flag.String("sync", "", "address to listen for master START")
+var Master = flag.String("master", "", "master address to synchronize")
+var SyncAddr = flag.String("sync", "", "address to listen for master START")
 var monitorAddr = flag.String("monitor", "", "address to send measurements")
 
 func init() {
-	flag.Var(&ids, "id", "ID to run on this node - can specify multiple -id flags")
+	flag.Var(&Ids, "id", "ID to run on this node - can specify multiple -id flags")
 }
 
 var isMonitoring bool
@@ -42,11 +42,11 @@ var isMonitoring bool
 // Run starts the simulation
 func Run(a Adaptor) {
 
+	defer func() { fmt.Println("binary exit") }()
 	if true {
 		golog.SetAllLoggers(gologging.INFO)
 	}
 
-	flag.Parse()
 	//
 	// SETUP PHASE
 	//
@@ -65,7 +65,7 @@ func Run(a Adaptor) {
 	// load all needed structures
 	// XXX maybe try with a database-backed registry if loading file in memory is
 	// too much when overloading
-	config := lib.LoadConfig(*configFile)
+	config := lib.LoadConfig(*ConfigFile)
 	runConf := config.Runs[*run]
 
 	cons := config.NewConstructor()
@@ -76,11 +76,11 @@ func Run(a Adaptor) {
 	requireNil(err)
 	// transform into lib.Node
 	libNodes, err := toLibNodes(cons, records)
-	registry, p2pNodes := a.Make(ctx, libNodes, ids, runConf.GetThreshold(), runConf.Extra)
+	registry, p2pNodes := a.Make(ctx, libNodes, Ids, runConf.GetThreshold(), runConf.Extra)
 	aggregators := MakeAggregators(ctx, cons, p2pNodes, registry, runConf.GetThreshold(), runConf.Extra)
 
 	// Sync with master - wait for the START signal
-	syncer := lib.NewSyncSlave(*syncAddr, *master, ids)
+	syncer := lib.NewSyncSlave(*SyncAddr, *Master, Ids)
 	syncer.SignalAll(lib.START)
 	select {
 	case <-syncer.WaitMaster(lib.START):
@@ -90,7 +90,7 @@ func Run(a Adaptor) {
 			now.Second(),
 			now.Nanosecond())
 
-		fmt.Printf("\n%s [+] %s synced - starting\n", formatted, ids.String())
+		fmt.Printf("\n%s [+] %s synced - starting\n", formatted, Ids.String())
 	case <-time.After(config.GetMaxTimeout()):
 		panic("Haven't received beacon in time!")
 	}
@@ -105,6 +105,7 @@ func Run(a Adaptor) {
 			id := agg.Identity().ID()
 			//fmt.Println(" --- LAUNCHING agg j = ", j, " vs pk = ", agg.Identity().PublicKey().String())
 			signatureGen := monitor.NewTimeMeasure("sigen")
+			netMeasure := monitor.NewCounterMeasure("net", agg.Node)
 			go agg.Start()
 			// Wait for final signatures !
 			enough := false
@@ -124,6 +125,7 @@ func Run(a Adaptor) {
 				}
 			}
 			signatureGen.Record()
+			netMeasure.Record()
 			if err := h.VerifyMultiSignature(lib.Message, sig, registry, cons.Handel()); err != nil {
 				panic("signature invalid !!")
 			}
@@ -152,7 +154,7 @@ func Run(a Adaptor) {
 			now.Second(),
 			now.Nanosecond())
 
-		fmt.Printf("\n%s [+] %s synced - closing shop\n", formatted, ids.String())
+		fmt.Printf("\n%s [+] %s synced - closing shop\n", formatted, Ids.String())
 	case <-time.After(config.GetMaxTimeout()):
 		panic("Haven't received beacon in time!")
 	}
@@ -231,7 +233,7 @@ func requireNil(err error) {
 func extractResendPeriod(opts Opts) time.Duration {
 	str, ok := opts.String("ResendPeriod")
 	if !ok {
-		str = "1s"
+		str = "500ms"
 	}
 	t, err := time.ParseDuration(str)
 	if err != nil {

@@ -18,14 +18,19 @@ import (
 )
 
 func TestGossipMeshy(t *testing.T) {
-	n := 50
-	thr := 48
-	nbOutgoing := 3
+	n := 40
+	thr := 30
+	nbOutgoing := 10
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	pubsub.GossipSubHistoryLength = n * 2
+	pubsub.GossipSubHistoryGossip = n * 2
+	pubsub.GossipSubHeartbeatInterval = 700 * time.Millisecond
+
 	connector := p2p.NewNeighborConnector()
-	//connector := NewRandomConnector()
-	r := pubsub.NewGossipSub
+	//connector := p2p.NewRandomConnector()
+	//r := pubsub.NewGossipSub
+	r := pubsub.NewFloodSub
 	_, nodes := FakeSetup(ctx, n, thr, nbOutgoing, connector, r)
 
 	var wg sync.WaitGroup
@@ -80,10 +85,14 @@ func FakeSetup(ctx context.Context, n, thr, max int, c p2p.Connector, r NewRoute
 		if err != nil {
 			panic(err)
 		}
+	}
+	for i := 0; i < n; i++ {
+		node := nodes[i]
 		p2pNodes[i], err = NewP2PNode(ctx, node, r, p2pIDs, cons, thr)
 		if err != nil {
 			panic(err)
 		}
+		p2pNodes[i].SubscribeToAll()
 	}
 
 	registry := P2PRegistry(p2pIDs)

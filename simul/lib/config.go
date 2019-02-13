@@ -51,7 +51,7 @@ type Config struct {
 	// valid value: "gob" (default)
 	Encoding string
 	// which allocator to use when experimenting failing nodes
-	// valid value: "linear" (default)
+	// valid value: "round" (default) or "random"
 	Allocator string
 	// which is the port to send measurements to
 	MonitorPort int
@@ -187,15 +187,20 @@ func (c *Config) selectNetwork(id handel.Identity) (handel.Network, error) {
 
 // NewEncoding returns the corresponding network encoding
 func (c *Config) NewEncoding() network.Encoding {
-	if c.Encoding == "" {
-		c.Encoding = "gob"
+	newEnc := func() network.Encoding {
+
+		if c.Encoding == "" {
+			c.Encoding = "gob"
+		}
+		switch c.Encoding {
+		case "gob":
+			return network.NewGOBEncoding()
+		default:
+			panic("not implemented yet")
+		}
 	}
-	switch c.Encoding {
-	case "gob":
-		return network.NewGOBEncoding()
-	default:
-		panic("not implemented yet")
-	}
+	encoding := newEnc()
+	return network.NewCounterEncoding(encoding)
 }
 
 // NewConstructor returns a Constructor that is using the curve denoted by the
@@ -222,6 +227,8 @@ func (c *Config) NewAllocator() Allocator {
 	switch c.Allocator {
 	case "round":
 		return new(RoundRobin)
+	case "random":
+		return NewRoundRandomOffline()
 	default:
 		return new(RoundRobin)
 	}

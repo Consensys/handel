@@ -14,9 +14,9 @@ import (
 // MakeP2P returns the constructor for the libp2p node
 func MakeP2P(ctx context.Context, nodes lib.NodeList, ids []int, threshold int, opts p2p.Opts) (handel.Registry, []p2p.Node) {
 	total := len(nodes)
-	pubsub.GossipSubHistoryLength = total
-	pubsub.GossipSubHistoryGossip = total
-	pubsub.GossipSubHeartbeatInterval = 500 * time.Millisecond
+	pubsub.GossipSubHistoryLength = total * 2
+	pubsub.GossipSubHistoryGossip = total * 2
+	pubsub.GossipSubHeartbeatInterval = 700 * time.Millisecond
 	cons := ctx.Value(p2p.CtxKey("Constructor")).(lib.Constructor)
 	var router = getRouter(opts)
 	var registry = P2PRegistry(make([]*P2PIdentity, total))
@@ -40,6 +40,10 @@ func MakeP2P(ctx context.Context, nodes lib.NodeList, ids []int, threshold int, 
 			//fmt.Printf(" ++ Make() adding p2pNode %s\n", hex.EncodeToString(buff[0:16]))
 			ns = append(ns, p2pNode)
 		}
+	}
+
+	for _, node := range ns {
+		node.(*P2PNode).SubscribeToAll()
 	}
 	return &registry, ns
 }

@@ -46,7 +46,7 @@ func makeManager(n int, reg string) Manager {
 		inst := Instance{
 			ID:     aws.String(string(n) + reg),
 			State:  aws.String(stopped),
-			region: reg,
+			Region: reg,
 		}
 		instances = append(instances, inst)
 	}
@@ -105,7 +105,7 @@ func TestMultiRegionManager(t *testing.T) {
 	}
 
 	for _, inst := range manager.Instances() {
-		regMap[inst.region] = regMap[inst.region] - 1
+		regMap[inst.Region] = regMap[inst.Region] - 1
 	}
 
 	for _, v := range regMap {
