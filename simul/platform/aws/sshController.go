@@ -112,7 +112,22 @@ func (sshCMD *sshController) Run(command string, pw *io.PipeWriter) error {
 	}
 	err = session.Run(command)
 	if err != nil {
-		fmt.Println("SSH Run error ", command, sshCMD.sshHost, err)
+		fmt.Println("Warning SSH: ", command, sshCMD.sshHost, err)
+		return err
+	}
+	return nil
+}
+
+func (sshCMD *sshController) Start(command string) error {
+	session, err := sshCMD.client.NewSession()
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+
+	err = session.Start(command)
+	if err != nil {
+		fmt.Println("Warning SSH: ", command, sshCMD.sshHost, err)
 		return err
 	}
 	return nil

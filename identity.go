@@ -102,6 +102,14 @@ func (a *arrayRegistry) inBound(idx int) bool {
 	return !(idx < 0 || idx > len(a.ids))
 }
 
+func (a *arrayRegistry) String() string {
+	var s = fmt.Sprintf("arrayregistry size %d:\n", a.Size())
+	for _, i := range a.ids {
+		s += fmt.Sprintf("\t-%d: %s\n", i.ID(), i.PublicKey().String())
+	}
+	return s
+}
+
 func shuffle(arr []Identity, r io.Reader) {
 	var isource int64
 	if err := binary.Read(r, binary.BigEndian, &isource); err != nil {

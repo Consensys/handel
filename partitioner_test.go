@@ -33,9 +33,47 @@ func TestPartitionerBinTreeSize(t *testing.T) {
 
 	for i, test := range tests {
 		t.Logf(" -- test %d -- ", i)
-		ct := NewBinPartitioner(test.id, reg)
+		ct := NewBinPartitioner(test.id, reg, DefaultLogger)
 		size := ct.Size(test.level)
 		require.Equal(t, test.exp, size)
+	}
+}
+
+func TestPartitionerBinIndexAtLevel(t *testing.T) {
+	n := 13
+	reg := FakeRegistry(n)
+
+	type indexTest struct {
+		partID int32
+		id     int32
+		level  int
+		err    bool
+		exp    int
+	}
+
+	var tests = []indexTest{
+		// "left side" id should be same
+		{5, 1, 3, false, 1},
+		// "right side" should be shifted
+		{1, 5, 3, false, 1},
+		// invalid level
+		{1, 1, 10, true, 1},
+		// invalid id for this level
+		{1, 5, 2, true, 1},
+	}
+
+	for i, test := range tests {
+		t.Logf(" -- test %d --", i)
+		part := NewBinPartitioner(test.partID, reg, DefaultLogger)
+		res, err := part.IndexAtLevel(test.id, test.level)
+		if err != nil {
+			if test.err {
+				require.Error(t, err)
+				continue
+			}
+			t.Fatal("expected no error", err)
+		}
+		require.Equal(t, test.exp, res)
 	}
 }
 
@@ -45,7 +83,7 @@ func TestPartitionerBinTreeCombine(t *testing.T) {
 
 	type combineTest struct {
 		id    int32
-		sigs  []*sigPair
+		sigs  []*incomingSig
 		level int
 		isErr bool
 		exp   *MultiSignature
@@ -65,10 +103,10 @@ func TestPartitionerBinTreeCombine(t *testing.T) {
 	bs0 := NewWilffBitset(1)
 	bs0.Set(0, true)
 
-	// final signature should have level 4 and bitlength 8
+	// final signature should have level 4 and bit length 8
 	// with first bit set to false
-	pairs3 := sigPairs(0, 2, 3)
-	final4 := finalSigPair(4, 8)
+	pairs3 := incomingSigs(0, 2, 3)
+	final4 := finalIncomingSig(4, 8)
 	final4.ms.BitSet.Set(0, false)
 
 	fullBs := NewWilffBitset(n)
@@ -78,22 +116,22 @@ func TestPartitionerBinTreeCombine(t *testing.T) {
 
 	var tests = []combineTest{
 		// from last node
-		{16, sigPairs(0), 1, false, &MultiSignature{Signature: sig3, BitSet: bs0}},
+		{16, incomingSigs(0), 1, false, &MultiSignature{Signature: sig3, BitSet: bs0}},
 		// error in the level requested
-		{16, sigPairs(0, 5), 3, true, &MultiSignature{Signature: sig3, BitSet: fullBs}},
+		{16, incomingSigs(0, 5), 3, true, &MultiSignature{Signature: sig3, BitSet: fullBs}},
 		// contributions from last node + all previous nodes
-		{16, sigPairs(0, 5), 6, false, &MultiSignature{Signature: sig3, BitSet: fullBs}},
+		{16, incomingSigs(0, 5), 6, false, &MultiSignature{Signature: sig3, BitSet: fullBs}},
 		// all good, we should have the first half of signature returned (
-		{1, sigPairs(0, 1, 2, 3), 4, false, &MultiSignature{Signature: sig3, BitSet: bs3}},
+		{1, incomingSigs(0, 1, 2, 3), 4, false, &MultiSignature{Signature: sig3, BitSet: bs3}},
 		// only one to combine
-		{1, sigPairs(2), 3, false, &MultiSignature{Signature: sig2, BitSet: bs2}},
+		{1, incomingSigs(2), 3, false, &MultiSignature{Signature: sig2, BitSet: bs2}},
 		{1, nil, 0, true, nil},
 		// with holes
 		{1, pairs3, 4, false, final4.ms},
 	}
 
 	for i, test := range tests {
-		ct := NewBinPartitioner(test.id, reg)
+		ct := NewBinPartitioner(test.id, reg, DefaultLogger)
 		t.Logf(" -- test %d -- ", i)
 		ms := ct.Combine(test.sigs, test.level, NewWilffBitset)
 		if ms == nil {
@@ -129,7 +167,7 @@ func TestPartitionerBinTreeCombineFull(t *testing.T) {
 		bs2.Set(i, true)
 	}
 
-	pairs3 := sigPairs(0, 1, 2, 3, 4)
+	pairs3 := incomingSigs(0, 1, 2, 3, 4)
 	// 4-1 -> because that's how you compute the size of a level
 	// -1 -> to just spread out holes to other levels and leave this one still
 	// having one contribution
@@ -139,7 +177,7 @@ func TestPartitionerBinTreeCombineFull(t *testing.T) {
 	pairs3[3].ms.BitSet.Set(1, false)
 	pairs3[3].ms.BitSet.Set(2, false)
 
-	final4 := finalSigPair(4, n)
+	final4 := finalIncomingSig(4, n)
 	final4.ms.BitSet.Set(5, false)
 	final4.ms.BitSet.Set(6, false)
 	for i := 8; i < 15; i++ {
@@ -163,23 +201,23 @@ func TestPartitionerBinTreeCombineFull(t *testing.T) {
 
 	type combineTest struct {
 		id    int32
-		sigs  []*sigPair
+		sigs  []*incomingSig
 		isErr bool
 		exp   *MultiSignature
 	}
 
 	var tests = []combineTest{
 		// from last node
-		{16, sigPairs(0), false, &MultiSignature{Signature: sig3, BitSet: bs(16)}},
+		{16, incomingSigs(0), false, &MultiSignature{Signature: sig3, BitSet: bs(16)}},
 		// error in the level requested
-		{16, sigPairs(0, 5), true, &MultiSignature{Signature: sig3, BitSet: bs()}},
+		{16, incomingSigs(0, 5), true, &MultiSignature{Signature: sig3, BitSet: bs()}},
 		// contributions from last node + all previous nodes
-		{16, sigPairs(0, 5), false, &MultiSignature{Signature: sig3, BitSet: bs()}},
+		{16, incomingSigs(0, 5), false, &MultiSignature{Signature: sig3, BitSet: bs()}},
 
 		// all good, we should have the first half of signature returned (
-		{1, sigPairs(0, 1, 2, 3), false, &MultiSignature{Signature: sig3, BitSet: bs3}},
+		{1, incomingSigs(0, 1, 2, 3), false, &MultiSignature{Signature: sig3, BitSet: bs3}},
 		// only one to combine
-		{1, sigPairs(2), false, &MultiSignature{Signature: sig2, BitSet: bs2}},
+		{1, incomingSigs(2), false, &MultiSignature{Signature: sig2, BitSet: bs2}},
 		{1, nil, true, nil},
 		// with holes
 		{1, pairs3, false, final4.ms},
@@ -187,7 +225,7 @@ func TestPartitionerBinTreeCombineFull(t *testing.T) {
 
 	for i, test := range tests {
 		t.Logf(" -- test %d -- ", i)
-		ct := NewBinPartitioner(test.id, reg)
+		ct := NewBinPartitioner(test.id, reg, DefaultLogger)
 		res := ct.CombineFull(test.sigs, NewWilffBitset)
 		if res == nil {
 			if test.exp == nil {
@@ -220,7 +258,7 @@ func TestPartitionerBinTreeMaxLevel(t *testing.T) {
 	for i, test := range tests {
 		t.Logf(" -- test %d -- ", i)
 		reg := FakeRegistry(test.n)
-		ct := NewBinPartitioner(1, reg)
+		ct := NewBinPartitioner(1, reg, DefaultLogger)
 		require.Equal(t, test.exp, ct.MaxLevel())
 	}
 }
@@ -245,7 +283,7 @@ func TestPartitionerBinLevels(t *testing.T) {
 	for i, test := range tests {
 		t.Logf(" -- test %d --", i)
 		reg := FakeRegistry(test.n)
-		ct := NewBinPartitioner(test.id, reg).(*binomialPartitioner)
+		ct := NewBinPartitioner(test.id, reg, DefaultLogger).(*binomialPartitioner)
 		levels := ct.Levels()
 		require.Equal(t, test.levels, levels)
 		for _, lvl := range levels {
@@ -285,7 +323,7 @@ func TestPartitionerBinTreeRangeAt(t *testing.T) {
 
 	for i, test := range tests {
 		t.Logf(" -- test %d -- ", i)
-		ct := NewBinPartitioner(test.id, reg).(*binomialPartitioner)
+		ct := NewBinPartitioner(test.id, reg, DefaultLogger).(*binomialPartitioner)
 		_ids, err := ct.IdentitiesAt(test.level)
 		if test.isErr {
 			require.Error(t, err)
@@ -344,7 +382,7 @@ func TestPartitionerBinTreeRangeAtInverse(t *testing.T) {
 
 	for i, test := range tests {
 		t.Logf(" -- test %d -- ", i)
-		ct := NewBinPartitioner(test.id, reg).(*binomialPartitioner)
+		ct := NewBinPartitioner(test.id, reg, DefaultLogger).(*binomialPartitioner)
 		min, max, err := ct.rangeLevelInverse(test.level)
 		if test.isErr {
 			require.Error(t, err)

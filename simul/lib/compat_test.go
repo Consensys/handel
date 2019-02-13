@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ConsenSys/handel/bn256"
+	"github.com/ConsenSys/handel/bn256/cf"
 	"github.com/stretchr/testify/require"
 )
 

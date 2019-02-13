@@ -24,7 +24,6 @@ func NewNeighborConnector() Connector {
 }
 
 func (*neighbor) Connect(node Node, reg handel.Registry, max int) error {
-
 	nodeID := int(node.Identity().ID())
 	baseID := nodeID
 	n := reg.Size()
@@ -47,9 +46,10 @@ func (*neighbor) Connect(node Node, reg handel.Registry, max int) error {
 			return errors.New("h-- identity not found")
 		}
 		if err := node.Connect(id); err != nil {
-			return err
+			fmt.Println(nodeID, " error connecting to ", id, ":", err)
+			continue
 		}
-		fmt.Printf("node %d connected to %d\n", nodeID, baseID)
+		//fmt.Printf("node %d connected to %d\n", nodeID, baseID)
 		baseID++
 	}
 	return nil
@@ -63,26 +63,40 @@ func NewRandomConnector() Connector { return &random{} }
 func (*random) Connect(node Node, reg handel.Registry, max int) error {
 	n := reg.Size()
 	own := node.Identity().ID()
-	//fmt.Printf("- node %d connects to...", node.handelID)
-	for chosen := 0; chosen < max; chosen++ {
+	var ids []int32
+	for len(ids) < max {
 		identity, ok := reg.Identity(rand.Intn(n))
 		if !ok {
 			return errors.New("invalid index")
 		}
 		if identity.ID() == own {
-			chosen--
 			continue
 		}
 
-		if err := node.Connect(identity); err != nil {
-			return err
+		var toContinue bool
+		for _, i := range ids {
+			if i == identity.ID() {
+				toContinue = true
+				break
+			}
 		}
-		//fmt.Printf(" %d -", identity.Identity.ID())
+		if toContinue {
+			continue
+		}
+
+		//fmt.Printf(" %d connects to %d", own, identity.ID())
+		if err := node.Connect(identity); err != nil {
+			fmt.Println(node.Identity().ID(), "error connecting to ", identity.ID(), ":", err)
+			continue
+		}
+		ids = append(ids, identity.ID())
 	}
 	//fmt.Printf("\n")
+	fmt.Println("connection of ", own, "to", len(ids), "peers")
 	return nil
 }
 
+// ExtractConnector returns connector
 func ExtractConnector(opts Opts) (Connector, int) {
 	c, exists := opts.String("Connector")
 	if !exists {

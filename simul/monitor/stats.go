@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -31,6 +32,8 @@ type Stats struct {
 
 	filter DataFilter
 	sync.Mutex
+
+	rcvd int
 }
 
 // NewStats return a Stats with the given defaults values. For example:
@@ -69,6 +72,14 @@ func (s *Stats) Update(m *singleMeasure) {
 		sort.Strings(s.keys)
 	}
 	value.Store(m.Value)
+	s.rcvd++
+}
+
+// Received returns the nmber of updates received for this stats
+func (s *Stats) Received() int {
+	s.Lock()
+	defer s.Unlock()
+	return s.rcvd
 }
 
 // WriteHeader will write the header to the writer
@@ -128,7 +139,7 @@ func (s *Stats) WriteIndividualStats(w io.Writer) error {
 			if n == 1 {
 				n = newN
 			} else if n != newN {
-				return errors.New("Found inconsistencies in values")
+				return errors.New("found inconsistencies in values")
 			}
 		}
 	}
@@ -190,7 +201,7 @@ func AverageStats(stats []*Stats) *Stats {
 		}
 		// make the average
 		avg := AverageValue(values...)
-		// dont have to necessary collect or filters here. Collect() must be called only
+		// don't have to necessary collect or filters here. Collect() must be called only
 		// when we want the final results (writing or by calling Value(name)
 		s.values[k] = avg
 	}
@@ -302,7 +313,7 @@ func (s *Stats) setDefaultValues(defaults map[string]string) {
 }
 
 // Value is used to compute the statistics
-// it reprensent the time to an action (setup, shamir round, coll round etc)
+// it represent the time to an action (setup, shamir round, coll round etc)
 // use it to compute streaming mean + dev
 type Value struct {
 	name string
@@ -447,7 +458,12 @@ func (t *Value) HeaderFields() []string {
 
 // Values returns the string representation of a Value
 func (t *Value) Values() []string {
-	return []string{fmt.Sprintf("%f", t.Min()), fmt.Sprintf("%f", t.Max()), fmt.Sprintf("%f", t.Avg()), fmt.Sprintf("%f", t.Sum()), fmt.Sprintf("%f", t.Dev())}
+	return []string{
+		strconv.FormatFloat(t.min, 'g', 4, 64),
+		strconv.FormatFloat(t.Max(), 'g', 4, 64),
+		strconv.FormatFloat(t.Avg(), 'g', 4, 64),
+		strconv.FormatFloat(t.Sum(), 'g', 4, 64),
+		strconv.FormatFloat(t.Dev(), 'g', 4, 64)}
 }
 
 // SingleValues returns the string representation of an entry in the value

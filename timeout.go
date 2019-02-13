@@ -45,7 +45,7 @@ type linearTimeout struct {
 
 // DefaultLevelTimeout is the default level timeout used by the linear timeout
 // strategy.
-const DefaultLevelTimeout = 100 * time.Millisecond
+const DefaultLevelTimeout = 50 * time.Millisecond
 
 // NewDefaultLinearTimeout returns a TimeoutStrategy that starts level linearly
 // with the default period of DefaultLevelTimeout.  More precisely, level i
@@ -54,7 +54,8 @@ func NewDefaultLinearTimeout(h *Handel, levels []int) TimeoutStrategy {
 	return NewLinearTimeout(h, levels, DefaultLevelTimeout)
 }
 
-// LinearTimeoutConstructor returns..
+// LinearTimeoutConstructor returns the contructor to give in the Config for a
+// linear timeout with the given period
 func LinearTimeoutConstructor(period time.Duration) func(h *Handel, levels []int) TimeoutStrategy {
 	return func(h *Handel, levels []int) TimeoutStrategy {
 		return NewLinearTimeout(h, levels, period)

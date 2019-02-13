@@ -3,18 +3,16 @@ package aws
 import (
 	"strconv"
 	"strings"
-	//"github.com/ConsenSys/handel/simul/platform/aws"
 )
 
 // Commands represents AWS platform specyfic commands.
-// Master instance creates NFS server and shared directory.
-// When needed, Slave instances copy appropriate files form the shared directory
-// to they local file system.
 type Commands struct {
 	MasterBinPath string
 	SlaveBinPath  string
 	ConfPath      string
 	RegPath       string
+	S3            string
+	copyBinFiles  bool
 }
 
 // MasterCommands commands invoked on a master node
@@ -33,39 +31,31 @@ const logFile = "log"
 const sharedDir = "$HOME/sharedDir"
 
 // NewCommands creates an instance of Commands
-func NewCommands(masterBinPath, slaveBinPath, confPath, regPath string) Commands {
+func NewCommands(masterBinPath, slaveBinPath, confPath, regPath, s3 string, copyBinFiles bool) Commands {
 	return Commands{
 		MasterBinPath: masterBinPath,
 		SlaveBinPath:  slaveBinPath,
 		ConfPath:      confPath,
 		RegPath:       regPath,
+		S3:            s3,
+		copyBinFiles:  copyBinFiles,
 	}
 }
 
-// Configure configures EC2 master instance:
-// - intsalls the NFS server
-// - exports "shared" directory
-// - copies apripirate files to that directory
 func (c MasterCommands) Configure() map[int]string {
 	cmds := make(map[int]string)
-	cmds[0] = "sudo apt-get install nfs-kernel-server"
-	cmds[1] = "sudo service nfs-kernel-server start"
-	cmds[2] = "mkdir -p " + sharedDir
-	cmds[3] = "sudo chmod 777 /etc/exports"
-	//	cmds[4] = "cat /etc/exports" // *(rw,no_subtree_check,no_root_squash,sync,insecure) > /etc/exports"
-	cmds[4] = "cp " + c.MasterBinPath + " " + sharedDir
-	cmds[5] = "cp " + c.SlaveBinPath + " " + sharedDir
-	cmds[6] = "cp " + c.ConfPath + " " + sharedDir
-	cmds[7] = "sudo service nfs-kernel-server reload"
+	cmds[0] = "wget -O " + c.ConfPath + " " + c.S3 + c.ConfPath
+	cmds[1] = "chmod 777 " + c.ConfPath
+	if c.copyBinFiles {
+		cmds[2] = "wget -O " + c.MasterBinPath + " " + c.S3 + c.MasterBinPath
+		cmds[3] = "chmod 777 " + c.MasterBinPath
+	}
 	return cmds
 }
 
-// ShareRegistryFile copies registry file to the shared directory
-func (c MasterCommands) ShareRegistryFile() map[int]string {
-	cmds := make(map[int]string)
-	cmds[0] = "cp " + c.RegPath + " " + sharedDir
-	cmds[1] = "chmod 777 " + c.MasterBinPath
-	return cmds
+//Kill previous run
+func (c MasterCommands) Kill() string {
+	return "killall " + c.MasterBinPath
 }
 
 // Start starts master executable
@@ -73,21 +63,32 @@ func (c MasterCommands) Start(masterAddr string, timeOut int, run int, network, 
 	return "nohup " + c.MasterBinPath + " -masterAddr " + masterAddr + " -timeOut " + strconv.Itoa(timeOut) + " -run " + strconv.Itoa(run) + " -network " + network + " -resultFile " + resFile + " -config " + c.ConfPath + " -monitorPort " + strconv.Itoa(monitorPort) + " &> " + logFile + "_" + strconv.Itoa(run)
 }
 
-// Configure copies files form the shared directory to slave local storage
-func (c SlaveCommands) Configure(masterIP string) map[int]string {
+//Kill previous run
+func (c SlaveCommands) Kill() string {
+	return "killall " + c.SlaveBinPath + " &> kill.log"
+}
+
+func (c SlaveCommands) Configure() map[int]string {
 	cmds := make(map[int]string)
-	cmds[0] = "mkdir -p " + sharedDir
-	cmds[1] = "sudo apt-get -y install nfs-common"
-	cmds[2] = "sudo mount -t nfs " + masterIP + ":" + sharedDir + " " + sharedDir
-	cmds[3] = "cp -r " + sharedDir + "/* " + "/tmp"
+	cmds[0] = "wget -O " + c.ConfPath + " " + c.S3 + c.ConfPath
+	cmds[1] = "chmod 777 " + c.ConfPath
+	if c.copyBinFiles {
+		cmds[2] = "wget -O " + c.SlaveBinPath + " " + c.S3 + c.SlaveBinPath
+		cmds[3] = "chmod 777 " + c.SlaveBinPath
+	}
 	return cmds
 }
 
-//CopyRegistryFileFromSharedDirToLocalStorage
 func (c SlaveCommands) CopyRegistryFileFromSharedDirToLocalStorage() map[int]string {
 	cmds := make(map[int]string)
-	cmds[0] = "cp " + sharedDir + "/aws.csv" + " /tmp"
-	cmds[1] = "chmod 777 " + c.SlaveBinPath
+	cmds[0] = "wget -O " + c.RegPath + " " + c.S3 + c.RegPath
+	cmds[1] = "chmod 777 " + c.RegPath
+	return cmds
+}
+
+func (c SlaveCommands) CopyRegistryFileFromSharedDirToLocalStorageQuitSSH() map[int]string {
+	cmds := make(map[int]string)
+	cmds[0] = "nohup " + "wget -O " + c.RegPath + " " + c.S3 + c.RegPath + " & " + "chmod 777 " + c.RegPath + " &> cpy.log"
 	return cmds
 }
 
@@ -107,4 +108,8 @@ func (c SlaveCommands) Start(masterAddr, monitorAddr string, inst Instance, run 
 		strCmds = append(strCmds, start)
 	}
 	return strings.Join(strCmds, " & ")
+}
+
+func (c SlaveCommands) StartAndQuitSSH(masterAddr, monitorAddr string, inst Instance, run int) string {
+	return "nohup " + c.Start(masterAddr, monitorAddr, inst, run) + " &> log.txt"
 }

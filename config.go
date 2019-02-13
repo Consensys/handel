@@ -36,7 +36,7 @@ type Config struct {
 	// NewPartitioner returns the Partitioner to use for this Handel round. If
 	// nil, it returns the RandomBinPartitioner. The id is the ID Handel is
 	// responsible for and reg is the global registry of participants.
-	NewPartitioner func(id int32, reg Registry) Partitioner
+	NewPartitioner func(id int32, reg Registry, Logger Logger) Partitioner
 
 	// NewEvaluatorStrategy returns the signature evaluator to use during the
 	// Handel round.
@@ -56,6 +56,12 @@ type Config struct {
 	// DisableShuffling is a debugging flag to not shuffle any list of nodes - it
 	// is much easier to detect pattern in bugs in this manner
 	DisableShuffling bool
+
+	// UnsafeSleepTimeOnSigVerify is a test feature a sleep time (in ms) rather than actually verifying the signatures
+	// Can be used to save on CPU during tests or/and to test with shorter/longer verifying time
+	// Set to zero by default: no sleep time. When activated the sleep replaces the verification.
+	// This sleep time is approximate and depends on golang and the os. The actual delay can be longer.
+	UnsafeSleepTimeOnSigVerify int
 }
 
 // DefaultConfig returns a default configuration for Handel.
@@ -83,7 +89,7 @@ const DefaultContributionsPerc = 51
 const DefaultCandidateCount = 10
 
 // DefaultUpdatePeriod is the default update period used by Handel.
-const DefaultUpdatePeriod = 20 * time.Millisecond
+const DefaultUpdatePeriod = 10 * time.Millisecond
 
 // DefaultUpdateCount is the default number of candidate contacted during an
 // update
@@ -95,8 +101,8 @@ var DefaultBitSet = func(bitlength int) BitSet { return NewWilffBitset(bitlength
 
 // DefaultPartitioner returns the default implementation of the Partitioner used
 // by Handel, i.e. BinPartitioner.
-var DefaultPartitioner = func(id int32, reg Registry) Partitioner {
-	return NewBinPartitioner(id, reg)
+var DefaultPartitioner = func(id int32, reg Registry, logger Logger) Partitioner {
+	return NewBinPartitioner(id, reg, logger)
 }
 
 // DefaultEvaluatorStrategy returns an evaluator based on the store's own

@@ -12,7 +12,8 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/ConsenSys/handel"
-	"github.com/ConsenSys/handel/bn256"
+	cf "github.com/ConsenSys/handel/bn256/cf"
+	golang "github.com/ConsenSys/handel/bn256/go"
 	"github.com/ConsenSys/handel/network"
 	"github.com/ConsenSys/handel/network/quic"
 	"github.com/ConsenSys/handel/network/udp"
@@ -50,14 +51,14 @@ type Config struct {
 	// valid value: "gob" (default)
 	Encoding string
 	// which allocator to use when experimenting failing nodes
-	// valid value: "linear" (default)
+	// valid value: "round" (default) or "random"
 	Allocator string
 	// which is the port to send measurements to
 	MonitorPort int
 	// Debug forwards the debug output if set to != 0
 	Debug int
 	// which simulation are we running -
-	// valid values: "handel" (default) or "gossip"
+	// valid values: "handel" (default) or "p2p/udp" or "p2p/libp2p"
 	Simulation string
 	// Maximum time to wait for the whole thing to finish
 	// string because of ugly format of TOML encoding ---
@@ -97,6 +98,10 @@ type HandelConfig struct {
 	// Number of node do we contact when starting level + when finishing level
 	// XXX - maybe remove in the futur ! -
 	NodeCount int
+	// Timeout used to give to the LinearTimeout constructor
+	Timeout string
+	// UnsafeSleepTimeOnSigVerify
+	UnsafeSleepTimeOnSigVerify int
 }
 
 // LoadConfig looks up the given file to unmarshal a TOML encoded Config.
@@ -182,26 +187,35 @@ func (c *Config) selectNetwork(id handel.Identity) (handel.Network, error) {
 
 // NewEncoding returns the corresponding network encoding
 func (c *Config) NewEncoding() network.Encoding {
-	if c.Encoding == "" {
-		c.Encoding = "gob"
+	newEnc := func() network.Encoding {
+
+		if c.Encoding == "" {
+			c.Encoding = "gob"
+		}
+		switch c.Encoding {
+		case "gob":
+			return network.NewGOBEncoding()
+		default:
+			panic("not implemented yet")
+		}
 	}
-	switch c.Encoding {
-	case "gob":
-		return network.NewGOBEncoding()
-	default:
-		panic("not implemented yet")
-	}
+	encoding := newEnc()
+	return network.NewCounterEncoding(encoding)
 }
 
 // NewConstructor returns a Constructor that is using the curve denoted by the
 // curve field of the config. Valid input so far is "bn256".
 func (c *Config) NewConstructor() Constructor {
 	if c.Curve == "" {
-		c.Curve = "bn256"
+		c.Curve = "bn256/cf"
 	}
 	switch c.Curve {
 	case "bn256":
-		return &SimulConstructor{bn256.NewConstructor()}
+		fallthrough
+	case "bn256/cf":
+		return &SimulConstructor{cf.NewConstructor()}
+	case "bn256/go":
+		return &SimulConstructor{golang.NewConstructor()}
 	default:
 		panic("not implemented yet")
 	}
@@ -211,10 +225,12 @@ func (c *Config) NewConstructor() Constructor {
 // of the config.
 func (c *Config) NewAllocator() Allocator {
 	switch c.Allocator {
-	case "linear":
-		return new(linearAllocator)
+	case "round":
+		return new(RoundRobin)
+	case "random":
+		return NewRoundRandomOffline()
 	default:
-		return new(linearAllocator)
+		return new(RoundRobin)
 	}
 }
 
@@ -284,6 +300,12 @@ func (r *RunConfig) GetHandelConfig() *handel.Config {
 	ch.UpdateCount = r.Handel.UpdateCount
 	ch.NodeCount = r.Handel.NodeCount
 	ch.Contributions = r.GetThreshold()
+	ch.UnsafeSleepTimeOnSigVerify = r.Handel.UnsafeSleepTimeOnSigVerify
+
+	dd, err := time.ParseDuration(r.Handel.Timeout)
+	if err == nil {
+		ch.NewTimeoutStrategy = handel.LinearTimeoutConstructor(dd)
+	}
 	return ch
 }
 

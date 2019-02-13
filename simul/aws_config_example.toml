@@ -1,6 +1,8 @@
 PemFile = "/Users/blaze/Desktop/AWS/AWSRnD.pem"
-Regions = ["us-west-2", "eu-north-1", "us-east-1"]
-MasterTimeOut = 4
+Regions = ["us-east-1","us-west-2","ap-south-1", "ap-northeast-2", "ap-southeast-1", "ap-southeast-2","ap-northeast-1","ca-central-1","eu-central-1","eu-west-1","eu-west-2"]
+MasterTimeOut = 10
 SSHUser = "ubuntu"
 TargetSystem = "linux"
 TargetArch = "amd64"
+ConfTimeout = 5
+CopyBinFiles = false

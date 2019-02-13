@@ -1,0 +1,20 @@
+Network = "udp"
+Curve = "bn256"
+Encoding = "gob"
+MonitorPort = 10000
+MaxTimeout = "2m"
+Retrials = 1
+Simulation = "p2p/udp"
+
+
+[[Runs]]
+    Nodes = 20
+    Threshold = 20
+    Processes = 2
+
+[[Runs]]
+    Nodes = 20
+    Threshold = 20
+    Processes = 2
+    [Runs.Extra]
+        AggAndVerify = "1"  

@@ -10,14 +10,16 @@ import (
 	"log"
 	"net"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/ConsenSys/handel"
 	h "github.com/ConsenSys/handel"
-	"github.com/ConsenSys/handel/bn256"
 	"github.com/ConsenSys/handel/network"
 	"github.com/ConsenSys/handel/simul/lib"
 	libp2p "github.com/libp2p/go-libp2p"
 	host "github.com/libp2p/go-libp2p-host"
+	metrics "github.com/libp2p/go-libp2p-metrics"
 	p2pnet "github.com/libp2p/go-libp2p-net"
 	peer "github.com/libp2p/go-libp2p-peer"
 	pstore "github.com/libp2p/go-libp2p-peerstore"
@@ -27,6 +29,25 @@ import (
 
 const topicName = "handel"
 const ping = "/echo/1.0.0"
+
+func topicsFromRegistry(reg handel.Registry) []string {
+	var topics = make([]string, reg.Size())
+	for i := 0; i < reg.Size(); i++ {
+		id, ok := reg.Identity(i)
+		if !ok {
+			panic("this should never happen")
+		}
+		if id == nil {
+			panic("thatshould noooooooooo")
+		}
+		topics[i] = topicFromID(id)
+	}
+	return topics
+}
+
+func topicFromID(i handel.Identity) string {
+	return fmt.Sprintf("%s-%d", topicName, i.ID())
+}
 
 // NewRouter is a type to designate router creation factory
 type NewRouter func(context.Context, host.Host, ...pubsub.Option) (*pubsub.PubSub, error)
@@ -41,8 +62,8 @@ type P2PIdentity struct {
 
 // NewP2PIdentity returns the public side of gossip node - useful for connecting
 // to them
-func NewP2PIdentity(id h.Identity) (*P2PIdentity, error) {
-	pub := &bn256Pub{id.PublicKey().(*bn256.PublicKey)}
+func NewP2PIdentity(id h.Identity, c lib.Constructor) (*P2PIdentity, error) {
+	pub := &bn256Pub{PublicKey: id.PublicKey().(lib.PublicKey), newSig: c.Signature}
 	fullAddr := id.Address()
 	ip, port, err := net.SplitHostPort(fullAddr)
 	if err != nil {
@@ -66,35 +87,47 @@ func NewP2PIdentity(id h.Identity) (*P2PIdentity, error) {
 // P2PNode represents the libp2p version of a node - with a host.Host and
 // pubsub.PubSub structure.
 type P2PNode struct {
-	id       handel.Identity
-	handelID int32
-	enc      network.Encoding
-	priv     *bn256Priv
-	h        host.Host
-	g        *pubsub.PubSub
-	s        *pubsub.Subscription
-	reg      P2PRegistry
-	ch       chan handel.Packet
+	sync.Mutex
+	ctx          context.Context
+	id           handel.Identity
+	handelID     int32
+	enc          network.Encoding
+	priv         *bn256Priv
+	h            host.Host
+	g            *pubsub.PubSub
+	subs         []*pubsub.Subscription
+	myTopic      string
+	reg          P2PRegistry
+	ch           chan handel.Packet
+	resendPeriod time.Duration
+	ticker       *time.Ticker
+	setup        handel.BitSet
+	setupDoneCh  chan bool
+	setupDone    bool
+	threshold    int
+	reporter     *proxyReporter
 }
 
 // NewP2PNode transforms a lib.Node to a p2p node.
-func NewP2PNode(ctx context.Context, handelNode *lib.Node, n NewRouter, reg P2PRegistry) (*P2PNode, error) {
-	secret := handelNode.SecretKey.(*bn256.SecretKey)
-	pub := handelNode.Identity.PublicKey().(*bn256.PublicKey)
+func NewP2PNode(ctx context.Context, handelNode *lib.Node, n NewRouter, reg P2PRegistry, cons lib.Constructor, threshold int) (*P2PNode, error) {
+	secret := handelNode.SecretKey.(lib.SecretKey)
+	pub := handelNode.Identity.PublicKey().(lib.PublicKey)
 	priv := &bn256Priv{
 		SecretKey: secret,
-		pub:       &bn256Pub{pub},
+		pub:       &bn256Pub{PublicKey: pub, newSig: cons.Signature},
 	}
 	fullAddr := handelNode.Address()
-	ip, port, err := net.SplitHostPort(fullAddr)
+	_, port, err := net.SplitHostPort(fullAddr)
 	if err != nil {
 		return nil, err
 	}
+	reporter := newProxyReporter()
 	opts := []libp2p.Option{
-		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/%s/tcp/%s", ip, port)),
+		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/%s/tcp/%s", "0.0.0.0", port)),
 		libp2p.DisableRelay(),
 		libp2p.Identity(priv),
 		libp2p.NoSecurity,
+		libp2p.BandwidthReporter(reporter),
 	}
 	basicHost, err := libp2p.New(ctx, opts...)
 	if err != nil {
@@ -125,21 +158,71 @@ func NewP2PNode(ctx context.Context, handelNode *lib.Node, n NewRouter, reg P2PR
 	if err != nil {
 		return nil, err
 	}
+	myTopic := topicFromID(handelNode.Identity)
 
-	subscription, err := router.Subscribe(topicName)
+	//subscription, err := router.Subscribe(topicName)
 	node := &P2PNode{
-		enc:      network.NewGOBEncoding(),
-		handelID: handelNode.Identity.ID(),
-		id:       handelNode.Identity,
-		priv:     priv,
-		h:        basicHost,
-		g:        router,
-		s:        subscription,
-		reg:      reg,
-		ch:       make(chan handel.Packet, reg.Size()),
+		ctx:          ctx,
+		enc:          network.NewGOBEncoding(),
+		handelID:     handelNode.Identity.ID(),
+		id:           handelNode.Identity,
+		priv:         priv,
+		h:            basicHost,
+		g:            router,
+		reg:          reg,
+		ch:           make(chan handel.Packet, reg.Size()),
+		setup:        handel.NewWilffBitset(reg.Size()),
+		resendPeriod: 500 * time.Millisecond,
+		setupDoneCh:  make(chan bool, 1),
+		threshold:    threshold,
+		reporter:     reporter,
+		myTopic:      myTopic,
 	}
-	go node.readNexts()
+	node.setup.Set(int(node.id.ID()), true)
 	return node, err
+}
+
+var setupPacket = &handel.Packet{Level: 255}
+
+// SubscribeToAll subscribes to all the topics
+func (p *P2PNode) SubscribeToAll() {
+	topics := topicsFromRegistry(&p.reg)
+	subscriptions := make([]*pubsub.Subscription, len(topics))
+	for i, topic := range topics {
+		//fmt.Println("subscribing to topic", topic)
+		subscription, err := p.g.Subscribe(topic)
+		if err != nil {
+			panic(err)
+		}
+		subscriptions[i] = subscription
+	}
+	p.subs = subscriptions
+	p.launchReadRoutines()
+}
+
+// WaitAllSetup periodically do the following:
+// - sends out its setup message on the topic
+// Until the node received all setup message from everybody expected
+// The messages are read as Packets with special origin -1.
+func (p *P2PNode) WaitAllSetup() chan bool {
+	p.ticker = time.NewTicker(p.resendPeriod)
+	ch := make(chan bool, 1)
+	go func() {
+		ok := true
+		for ok {
+			select {
+			case <-p.ticker.C:
+				setupPacket.Origin = p.id.ID()
+				p.Diffuse(setupPacket)
+			case <-p.setupDoneCh:
+				ok = false
+			case <-p.ctx.Done():
+				ok = false
+			}
+		}
+		ch <- true
+	}()
+	return ch
 }
 
 // Connect to the given identity
@@ -160,7 +243,7 @@ func (p *P2PNode) Diffuse(packet *handel.Packet) {
 		fmt.Println(err)
 		panic(err)
 	}
-	if err := p.g.Publish(topicName, b.Bytes()); err != nil {
+	if err := p.g.Publish(p.myTopic, b.Bytes()); err != nil {
 		fmt.Println(err)
 		panic(err)
 	}
@@ -181,11 +264,18 @@ func (p *P2PNode) SecretKey() lib.SecretKey {
 	return p.priv.SecretKey
 }
 
-func (p *P2PNode) readNexts() {
+func (p *P2PNode) launchReadRoutines() {
+	for _, sub := range p.subs {
+		//fmt.Println(p.Identity().ID(), " - subscribing / listening to topic ", sub.Topic())
+		go p.readNexts(sub)
+	}
+}
+
+func (p *P2PNode) readNexts(s *pubsub.Subscription) {
 	for {
-		pbMsg, err := p.s.Next(context.Background())
+		pbMsg, err := s.Next(p.ctx)
 		if err != nil {
-			fmt.Println(" -- err:", err)
+			//fmt.Println(" -- err:", err)
 			return
 		}
 		packet, err := p.enc.Decode(bytes.NewBuffer(pbMsg.Data))
@@ -193,8 +283,28 @@ func (p *P2PNode) readNexts() {
 			fmt.Println(" ++ err:", err)
 			return
 		}
-		p.ch <- *packet
+		if packet.Level == setupPacket.Level {
+			p.incomingSetup(packet)
+		} else {
+			p.ch <- *packet
+		}
 	}
+}
+
+func (p *P2PNode) incomingSetup(packet *handel.Packet) {
+	p.Lock()
+	defer p.Unlock()
+	p.setup.Set(int(packet.Origin), true)
+	if p.setup.Cardinality() >= p.threshold && !p.setupDone {
+		p.setupDone = true
+		p.setupDoneCh <- true
+	}
+}
+
+// Values implements the monitor.Counter interface
+// TODO
+func (p *P2PNode) Values() map[string]float64 {
+	return p.reporter.Values()
 }
 
 func (p *P2PNode) ping(p2 *P2PIdentity) error {
@@ -275,7 +385,7 @@ func getRouter(opts map[string]string) NewRouter {
 	var n NewRouter
 	switch strings.ToLower(str) {
 	case "flood":
-		fmt.Println("using flood router")
+		//fmt.Println("using flood router")
 		n = pubsub.NewFloodSub
 	case "gossip":
 		n = pubsub.NewGossipSub
@@ -283,4 +393,42 @@ func getRouter(opts map[string]string) NewRouter {
 		n = pubsub.NewGossipSub
 	}
 	return n
+}
+
+type proxyReporter struct {
+	sync.Mutex
+	metrics.Reporter
+	bytesSent int64
+	bytesRcvd int64
+}
+
+func newProxyReporter() *proxyReporter {
+	return &proxyReporter{Reporter: metrics.NewBandwidthCounter()}
+}
+
+func (p *proxyReporter) LogRecvMessage(i int64) {
+	p.Lock()
+	p.bytesRcvd += i
+	p.Unlock()
+	p.Reporter.LogRecvMessage(i)
+}
+
+func (p *proxyReporter) LogSentMessage(i int64) {
+	p.Lock()
+	p.bytesSent += i
+	p.Unlock()
+	p.Reporter.LogRecvMessage(i)
+}
+
+// Values implement the monitor.Counter interface
+func (p *proxyReporter) Values() map[string]float64 {
+	p.Lock()
+	defer p.Unlock()
+	return map[string]float64{
+		// XXX round up here might be problem
+		"sent":      0.0,
+		"rcvd":      0.0,
+		"sentBytes": float64(p.bytesSent),
+		"rcvdBytes": float64(p.bytesRcvd),
+	}
 }

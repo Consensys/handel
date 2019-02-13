@@ -77,6 +77,9 @@ func (a *singleRegionAWSManager) RefreshInstances() ([]Instance, error) {
 		for _, i := range reservation.Instances {
 			id := i.InstanceId
 			state := i.State.Name
+			if *state == "terminated" {
+				continue
+			}
 			pubIP := i.PublicIpAddress
 			for _, tag := range i.Tags {
 				if *tag.Value == RnDMasterTag {

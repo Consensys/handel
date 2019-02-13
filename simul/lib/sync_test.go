@@ -1,7 +1,6 @@
 package lib
 
 import (
-	"fmt"
 	"testing"
 	"time"
 )
@@ -15,20 +14,23 @@ func TestSyncer(t *testing.T) {
 	}
 	n := len(slaveAddrs) * 2 // 2 nodes per instances
 	master := NewSyncMaster(masterAddr, n, n)
-	defer master.Stop()
+	//defer master.Stop()
 
 	var slaves = make([]*SyncSlave, len(slaveAddrs))
 	doneSlave := make(chan bool, len(slaveAddrs))
 	for i, addr := range slaveAddrs {
 		slaves[i] = NewSyncSlave(addr, masterAddr, []int{i * 2, i*2 + 1})
-		defer slaves[i].Stop()
+		//defer slaves[i].Stop()
 	}
 
-	tryWait := func(m *SyncMaster, slaves []*SyncSlave) {
+	tryWait := func(stateID int, m *SyncMaster, slaves []*SyncSlave) {
 		for i := range slaves {
 			go func(j int) {
-				fmt.Println("waiting start")
-				doneSlave <- <-slaves[j].WaitMaster()
+				//slaves[j].SignalAll(stateID)
+				for _, id := range slaves[j].ids {
+					slaves[j].Signal(stateID, id)
+				}
+				doneSlave <- <-slaves[j].WaitMaster(stateID)
 			}(i)
 		}
 		var masterDone bool
@@ -36,11 +38,11 @@ func TestSyncer(t *testing.T) {
 
 		for {
 			select {
-			case <-master.WaitAll():
+			case <-master.WaitAll(stateID):
 				masterDone = true
 			case <-doneSlave:
 				slavesDone++
-			case <-time.After(1000 * time.Millisecond):
+			case <-time.After(2000 * time.Millisecond):
 				panic("aie aie aie")
 			}
 			if masterDone && slavesDone == len(slaveAddrs) {
@@ -48,12 +50,7 @@ func TestSyncer(t *testing.T) {
 			}
 		}
 	}
-	tryWait(master, slaves)
-
-	master.Reset()
-	for i := range slaves {
-		slaves[i].Reset()
-	}
-
-	tryWait(master, slaves)
+	go tryWait(START, master, slaves)
+	tryWait(END, master, slaves)
+	tryWait(5, master, slaves)
 }

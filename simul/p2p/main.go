@@ -17,24 +17,24 @@ import (
 	gologging "github.com/whyrusleeping/go-logging"
 )
 
+// CtxKey is the type inserted at key value in context
+type CtxKey string
+
 // MaxCount represents the number of outgoing connections a gossip node should
 // make
 const MaxCount = 10
 
-// BeaconTimeout represents how much time do we wait to receive the beacon
-const BeaconTimeout = 2 * time.Minute
-
-var configFile = flag.String("config", "", "config file created for the exp.")
+var ConfigFile = flag.String("config", "", "config file created for the exp.")
 var registryFile = flag.String("registry", "", "registry file based - array registry")
-var ids arrayFlags
+var Ids arrayFlags
 
 var run = flag.Int("run", -1, "which RunConfig should we run")
-var master = flag.String("master", "", "master address to synchronize")
-var syncAddr = flag.String("sync", "", "address to listen for master START")
+var Master = flag.String("master", "", "master address to synchronize")
+var SyncAddr = flag.String("sync", "", "address to listen for master START")
 var monitorAddr = flag.String("monitor", "", "address to send measurements")
 
 func init() {
-	flag.Var(&ids, "id", "ID to run on this node - can specify multiple -id flags")
+	flag.Var(&Ids, "id", "ID to run on this node - can specify multiple -id flags")
 }
 
 var isMonitoring bool
@@ -42,11 +42,11 @@ var isMonitoring bool
 // Run starts the simulation
 func Run(a Adaptor) {
 
+	defer func() { fmt.Println("binary exit") }()
 	if true {
 		golog.SetAllLoggers(gologging.INFO)
 	}
 
-	flag.Parse()
 	//
 	// SETUP PHASE
 	//
@@ -65,31 +65,33 @@ func Run(a Adaptor) {
 	// load all needed structures
 	// XXX maybe try with a database-backed registry if loading file in memory is
 	// too much when overloading
-	config := lib.LoadConfig(*configFile)
+	config := lib.LoadConfig(*ConfigFile)
 	runConf := config.Runs[*run]
 
 	cons := config.NewConstructor()
+	ctx = context.WithValue(ctx, CtxKey("Constructor"), cons) // for libp2p
 	parser := lib.NewCSVParser()
 	// read CSV records
 	records, err := parser.Read(*registryFile)
 	requireNil(err)
 	// transform into lib.Node
 	libNodes, err := toLibNodes(cons, records)
-	registry, p2pNodes := a.Make(ctx, libNodes, ids, runConf.Extra)
-	aggregators := MakeAggregators(cons, p2pNodes, registry, runConf.GetThreshold())
+	registry, p2pNodes := a.Make(ctx, libNodes, Ids, runConf.GetThreshold(), runConf.Extra)
+	aggregators := MakeAggregators(ctx, cons, p2pNodes, registry, runConf.GetThreshold(), runConf.Extra)
 
 	// Sync with master - wait for the START signal
-	syncer := lib.NewSyncSlave(*syncAddr, *master, ids)
+	syncer := lib.NewSyncSlave(*SyncAddr, *Master, Ids)
+	syncer.SignalAll(lib.START)
 	select {
-	case <-syncer.WaitMaster():
+	case <-syncer.WaitMaster(lib.START):
 		now := time.Now()
 		formatted := fmt.Sprintf("%02d:%02d:%02d:%03d", now.Hour(),
 			now.Minute(),
 			now.Second(),
 			now.Nanosecond())
 
-		fmt.Printf("\n%s [+] %s synced - starting\n", formatted, ids.String())
-	case <-time.After(BeaconTimeout):
+		fmt.Printf("\n%s [+] %s synced - starting\n", formatted, Ids.String())
+	case <-time.After(config.GetMaxTimeout()):
 		panic("Haven't received beacon in time!")
 	}
 
@@ -103,6 +105,7 @@ func Run(a Adaptor) {
 			id := agg.Identity().ID()
 			//fmt.Println(" --- LAUNCHING agg j = ", j, " vs pk = ", agg.Identity().PublicKey().String())
 			signatureGen := monitor.NewTimeMeasure("sigen")
+			netMeasure := monitor.NewCounterMeasure("net", agg.Node)
 			go agg.Start()
 			// Wait for final signatures !
 			enough := false
@@ -122,9 +125,11 @@ func Run(a Adaptor) {
 				}
 			}
 			signatureGen.Record()
+			netMeasure.Record()
 			if err := h.VerifyMultiSignature(lib.Message, sig, registry, cons.Handel()); err != nil {
 				panic("signature invalid !!")
 			}
+			syncer.Signal(lib.END, int(id))
 		}(i)
 	}
 
@@ -141,17 +146,16 @@ func Run(a Adaptor) {
 	fmt.Println("signature valid & finished- sending state to sync master")
 
 	// Sync with master - wait to close our node
-	syncer.Reset()
 	select {
-	case <-syncer.WaitMaster():
+	case <-syncer.WaitMaster(lib.END):
 		now := time.Now()
 		formatted := fmt.Sprintf("%02d:%02d:%02d:%03d", now.Hour(),
 			now.Minute(),
 			now.Second(),
 			now.Nanosecond())
 
-		fmt.Printf("\n%s [+] %s synced - closing shop\n", formatted, ids.String())
-	case <-time.After(BeaconTimeout):
+		fmt.Printf("\n%s [+] %s synced - closing shop\n", formatted, Ids.String())
+	case <-time.After(config.GetMaxTimeout()):
 		panic("Haven't received beacon in time!")
 	}
 }
@@ -176,7 +180,9 @@ func (i *arrayFlags) Set(value string) error {
 }
 
 // MakeAggregators returns
-func MakeAggregators(c lib.Constructor, nodes []Node, reg handel.Registry, threshold int) []*Aggregator {
+func MakeAggregators(ctx context.Context, c lib.Constructor, nodes []Node, reg handel.Registry, threshold int, opts Opts) []*Aggregator {
+	resendPeriod := extractResendPeriod(opts)
+	aggAndVerify := extractAggTechnique(opts)
 	var aggs = make([]*Aggregator, 0, len(nodes))
 	for _, node := range nodes {
 		//i := int(node.Identity().ID())
@@ -185,7 +191,7 @@ func MakeAggregators(c lib.Constructor, nodes []Node, reg handel.Registry, thres
 			fmt.Println(err)
 			panic(err)
 		}
-		agg := NewAggregator(node, reg, c.Handel(), sig, threshold)
+		agg := NewAggregator(ctx, node, reg, c.Handel(), sig, threshold, resendPeriod, aggAndVerify)
 		aggs = append(aggs, agg)
 	}
 	return aggs
@@ -206,15 +212,15 @@ func toLibNodes(c lib.Constructor, nr []*lib.NodeRecord) ([]*lib.Node, error) {
 	n := len(nr)
 	nodes := make([]*lib.Node, n)
 	var err error
-	fmt.Printf("toLibNodes: ")
+	//fmt.Printf("toLibNodes: ")
 	for i, record := range nr {
 		nodes[i], err = record.ToNode(c)
-		fmt.Printf("%d: %v - ", i, nodes[i])
+		//fmt.Printf("\t-%d: %s \n ", i, nodes[i].Identity.PublicKey().String())
 		if err != nil {
 			return nil, err
 		}
 	}
-	fmt.Printf("\n")
+	//fmt.Printf("\n")
 	return nodes, nil
 }
 
@@ -222,4 +228,30 @@ func requireNil(err error) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func extractResendPeriod(opts Opts) time.Duration {
+	str, ok := opts.String("ResendPeriod")
+	if !ok {
+		str = "500ms"
+	}
+	t, err := time.ParseDuration(str)
+	if err != nil {
+		panic(err)
+	}
+	return t
+}
+
+func extractAggTechnique(opts Opts) bool {
+	var out bool
+	v, ok := opts.Int("AggAndVerify")
+	if !ok {
+		v = 0
+	}
+	if v == 0 {
+		out = false
+	} else {
+		out = true
+	}
+	return out
 }

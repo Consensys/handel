@@ -18,8 +18,8 @@ var global struct {
 	sink string
 
 	// Structs are encoded through a json encoder.
-	encoder    *json.Encoder
-	connection net.Conn
+	encoder *json.Encoder
+	conn    *net.UDPConn
 
 	sync.Mutex
 }
@@ -68,17 +68,21 @@ type TimeMeasure struct {
 func ConnectSink(addr string) error {
 	global.Lock()
 	defer global.Unlock()
-	if global.connection != nil {
-		return errors.New("Already connected to an endpoint")
+	if global.conn != nil {
+		return errors.New("already connected to an endpoint")
 	}
 	log.Lvl3("Connecting to:", addr)
-	conn, err := net.Dial("tcp", addr)
+	raddr, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
 		return err
 	}
-	log.Lvl3("Connected to sink:", addr)
+
+	conn, err := net.DialUDP("udp", nil, raddr)
+	if err != nil {
+		return err
+	}
 	global.sink = addr
-	global.connection = conn
+	global.conn = conn
 	global.encoder = json.NewEncoder(conn)
 	return nil
 }
@@ -184,7 +188,7 @@ func (cm *CounterMeasure) Record() {
 func send(v interface{}) error {
 	global.Lock()
 	defer global.Unlock()
-	if global.connection == nil {
+	if global.conn == nil {
 		return fmt.Errorf("monitor's sink connection not initialized")
 	}
 	// For a large number of clients (˜10'000), the connection phase
@@ -197,28 +201,25 @@ func send(v interface{}) error {
 			ok = true
 			break
 		}
-		log.Lvl1("Couldn't send to monitor-sink:", err)
+		fmt.Println("message NOT sent", err)
 		time.Sleep(time.Duration(wait) * time.Millisecond)
 		continue
 	}
 	if !ok {
-		return errors.New("Could not send any measures")
+		return errors.New("could not send any measures")
 	}
 	return nil
 }
 
 // EndAndCleanup sends a message to end the logging and closes the connection
 func EndAndCleanup() {
-	if err := send(newSingleMeasure("end", 0)); err != nil {
-		log.Error("Error while sending 'end' message:", err)
-	}
 	global.Lock()
 	defer global.Unlock()
-	if err := global.connection.Close(); err != nil {
+	if err := global.conn.Close(); err != nil {
 		// at least tell that we could not close the connection:
 		log.Error("Could not close connection:", err)
 	}
-	global.connection = nil
+	global.conn = nil
 }
 
 // Returns the difference of the given system- and user-time.

@@ -38,6 +38,17 @@ type BitSet interface {
 	And(b2 BitSet) BitSet
 	// Xor between this bitset and another, returns a new bitset.
 	Xor(b2 BitSet) BitSet
+	// IsSuperSet returns true if this is a superset of the other set
+	IsSuperSet(b2 BitSet) bool
+	// NextSet returns the next bit set from the specified index,
+	// including possibly the current index
+	// along with an error code (true = valid, false = no set bit found)
+	// for i,e := v.NextSet(0); e; i,e = v.NextSet(i + 1) {...}
+	NextSet(i int) (int, bool)
+	// IntersectionCardinality computes the cardinality of the differnce
+	IntersectionCardinality(b2 BitSet) int
+	// Clone this BitSet
+	Clone() BitSet
 }
 
 
@@ -104,7 +115,6 @@ func (w *WilffBitSet) Combine(b2 BitSet) BitSet {
 	return w
 }
 
-
 // Or implements the BitSet interface
 func (w *WilffBitSet) Or(b2 BitSet) BitSet {
 	return newWilffBitset(w.b.Union(b2.(*WilffBitSet).b))
@@ -120,8 +130,18 @@ func (w *WilffBitSet) Xor(b2 BitSet) BitSet {
 	return newWilffBitset(w.b.SymmetricDifference(b2.(*WilffBitSet).b))
 }
 
+// Clone implements the BitSet interface
+func (w *WilffBitSet) Clone() BitSet {
+	return newWilffBitset(w.b.Clone())
+}
+
 func (w *WilffBitSet) inBound(idx int) bool {
 	return !(idx < 0 || idx >= w.l)
+}
+
+// IsSuperSet implements the BitSet interface
+func (w *WilffBitSet) IsSuperSet(b2 BitSet) bool {
+	return w.b.IsSuperSet(b2.(*WilffBitSet).b)
 }
 
 // MarshalBinary implements the go Marshaler interface. It encodes the size
@@ -174,4 +194,13 @@ func (w *WilffBitSet) Any() bool {
 	return w.b.Any()
 }
 
+// NextSet implements the BitSet interface
+func (w *WilffBitSet) NextSet(i int) (int, bool) {
+	ni, res := w.b.NextSet(uint(i))
+	return int(ni), res
+}
 
+// IntersectionCardinality implements the BitSet interface
+func (w *WilffBitSet) IntersectionCardinality(b2 BitSet) int {
+	return int(w.b.IntersectionCardinality(b2.(*WilffBitSet).b))
+}

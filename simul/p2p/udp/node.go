@@ -7,6 +7,7 @@ import (
 	"github.com/ConsenSys/handel/network"
 	"github.com/ConsenSys/handel/network/udp"
 	"github.com/ConsenSys/handel/simul/lib"
+	"github.com/ConsenSys/handel/simul/monitor"
 	"github.com/ConsenSys/handel/simul/p2p"
 )
 
@@ -15,25 +16,28 @@ var _ p2p.Node = (*Node)(nil)
 // Node implements the p2p.Node interface using UDP
 type Node struct {
 	handel.Network
-	sec lib.SecretKey
-	id  handel.Identity
-	reg handel.Registry
-	out chan handel.Packet
+	counterEnc *network.CounterEncoding
+	sec        lib.SecretKey
+	id         handel.Identity
+	reg        handel.Registry
+	out        chan handel.Packet
 }
 
 // NewNode returns a UDP based node
 func NewNode(sec lib.SecretKey, id handel.Identity, reg handel.Registry, enc network.Encoding) *Node {
-	net, err := udp.NewNetwork(id.Address(), enc)
+	counter := network.NewCounterEncoding(enc)
+	net, err := udp.NewNetwork(id.Address(), counter)
 	if err != nil {
 		fmt.Println(err)
 		panic(err)
 	}
 	n := &Node{
-		sec:     sec,
-		id:      id,
-		reg:     reg,
-		Network: net,
-		out:     make(chan handel.Packet, reg.Size()),
+		sec:        sec,
+		id:         id,
+		reg:        reg,
+		Network:    net,
+		out:        make(chan handel.Packet, reg.Size()),
+		counterEnc: counter,
 	}
 	n.Network.RegisterListener(n)
 	return n
@@ -74,4 +78,14 @@ func (n *Node) NewPacket(p *handel.Packet) {
 func (n *Node) Connect(id handel.Identity) error {
 	// no connection with UDP
 	return nil
+}
+
+// Values implement the monitor.Counter interface
+func (n *Node) Values() map[string]float64 {
+	ret := n.Network.(monitor.Counter).Values()
+	for k, v := range n.counterEnc.Values() {
+		ret[k] = v
+	}
+	return ret
+
 }

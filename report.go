@@ -6,8 +6,8 @@ type ReportHandel struct {
 	*Handel
 }
 
-// Reporter is a generic interface that can report different data about its
-// internal state
+// Reporter is simply a copy of monitor.Counter interface to avoid importint
+// monitor in handel.
 type Reporter interface {
 	Values() map[string]float64
 }
@@ -15,14 +15,13 @@ type Reporter interface {
 // NewReportHandel returns a Handel that can report some statistis about its
 // internals
 func NewReportHandel(h *Handel) *ReportHandel {
-	h.net = NewReportNetwork(h.net)
 	h.store = newReportStore(h.store)
 	return &ReportHandel{h}
 }
 
 // Values returns the values of ALL internal components of Handel merged together.
 func (r *ReportHandel) Values() map[string]float64 {
-	net := r.Handel.net.(*ReportNetwork)
+	net := r.Network()
 	netValues := net.Values()
 	store := r.Handel.store.(*ReportStore)
 	storeValues := store.Values()
@@ -38,7 +37,7 @@ func (r *ReportHandel) Values() map[string]float64 {
 
 // Network returns the Network reporter interface
 func (r *ReportHandel) Network() Reporter {
-	return r.Handel.net.(*ReportNetwork)
+	return r.Handel.net.(Reporter)
 }
 
 // Store returns the Store reporter interface
@@ -46,60 +45,9 @@ func (r *ReportHandel) Store() Reporter {
 	return r.Handel.store.(*ReportStore)
 }
 
-// ReportNetwork is a struct that implements the Network interface by augmenting
-// the Network's method with accountability. How many packets received and send
-// can be logged.
-type ReportNetwork struct {
-	Network
-	sentPackets uint32
-	rcvdPackets uint32
-	lis         []Listener
-}
-
-// NewReportNetwork returns a Network with reporting capabilities.
-func NewReportNetwork(n Network) Network {
-	r := &ReportNetwork{
-		Network: n,
-	}
-	n.RegisterListener(r)
-	return r
-}
-
-// Send implements the Network interface
-func (r *ReportNetwork) Send(ids []Identity, p *Packet) {
-	r.sentPackets++
-	r.Network.Send(ids, p)
-}
-
-// RegisterListener implements the Network interface
-func (r *ReportNetwork) RegisterListener(l Listener) {
-	r.lis = append(r.lis, l)
-}
-
-// NewPacket implements the Listener interface
-func (r *ReportNetwork) NewPacket(p *Packet) {
-	r.rcvdPackets++
-	for _, l := range r.lis {
-		l.NewPacket(p)
-	}
-}
-
-// Sent returns the number of sent packets
-func (r *ReportNetwork) Sent() uint32 {
-	return r.sentPackets
-}
-
-// Received returns the number of received packets
-func (r *ReportNetwork) Received() uint32 {
-	return r.rcvdPackets
-}
-
-// Values implements the simul/monitor/CounterIO interface
-func (r *ReportNetwork) Values() map[string]float64 {
-	return map[string]float64{
-		"sent": float64(r.Sent()),
-		"rcvd": float64(r.Received()),
-	}
+// Processing returns the Store reporter interface
+func (r *ReportHandel) Processing() Reporter {
+	return r.Handel.proc.(Reporter)
 }
 
 // ReportStore is a Store that can report some statistics about the storage
@@ -118,20 +66,20 @@ func newReportStore(s signatureStore) signatureStore {
 }
 
 // Store implements the signatureStore interface
-func (r *ReportStore) Store(level byte, ms *MultiSignature) (*MultiSignature, bool) {
-	ms, isNew := r.signatureStore.Store(level, ms)
-	if isNew {
+func (r *ReportStore) Store(sp *incomingSig) *MultiSignature {
+	ms := r.signatureStore.Store(sp)
+	if ms != nil {
 		r.sucessReplaced++
 	} else {
 		r.replacedTrial++
 	}
-	return ms, isNew
+	return ms
 }
 
 // Values implements the simul/monitor/counterIO interface
 func (r *ReportStore) Values() map[string]float64 {
 	return map[string]float64{
-		"sucessReplace": float64(r.sucessReplaced),
-		"replaceTrial":  float64(r.replacedTrial),
+		"successReplace": float64(r.sucessReplaced),
+		"replaceTrial":   float64(r.replacedTrial),
 	}
 }

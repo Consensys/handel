@@ -15,7 +15,7 @@ import (
 )
 
 // BeaconTimeout represents how much time do we wait to receive the beacon
-const BeaconTimeout = 2 * time.Minute
+const BeaconTimeout = 10 * time.Minute
 
 var configFile = flag.String("config", "", "config file created for the exp.")
 var registryFile = flag.String("registry", "", "registry file based - array registry")
@@ -30,15 +30,12 @@ func init() {
 	flag.Var(&ids, "id", "ID to run on this node - can specify multiple -id flags")
 }
 
-var isMonitoring bool
-
 func main() {
 	flag.Parse()
 	//
 	// SETUP PHASE
 	//
 	if *monitorAddr != "" {
-		isMonitoring = true
 		if err := monitor.ConnectSink(*monitorAddr); err != nil {
 			panic(err)
 		}
@@ -59,7 +56,7 @@ func main() {
 	}
 	//registry := nodeList.Registry()
 
-	registry := &nodeList
+	registry := nodeList.Registry()
 
 	// instantiate handel for all specified ids in the flags
 	var handels []*h.ReportHandel
@@ -75,17 +72,19 @@ func main() {
 		// Setup report handel and the id of the logger
 		config := runConf.GetHandelConfig()
 		config.Logger = logger
-		handel := h.NewHandel(network, registry, node.Identity, cons.Handel(), lib.Message, signature, runConf.GetHandelConfig())
+		handel := h.NewHandel(network, registry, node.Identity, cons.Handel(), lib.Message, signature, config)
 		reporter := h.NewReportHandel(handel)
 		handels = append(handels, reporter)
 	}
 
 	// Sync with master - wait for the START signal
 	syncer := lib.NewSyncSlave(*syncAddr, *master, ids)
+	syncer.SignalAll(lib.START)
 	select {
-	case <-syncer.WaitMaster():
+	case <-syncer.WaitMaster(lib.START):
 		logger.Debug("sync", "finished", "nodes", ids.String())
 	case <-time.After(BeaconTimeout):
+		logger.Error("Haven't received beacon in time!")
 		panic("Haven't received beacon in time!")
 	}
 	logger.Debug("nodes", ids.String(), "sync", "finished")
@@ -100,6 +99,7 @@ func main() {
 			signatureGen := monitor.NewTimeMeasure("sigen")
 			netMeasure := monitor.NewCounterMeasure("net", handel.Network())
 			storeMeasure := monitor.NewCounterMeasure("store", handel.Store())
+			processingMeasure := monitor.NewCounterMeasure("sigs", handel.Processing())
 			go handel.Start()
 			// Wait for final signatures !
 			enough := false
@@ -118,25 +118,27 @@ func main() {
 					panic("max timeout")
 				}
 			}
-			signatureGen.Record()
 			netMeasure.Record()
 			storeMeasure.Record()
-			logger.Debug("node", id, "sigen", "finished")
+			signatureGen.Record()
+			processingMeasure.Record()
+			logger.Info("node", id, "sigen", "finished")
 
 			if err := h.VerifyMultiSignature(lib.Message, &sig, registry, cons.Handel()); err != nil {
 				panic("signature invalid !!")
 			}
+			syncer.Signal(lib.END, id)
 		}(i)
 	}
 	wg.Wait()
 	logger.Info("simul", "finished")
 
 	// Sync with master - wait to close our node
-	syncer.Reset()
 	select {
-	case <-syncer.WaitMaster():
+	case <-syncer.WaitMaster(lib.END):
 		logger.Debug("sync", "finished", "nodes", ids.String())
 	case <-time.After(BeaconTimeout):
+		logger.Error("Haven't received beacon in time!")
 		panic("Haven't received beacon in time!")
 	}
 }
