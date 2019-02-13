@@ -2,6 +2,7 @@ package bn256
 
 import (
 	"crypto/rand"
+	"fmt"
 	"testing"
 	"time"
 
@@ -44,6 +45,11 @@ func TestSign(t *testing.T) {
 
 	sig, err := sk.Sign(msg, nil)
 	require.NoError(t, err)
+
+	buff, _ := sig.MarshalBinary()
+	fmt.Println(len(buff))
+	buff, _ = pk.MarshalBinary()
+	fmt.Println(len(buff))
 
 	err = pk.VerifySignature(msg, sig)
 	require.NoError(t, err)

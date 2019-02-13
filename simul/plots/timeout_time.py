@@ -28,9 +28,9 @@ for f,v in datas.items():
 
     plot(x,y,"-",label,allColors.popleft())
 
-plt.legend(fontsize=fs_label)
+plt.legend(fontsize=18)
 plt.ylabel("signature generation (ms)",fontsize=fs_label)
 plt.xlabel("nodes",fontsize=fs_label)
-plt.title("signature generation time with various timeouts",fontsize=fs_label)
+# plt.title("signature generation time with various timeouts",fontsize=fs_label)
 # plt.yscale('log')
 plt.show()

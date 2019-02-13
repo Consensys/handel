@@ -18,8 +18,8 @@ purple = ["#52528f", "#c2c2ff", "o", 10]
 
 allColors = deque([green,red,purple,yellow])
 
-fs_label = 15
-fs_axis = 15
+fs_label = 22
+fs_axis = 18
 
 ax = plt.subplot()
 for label in (ax.get_xticklabels() + ax.get_yticklabels()):

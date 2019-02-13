@@ -28,9 +28,9 @@ for f,v in datas.items():
 
     plot(x,y,"-",label,allColors.popleft())
 
-plt.legend(fontsize=fs_label)
+plt.legend(fontsize=18)
 plt.ylabel("KBytes",fontsize=fs_label)
 plt.xlabel("nodes",fontsize=fs_label)
 # plt.yscale('log')
-plt.title("Outgoing network consumption with various timeouts",fontsize=fs_label)
+# plt.title("Outgoing network consumption with various timeouts",fontsize=fs_label)
 plt.show()
