@@ -104,11 +104,6 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 		return err
 	}
 
-	//Start EC2 instances (Now done with terraform)
-	/*if err := a.aws.StartInstances(); err != nil {
-		return err
-	}*/
-
 	// Create master and slave instances
 	masterInstance, slaveInstances, err := makeMasterAndSlaves(a.aws.Instances())
 	if err != nil {
@@ -116,7 +111,6 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 		return err
 	}
 
-	//	slaveInstances = slaveInstances[0:2005]
 	cons := c.NewConstructor()
 	a.cons = cons
 	masterAddr := aws.GenRemoteAddress(*masterInstance.PublicIP, 5000)
@@ -137,7 +131,6 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 	fmt.Println()
 	fmt.Println("[+] Avaliable Slave Instances:")
 
-	//slaveInstances = slaveInstances[0:50]
 	for i, inst := range slaveInstances {
 		fmt.Println("	 [-] Instance ", i, *inst.ID, *inst.State, *inst.PublicIP)
 	}
@@ -171,35 +164,31 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 	instChan := make(chan aws.Instance, len(slaveInstances))
 	var counter int32
 	for _, slave := range slaveInstances {
-		// TODO This might become a problem for large number of slaves,
-		// limit number of go-routines running concurrently if this is the case
 		go func(slave aws.Instance) {
 			slaveNodeController, err := aws.NewSSHNodeController(*slave.PublicIP, a.pemBytes, a.awsConfig.SSHUser)
 			if err != nil {
 				panic(err)
 			}
+
 			fmt.Println("    - Configuring Slave", *slave.PublicIP)
 			if err := configureSlave(slaveNodeController, slaveCmds, a.slaveCMDS.Kill()); err != nil {
 				fmt.Println("  Problem with Slave", *slave.PublicIP, slave.Region, err)
 			} else {
 				instChan <- slave
 			}
+
 			atomic.AddInt32(&counter, 1)
 			counterValue := atomic.LoadInt32(&counter)
 			fmt.Println("    - Configuring Slave Done", counterValue, *slave.PublicIP)
 		}(*slave)
 	}
 
-	dt := time.Now()
-	fmt.Println("Waiting for instances: ", dt.String())
 loop:
 	for {
 		select {
 		case inst := <-instChan:
 			a.allSlaveNodes = append(a.allSlaveNodes, &inst)
-			dt := time.Now()
-			fmt.Println("Current time: ", dt.String())
-			fmt.Println("Instances len", len(a.allSlaveNodes), len(slaveInstances))
+			fmt.Println(len(slaveInstances), " instances configured")
 			if len(a.allSlaveNodes) == len(slaveInstances) {
 				fmt.Println("All nodes configured")
 				break loop
@@ -326,18 +315,9 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 		}
 		masterDone <- true
 	}()
-	//*** Start slaves
-
-	//var wg sync.WaitGroup
-
-	//	slaveDone := make(chan bool, len(slaveNodes))
 
 	for _, n := range slaveNodes {
-		//	wg.Add(1)
-
 		go func(slaveNode aws.Instance) {
-			// TODO This might become a problem for large number of slaves,
-			// limit numebr of go-routines running concurrently if this is the case
 
 			slaveController, err := aws.NewSSHNodeController(*slaveNode.PublicIP, a.pemBytes, a.awsConfig.SSHUser)
 			if err != nil {
@@ -347,7 +327,6 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 			if err := slaveController.Init(); err != nil {
 				fmt.Println(err)
 				return
-				//panic(err)
 			}
 
 			if stream_logs_via_ssh {
@@ -357,11 +336,8 @@ func (a *awsPlatform) Start(idx int, r *lib.RunConfig) error {
 			}
 			fmt.Println("Close ssh", *slaveNode.PublicIP, *slaveNode.ID)
 			slaveController.Close()
-			//	wg.Done()
-			//	slaveDone <- true
 		}(*n)
 	}
-	//	wg.Wait()
 	fmt.Println("Waiting for master")
 	<-masterDone
 	master.Close()
@@ -376,7 +352,6 @@ func (a *awsPlatform) runSlave(inst aws.Instance, idx int, slaveController aws.N
 		fmt.Println(*inst.PublicIP, cpyFiles[i])
 		if err := slaveController.Run(cpyFiles[i], nil); err != nil {
 			fmt.Println("Error", *inst.PublicIP, err)
-			//			panic(err)
 			return
 		}
 	}
@@ -400,14 +375,13 @@ func (a *awsPlatform) runSlave(inst aws.Instance, idx int, slaveController aws.N
 	err := slaveController.Run(cmd, pw)
 	if err != nil {
 		fmt.Println("Error "+*inst.PublicIP, err)
-		//	panic(err)
 	}
 }
 
 func (a *awsPlatform) startSlave(inst aws.Instance, idx int, slaveController aws.NodeController) {
 	slaveController.Run(a.slaveCMDS.Kill(), nil)
 
-	cpyFiles := a.slaveCMDS.CopyRegistryFileFromSharedDirToLocalStorage() //.CopyRegistryFileFromSharedDirToLocalStorageQuitSSH()
+	cpyFiles := a.slaveCMDS.CopyRegistryFileFromSharedDirToLocalStorage()
 
 	for i := 0; i < len(cpyFiles); i++ {
 		fmt.Println(*inst.PublicIP, cpyFiles[i])
