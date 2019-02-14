@@ -8,17 +8,19 @@ import (
 
 // NodeRecord holds a node's information in a readable string format
 type NodeRecord struct {
-	ID      int32
-	Addr    string
-	Private string // hex encoded
-	Public  string // hex encoded
+	ID          int32
+	Addr        string
+	Private     string // hex encoded
+	Public      string // hex encoded
+	IsByzantine bool
 }
 
 // Node is similar to a NodeRecord but decoded
 type Node struct {
 	SecretKey
 	handel.Identity
-	Active bool
+	Active      bool
+	IsByzantine bool
 }
 
 // ToRecord maps a Node to a NodeRecord, its string-human-readable equivalent
@@ -36,6 +38,7 @@ func (n *Node) ToRecord() (*NodeRecord, error) {
 		return nil, err
 	}
 	nr.Public = hex.EncodeToString(buff)
+	nr.IsByzantine = n.IsByzantine
 	return nr, nil
 }
 
@@ -60,5 +63,5 @@ func (n *NodeRecord) ToNode(c Constructor) (*Node, error) {
 		return nil, err
 	}
 	identity := handel.NewStaticIdentity(int32(n.ID), n.Addr, pk)
-	return &Node{SecretKey: sk, Identity: identity}, nil
+	return &Node{SecretKey: sk, Identity: identity, IsByzantine: n.IsByzantine}, nil
 }

@@ -24,12 +24,15 @@ type incomingSig struct {
 	// mapped index of the origin to the level's range - only useful when this
 	// signature is an individual signature.
 	mappedIndex int
+	// Peer ID
+	id int32
 }
 
 // Individual returns true if this incoming sig is an individual signature
 func (is *incomingSig) Individual() bool {
 	return is.isInd
 }
+
 // signatureProcessing is an interface responsible for verifying incoming
 // multi-signature. It can decides to drop some incoming signatures if deemed
 // useless. It outputs verified signatures to the main handel processing logic
@@ -140,7 +143,7 @@ func (c *combinedFilter) Accept(inc *incomingSig) bool {
 type evaluatorProcessing struct {
 	cond *sync.Cond
 
-	h *Handel
+	//h *Handel
 
 	part Partitioner
 	cons Constructor
@@ -167,9 +170,14 @@ type evaluatorProcessing struct {
 
 	// Time spent checking the signature
 	sigCheckingTime int
+
+	// Strategy to blacklist byzantine nodes
+	blackListStrategy BlackListStrategy
+
+	id Identity
 }
 
-func newEvaluatorProcessing(part Partitioner, c Constructor, msg []byte, sigSleepTime int, e SigEvaluator, log Logger) signatureProcessing {
+func newEvaluatorProcessing(blackList BlackListStrategy, part Partitioner, c Constructor, msg []byte, sigSleepTime int, e SigEvaluator, log Logger) signatureProcessing {
 	m := sync.Mutex{}
 
 	ev := &evaluatorProcessing{
@@ -179,11 +187,12 @@ func newEvaluatorProcessing(part Partitioner, c Constructor, msg []byte, sigSlee
 		msg:          msg,
 		sigSleepTime: int64(sigSleepTime),
 
-		out:       make(chan incomingSig, 1000),
-		todos:     make([]*incomingSig, 0),
-		evaluator: e,
-		log:       log,
-		filter:    newIndividualSigFilter(),
+		out:               make(chan incomingSig, 1000),
+		todos:             make([]*incomingSig, 0),
+		evaluator:         e,
+		log:               log,
+		filter:            newIndividualSigFilter(),
+		blackListStrategy: blackList,
 	}
 	return ev
 }
@@ -311,6 +320,7 @@ func (f *evaluatorProcessing) processStep() bool {
 	return false
 }
 
+//&incomingSig
 func (f *evaluatorProcessing) verifyAndPublish(sp *incomingSig) {
 	startTime := time.Now()
 	err := (error)(nil)
@@ -324,7 +334,8 @@ func (f *evaluatorProcessing) verifyAndPublish(sp *incomingSig) {
 	f.sigCheckingTime += int(endTime.Sub(startTime).Nanoseconds() / 1000000)
 
 	if err != nil {
-		f.log.Warn("verify", err)
+		f.blackListStrategy.Update(sp.id, err)
+		//	f.log.Warn("verify", err)
 	} else {
 		f.out <- *sp
 	}

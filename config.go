@@ -62,6 +62,9 @@ type Config struct {
 	// Set to zero by default: no sleep time. When activated the sleep replaces the verification.
 	// This sleep time is approximate and depends on golang and the os. The actual delay can be longer.
 	UnsafeSleepTimeOnSigVerify int
+
+	//BlackListStrategy strategy for blacklisting peers
+	BlackListStrategy BlackListStrategy
 }
 
 // DefaultConfig returns a default configuration for Handel.
@@ -78,6 +81,7 @@ func DefaultConfig(numberOfNodes int) *Config {
 		NewTimeoutStrategy:   DefaultTimeoutStrategy,
 		Logger:               DefaultLogger,
 		Rand:                 rand.Reader,
+		BlackListStrategy:    newDefaultBlackListStrategy(),
 	}
 }
 
@@ -159,6 +163,10 @@ func mergeWithDefault(c *Config, size int) *Config {
 	}
 	if c.DisableShuffling {
 		c2.DisableShuffling = true
+	}
+
+	if c.BlackListStrategy == nil {
+		c2.BlackListStrategy = newDefaultBlackListStrategy()
 	}
 	return &c2
 }

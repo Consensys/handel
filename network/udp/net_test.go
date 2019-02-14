@@ -16,7 +16,7 @@ func TestUDPNetwork(t *testing.T) {
 	require.NoError(t, err)
 
 	received := make(chan bool, 1)
-	n2.RegisterListener(handel.ListenFunc(func(p *handel.Packet) {
+	n2.RegisterListener(handel.ListenFunc(func(p handel.ApplicationPacket) {
 		received <- true
 	}))
 

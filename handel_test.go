@@ -13,7 +13,6 @@ import (
 
 var msg = []byte("Sun is Shining...")
 
-
 type handelTest struct {
 	n        int
 	offlines []int32
@@ -39,7 +38,6 @@ func TestHandelWithFailures(t *testing.T) {
 	}
 	testHandelTestNetwork(t, tests)
 }
-
 
 func TestHandelTestNetworkSNonPowerOfTwo(t *testing.T) {
 	off := func(ids ...int32) []int32 {
@@ -219,7 +217,7 @@ func TestHandelCheckCompletedLevel(t *testing.T) {
 	// checkCompletedLevel should not react in any way
 	sender := handels[1]
 	receiver2 := handels[2]
-	inc2 := make(chan *Packet)
+	inc2 := make(chan ApplicationPacket)
 	receiver2.net.(*TestNetwork).lis = []Listener{ChanListener(inc2)}
 
 	sig0 := fullIncomingSig(1)
@@ -246,8 +244,8 @@ func TestHandelCheckCompletedLevel(t *testing.T) {
 	sender.checkCompletedLevel(sig0)
 	select {
 	case p := <-inc2:
-		require.Equal(t, int32(1), p.Origin)
-		require.Equal(t, byte(2), p.Level)
+		require.Equal(t, int32(1), p.Handel().Origin)
+		require.Equal(t, byte(2), p.Handel().Level)
 	case <-time.After(20 * time.Millisecond):
 		t.Fatal("not received expected full signature")
 	}
@@ -336,18 +334,8 @@ func TestHandelCheckFinalSignature(t *testing.T) {
 
 func TestHandelParsePacket(t *testing.T) {
 	n := 16
-	registry := FakeRegistry(n)
-	//ids := registry.(*arrayRegistry).ids // TODO: The test runs ok even if we comment this lines
 	c := DefaultConfig(n)
-	c.DisableShuffling = true
-	h := &Handel{
-		c:           c,
-		reg:         registry,
-		cons:        new(fakeCons),
-		msg:         msg,
-		Partitioner: NewBinPartitioner(1, registry, DefaultLogger),
-	}
-	h.levels = createLevels(h.c, h.Partitioner)
+	h := createHandel(c, n)
 	type packetTest struct {
 		*Packet
 		Error bool
@@ -396,7 +384,7 @@ func TestHandelParsePacket(t *testing.T) {
 	for i, test := range packets {
 		t.Logf(" -- test %d --", i)
 		err := h.validatePacket(test.Packet)
-		_, _, err2 := h.parseSignatures(test.Packet)
+		_, _, err2 := h.parseSignatures(NewAppPacket(test.Packet))
 		if test.Error {
 			var isErr1 = err != nil
 			var isErr2 = err2 != nil
@@ -439,4 +427,20 @@ func TestHandelCreateLevel(t *testing.T) {
 	mapping5 := createLevels(c, part)
 	require.NotEqual(t, mapping5, mapping4)
 	require.NotEqual(t, mapping5, mapping1)
+}
+
+func createHandel(c *Config, n int) *Handel {
+	registry := FakeRegistry(n)
+	//ids := registry.(*arrayRegistry).ids // TODO: The test runs ok even if we comment this lines
+	c.DisableShuffling = true
+	h := &Handel{
+		c:           c,
+		reg:         registry,
+		cons:        new(fakeCons),
+		msg:         msg,
+		Partitioner: NewBinPartitioner(1, registry, DefaultLogger),
+	}
+	h.levels = createLevels(h.c, h.Partitioner)
+
+	return h
 }

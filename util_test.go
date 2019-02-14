@@ -140,6 +140,20 @@ func fullIncomingSig(level int) *incomingSig {
 	}
 }
 
+func newIncorrectSig(b BitSet) *MultiSignature {
+	return &MultiSignature{
+		BitSet:    b,
+		Signature: &fakeSig{false},
+	}
+}
+
+func incorrectIncomingSig(level int) *incomingSig {
+	return &incomingSig{
+		level: byte(level),
+		ms:    newIncorrectSig(fullBitset(level)),
+	}
+}
+
 func finalBitset(size int) BitSet {
 	bs := NewWilffBitset(size)
 	for i := 0; i < size; i++ {
@@ -195,14 +209,14 @@ func FakeSetup(n int) (Registry, []*Handel) {
 	return reg, handels
 }
 
-type listenerFunc func(*Packet)
+type listenerFunc func(ApplicationPacket)
 
-func (l listenerFunc) NewPacket(p *Packet) {
+func (l listenerFunc) NewPacket(p ApplicationPacket) {
 	l(p)
 }
 
-func ChanListener(ch chan *Packet) Listener {
-	return listenerFunc(func(p *Packet) {
+func ChanListener(ch chan ApplicationPacket) Listener {
+	return listenerFunc(func(p ApplicationPacket) {
 		ch <- p
 	})
 }

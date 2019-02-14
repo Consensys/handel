@@ -203,7 +203,6 @@ type Handel struct {
 	startTime time.Time
 	// the timeout strategy used by handel
 	timeout TimeoutStrategy
-
 	// the logger used by this Handel - always contains the ID
 	log Logger
 }
@@ -262,7 +261,7 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 	}
 	h.store.Store(ind) // Our own sig is at level 0.
 	evaluator := h.c.NewEvaluatorStrategy(h.store, h)
-	h.proc = newEvaluatorProcessing(part, c, msg, config.UnsafeSleepTimeOnSigVerify, evaluator, h.log)
+	h.proc = newEvaluatorProcessing(config.BlackListStrategy, part, c, msg, config.UnsafeSleepTimeOnSigVerify, evaluator, h.log)
 	h.net.RegisterListener(h)
 	h.timeout = h.c.NewTimeoutStrategy(h, h.ids)
 	return h
@@ -270,25 +269,32 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 
 // NewPacket implements the Listener interface for the network.
 // it parses the packet and sends the multisignature if correct and the
-// individual signature if correct.
-func (h *Handel) NewPacket(p *Packet) {
+// individual signature if correct. Skips packets from blacklisted peers
+func (h *Handel) NewPacket(p ApplicationPacket) {
 	h.Lock()
 	defer h.Unlock()
 
+	//Don't process packets from blacklisted peers.
+	if h.c.BlackListStrategy.IsBlackListed(p.ID()){
+		return
+	}
+
+	ph := p.Handel()
 	if h.done {
 		return
 	}
-	if err := h.validatePacket(p); err != nil {
+	if err := h.validatePacket(ph); err != nil {
 		h.log.Warn("invalid_packet", err)
 		return
 	}
 	ms, ind, err := h.parseSignatures(p)
+
 	if err != nil {
 		h.log.Warn("invalid_packet - multisig", err)
 		return
-	} else if !h.getLevel(p.Level).rcvCompleted {
+	} else if !h.getLevel(ph.Level).rcvCompleted {
 		// sends it to processing
-		h.log.Debug("rcvd_from", p.Origin, "rcvd_level", p.Level)
+		h.log.Debug("rcvd_from", ph.Origin, "rcvd_level", ph.Level)
 		h.proc.Add(ms)
 		if ind != nil {
 			// can happen since we don't always send individual signature if this
@@ -529,15 +535,16 @@ func (h *Handel) validatePacket(p *Packet) error {
 
 // parseMultisignature returns the multisignature unmarshalled if correct, or an
 // error otherwise.
-func (h *Handel) parseSignatures(p *Packet) (ms *incomingSig, ind *incomingSig, err error) {
+func (h *Handel) parseSignatures(p ApplicationPacket) (ms *incomingSig, ind *incomingSig, err error) {
+	ph := p.Handel()
 	m := new(MultiSignature)
-	err = m.Unmarshal(p.MultiSig, h.cons.Signature(), h.c.NewBitSet)
+	err = m.Unmarshal(ph.MultiSig, h.cons.Signature(), h.c.NewBitSet)
 	if err != nil {
 		return
 	}
 
 	// level is already check before
-	lvl, _ := h.levels[int(p.Level)]
+	lvl, _ := h.levels[int(ph.Level)]
 	if m.BitLength() != len(lvl.nodes) {
 		err = errors.New("invalid bitset's size for given level")
 		return
@@ -547,29 +554,31 @@ func (h *Handel) parseSignatures(p *Packet) (ms *incomingSig, ind *incomingSig, 
 		return
 	}
 	ms = &incomingSig{
-		origin: p.Origin,
-		level:  p.Level,
+		origin: ph.Origin,
+		level:  ph.Level,
 		ms:     m,
+		id:     p.ID(),
 	}
 
-	if p.IndividualSig == nil {
+	if ph.IndividualSig == nil {
 		return
 	}
 	individual := h.cons.Signature()
-	if err = individual.UnmarshalBinary(p.IndividualSig); err != nil {
+	if err = individual.UnmarshalBinary(ph.IndividualSig); err != nil {
 		return
 	}
 	bs := h.c.NewBitSet(len(lvl.nodes))
 	var levelIndex int
-	levelIndex, err = h.Partitioner.IndexAtLevel(p.Origin, int(p.Level))
+	levelIndex, err = h.Partitioner.IndexAtLevel(ph.Origin, int(ph.Level))
 	if err != nil {
 		return
 	}
 	bs.Set(levelIndex, true)
 	msind := &MultiSignature{BitSet: bs, Signature: individual}
 	ind = &incomingSig{
-		origin:      p.Origin,
-		level:       p.Level,
+		origin:      ph.Origin,
+		level:       ph.Level,
+		id:          p.ID(),
 		ms:          msind,
 		isInd:       true,
 		mappedIndex: levelIndex,

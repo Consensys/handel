@@ -86,6 +86,8 @@ type RunConfig struct {
 	Handel *HandelConfig
 	// extra for particular information for specific platform for examples
 	Extra map[string]string
+	// Number of Byzantines nodes
+	Byzantines int
 }
 
 // HandelConfig is a small config that will be converted to handel.Config during

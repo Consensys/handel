@@ -11,17 +11,17 @@ import (
 func GenerateNodes(cons Constructor, addresses []string) []*Node {
 	nodes := make([]*Node, len(addresses))
 	for i, addr := range addresses {
-		nodes[i] = GenerateNode(cons, i, addr)
+		nodes[i] = GenerateNode(cons, i, addr, true)
 	}
 	return nodes
 }
 
 // GenerateNode create the necessary key pair & identites out of the given addresses.
 // for a singel node
-func GenerateNode(cons Constructor, idx int, addr string) *Node {
+func GenerateNode(cons Constructor, idx int, addr string, active bool) *Node {
 	sec, pub := cons.KeyPair(rand.Reader)
 	id := h.NewStaticIdentity(int32(idx), addr, pub)
-	return &Node{SecretKey: sec, Identity: id}
+	return &Node{SecretKey: sec, Identity: id, Active: active}
 }
 
 // GenerateNodesFromAllocation returns a list of Node from the allocation
@@ -30,7 +30,7 @@ func GenerateNodesFromAllocation(cons Constructor, alloc map[string][]*NodeInfo)
 	var nodes []*Node
 	for _, list := range alloc {
 		for _, ni := range list {
-			nodes = append(nodes, GenerateNode(cons, ni.ID, ni.Address))
+			nodes = append(nodes, GenerateNode(cons, ni.ID, ni.Address, ni.Active))
 		}
 	}
 	return nodes

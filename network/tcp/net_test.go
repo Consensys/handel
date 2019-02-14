@@ -21,7 +21,7 @@ func TestTCPNetwork(t *testing.T) {
 	defer n2.Stop()
 
 	received := make(chan bool, 1)
-	n2.RegisterListener(handel.ListenFunc(func(p *handel.Packet) {
+	n2.RegisterListener(handel.ListenFunc(func(p handel.ApplicationPacket) {
 		received <- true
 	}))
 

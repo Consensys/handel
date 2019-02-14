@@ -123,5 +123,5 @@ func (n *Network) RegisterListener(listener h.Listener) {
 func (n *Network) dispatch(p *h.Packet) {
 	n.Lock()
 	defer n.Unlock()
-	n.listener.NewPacket(p)
+	n.listener.NewPacket(h.NewAppPacket(p))
 }

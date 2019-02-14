@@ -16,15 +16,37 @@ type Network interface {
 // new packet arrives from the network, it is dispatched to the registered
 // Listeners.
 type Listener interface {
-	NewPacket(*Packet)
+	NewPacket(ApplicationPacket)
 }
 
 // ListenFunc is a wrapper type to be able to register a function as a Listener
-type ListenFunc func(*Packet)
+type ListenFunc func(ApplicationPacket)
 
 // NewPacket implements the Listener interface
-func (l ListenFunc) NewPacket(p *Packet) {
+func (l ListenFunc) NewPacket(p ApplicationPacket) {
 	l(p)
+}
+
+// ApplicationPacket
+type ApplicationPacket interface {
+	Handel() *Packet
+	ID() int32
+}
+
+type defaultApplicationPacket struct {
+	packet *Packet
+}
+
+func NewAppPacket(packet *Packet) ApplicationPacket {
+	return &defaultApplicationPacket{packet}
+}
+
+func (ap *defaultApplicationPacket) Handel() *Packet {
+	return ap.packet
+}
+
+func (ap *defaultApplicationPacket) ID() int32 {
+	return ap.Handel().Origin
 }
 
 // Packet is the general packet that Handel sends out and expects to receive

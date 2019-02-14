@@ -12,6 +12,7 @@ import (
 	"github.com/ConsenSys/handel"
 	h "github.com/ConsenSys/handel"
 	"github.com/ConsenSys/handel/network"
+	//	"encoding/gob"
 )
 
 // Network is a handel.Network implementation using UDP as its transport layer
@@ -22,17 +23,18 @@ type Network struct {
 	listeners []h.Listener
 	quit      bool
 	enc       network.Encoding
-	newPacket chan *handel.Packet
-	process   chan *handel.Packet
+	newPacket chan handel.ApplicationPacket
+	process   chan handel.ApplicationPacket
 	ready     chan bool
 	done      chan bool
-	buff      []*handel.Packet
+	buff      []handel.ApplicationPacket
 	sent      int
 	rcvd      int
 }
 
 // NewNetwork creates Network baked by udp protocol
 func NewNetwork(addr string, enc network.Encoding) (*Network, error) {
+
 	_, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, err
@@ -53,14 +55,15 @@ func NewNetwork(addr string, enc network.Encoding) (*Network, error) {
 	udpNet := &Network{
 		udpSock:   udpSock,
 		enc:       enc,
-		newPacket: make(chan *handel.Packet, 20000),
-		process:   make(chan *handel.Packet, 100),
+		newPacket: make(chan handel.ApplicationPacket, 20000),
+		process:   make(chan handel.ApplicationPacket, 100),
 		ready:     make(chan bool, 1),
 		done:      make(chan bool, 1),
 	}
 	go udpNet.handler()
 	go udpNet.loop()
 	go udpNet.dispatchLoop()
+
 	return udpNet, nil
 }
 
@@ -89,6 +92,7 @@ func (udpNet *Network) Send(identities []h.Identity, packet *h.Packet) {
 	udpNet.sent += len(identities)
 	udpNet.Unlock()
 	for _, id := range identities {
+
 		udpNet.send(id, packet)
 	}
 }
@@ -111,10 +115,9 @@ func (udpNet *Network) send(identity h.Identity, packet *h.Packet) {
 	// The packets are "gob" encoded
 	//	enc := gob.NewEncoder(byteWriter)
 	//	err = enc.Encode(packet)
-
 	err = udpNet.enc.Encode(packet, byteWriter)
 	if err != nil {
-		//TODO consider changing it to error logging
+		fmt.Println("Packet encoding error", err)
 		return
 	}
 	byteWriter.Flush()
@@ -132,16 +135,20 @@ func (udpNet *Network) handler() {
 		if quit {
 			return
 		}
+
 		socket := udpNet.udpSock
 		reader := bufio.NewReader(socket)
 		var byteReader io.Reader = bufio.NewReader(reader)
+
+		//	gob.Register(network.AppPacket{})
 		packet, err := enc.Decode(byteReader)
+
 		if err != nil {
 			log.Println(err)
 			continue
 		}
 		//udpNet.dispatch(packet)
-		udpNet.newPacket <- packet
+		udpNet.newPacket <- h.NewAppPacket(packet)
 	}
 }
 
@@ -155,14 +162,14 @@ func (udpNet *Network) loop() {
 		if !ready {
 			return
 		}
-		toProcess := pendings.Remove(pendings.Front()).(*handel.Packet)
+		toProcess := pendings.Remove(pendings.Front()).(handel.ApplicationPacket)
 		udpNet.process <- toProcess
 		ready = false
 	}
 	for {
 		select {
 		case newPacket := <-udpNet.newPacket:
-			if len(newPacket.MultiSig) == 0 {
+			if len(newPacket.Handel().MultiSig) == 0 {
 				fmt.Printf(" -- empty packet -- \n")
 				continue
 			}
@@ -187,7 +194,7 @@ func (udpNet *Network) getListeners() []handel.Listener {
 }
 
 func (udpNet *Network) dispatchLoop() {
-	dispatch := func(p *handel.Packet) {
+	dispatch := func(p handel.ApplicationPacket) {
 		listeners := udpNet.getListeners()
 		for _, listener := range listeners {
 			listener.NewPacket(p)

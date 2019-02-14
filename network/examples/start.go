@@ -17,11 +17,12 @@ type exampleListener struct {
 }
 
 //NewPacket
-func (l exampleListener) NewPacket(packet *h.Packet) {
-	lvl := packet.Level
+func (l exampleListener) NewPacket(packet h.ApplicationPacket) {
+	p := packet.Handel()
+	lvl := p.Level
 	bs := make([]byte, 1200)
 
-	fmt.Println("msg received:", "Lvl", lvl, "Org", packet.Origin, len(packet.MultiSig))
+	fmt.Println("msg received:", "Lvl", lvl, "Org", p.Origin, len(p.MultiSig))
 
 	newPacket := h.Packet{Origin: l.id, Level: lvl + 1, MultiSig: bs}
 

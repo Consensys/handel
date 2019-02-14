@@ -192,9 +192,9 @@ func (s *SyncMaster) getOrCreate(id int) *state {
 }
 
 // NewPacket implements the Listener interface
-func (s *SyncMaster) NewPacket(p *handel.Packet) {
+func (s *SyncMaster) NewPacket(p handel.ApplicationPacket) {
 	msg := new(syncMessage)
-	if err := msg.FromBytes(p.MultiSig); err != nil {
+	if err := msg.FromBytes(p.Handel().MultiSig); err != nil {
 		panic(err)
 	}
 	s.getOrCreate(msg.State).newMessage(msg)
@@ -335,9 +335,9 @@ func (s *SyncSlave) getOrCreate(id int) *slaveState {
 }
 
 // NewPacket implements the Listener interface
-func (s *SyncSlave) NewPacket(p *handel.Packet) {
+func (s *SyncSlave) NewPacket(p handel.ApplicationPacket) {
 	msg := new(syncMessage)
-	if err := msg.FromBytes(p.MultiSig); err != nil {
+	if err := msg.FromBytes(p.Handel().MultiSig); err != nil {
 		panic(err)
 	}
 	s.getOrCreate(msg.State).newMessage(msg)

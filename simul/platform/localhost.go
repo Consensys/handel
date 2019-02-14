@@ -88,13 +88,19 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 	updateAddresses(l.c, procs, allocation)
 
 	nodes := lib.GenerateNodesFromAllocation(cons, allocation)
+	byzDist := lib.RandomDistribution(432)
+	err := byzDist.Distribute(nodes, r.Byzantines)
+	if err != nil {
+		panic(err)
+	}
+
 	lib.WriteAll(nodes, parser, l.regPath)
 	fmt.Println("[+] Registry file written (", r.Nodes, " nodes)")
 
 	// 2. Run the sync master
 	masterPort := lib.GetFreeUDPPort()
 	masterAddr := net.JoinHostPort("127.0.0.1", strconv.Itoa(masterPort))
-	master := lib.NewSyncMaster(masterAddr, r.Nodes-r.Failing, r.Nodes)
+	master := lib.NewSyncMaster(masterAddr, r.Nodes-r.Failing-r.Byzantines, r.Nodes)
 	fmt.Println("[+] Master synchronization daemon launched")
 
 	// 3. Run binaries
@@ -176,7 +182,6 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 	case <-time.After(l.c.GetMaxTimeout()):
 		panic(fmt.Sprintf("timeout after %s", l.c.GetMaxTimeout()))
 	}
-
 	// 6. Wait for all binaries to finish - clean finishing
 	maxTimeout := make(chan bool, 1)
 	go func() { <-time.After(l.c.GetMaxTimeout()); maxTimeout <- true }()
@@ -190,7 +195,7 @@ func (l *localPlatform) Start(idx int, r *lib.RunConfig) error {
 		case <-maxTimeout:
 			panic("global timeout reached")
 		}
-		if nOk+nErr >= len(procs) {
+		if nOk+nErr+r.Failing+r.Byzantines >= len(procs) {
 			fmt.Printf("[+] nOk = %d, nErr = %d\n", nOk, nErr)
 			break
 		}

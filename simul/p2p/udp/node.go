@@ -70,8 +70,8 @@ func (n *Node) Next() chan handel.Packet {
 }
 
 // NewPacket implements the p2p.Node interface
-func (n *Node) NewPacket(p *handel.Packet) {
-	n.out <- *p
+func (n *Node) NewPacket(p handel.ApplicationPacket) {
+	n.out <- *p.Handel()
 }
 
 // Connect implements the p2p.Node interface

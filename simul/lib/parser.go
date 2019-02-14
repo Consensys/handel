@@ -111,7 +111,7 @@ func (c *csvParser) Read(uri string) ([]*NodeRecord, error) {
 
 	reader := bufio.NewReader(file)
 	csvReader := csv.NewReader(reader)
-	csvReader.FieldsPerRecord = 4
+	csvReader.FieldsPerRecord = 5
 	var nodes []*NodeRecord
 	for {
 		line, err := csvReader.Read()
@@ -130,7 +130,11 @@ func (c *csvParser) Read(uri string) ([]*NodeRecord, error) {
 		addr := line[1]
 		priv := line[2]
 		pub := line[3]
-		nodeRecord := &NodeRecord{ID: id, Addr: addr, Private: priv, Public: pub}
+		isByz, err := strconv.ParseBool(line[4])
+		if err != nil {
+			return nil, err
+		}
+		nodeRecord := &NodeRecord{ID: id, Addr: addr, Private: priv, Public: pub, IsByzantine: isByz}
 		nodes = append(nodes, nodeRecord)
 	}
 }
@@ -146,7 +150,8 @@ func (c *csvParser) Write(uri string, records []*NodeRecord) error {
 		line := []string{strconv.Itoa(int(record.ID)),
 			record.Addr,
 			record.Private,
-			record.Public}
+			record.Public,
+			strconv.FormatBool(record.IsByzantine)}
 		if err := w.Write(line); err != nil {
 			return err
 		}
