@@ -189,6 +189,7 @@ func (p *P2PNode) SubscribeToAll() {
 	topics := topicsFromRegistry(&p.reg)
 	subscriptions := make([]*pubsub.Subscription, len(topics))
 	for i, topic := range topics {
+		//fmt.Println("subscribing to topic", topic)
 		subscription, err := p.g.Subscribe(topic)
 		if err != nil {
 			panic(err)

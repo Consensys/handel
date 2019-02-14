@@ -28,9 +28,9 @@ for f,v in datas.items():
 
         plot(x,y,"-",label,allColors.popleft())
 
-plt.legend(fontsize=fs_label)
+plt.legend(fontsize=18)
 plt.ylabel("signatures checked",fontsize=fs_label)
 plt.xlabel("nodes",fontsize=fs_label)
-plt.title("Number of signatures checked",fontsize=fs_label)
+# plt.title("Number of signatures checked",fontsize=fs_label)
 # plt.yscale('log')
 plt.show()

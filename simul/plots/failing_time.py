@@ -14,6 +14,11 @@ sigColumn = "sigen_wall_avg"
 nodeColumn = "totalNbOfNodes"
 failingColumn = "failing"
 
+yColumns = {"sigen_wall_min": "Minimum",
+            "sigen_wall_avg": "Average",
+            "sigen_wall_max": "Maximum"}
+            
+
 ## threshold of signatures required
 threshold = "51"
 expectedNodes = 4000
@@ -29,18 +34,20 @@ for f,v in datas.items():
         sys.exit(1)
 
     x = v[failingColumn].map(lambda x: int((x/nodes) * 100))
-    y = v[sigColumn]
-    print("file %s -> %d data points on %s" % (f,len(y),sigColumn))
-    label = files[f]
-    if label == "":
-        label = input("Label for file %s: " % f)
+    for c,name in yColumns.items():
+        y = v[c]
+        print("file %s -> %d data points on %s" % (f,len(y),sigColumn))
+        # label = files[f]
+        label = name
+        if label == "":
+            label = input("Label for file %s: " % f)
 
-    plot(x,y,"-",label,allColors.popleft())
+        plot(x,y,"-",label,allColors.popleft())
 
-plt.legend(fontsize=fs_label)
+plt.legend(fontsize=18)
 plt.ylabel("signature generation (ms)",fontsize=fs_label)
 plt.xlabel("failing nodes in %",fontsize=fs_label)
 # plt.yscale('log')
-plt.title("Time for 51% signature threshold over 4000 nodes")
-plt.axis('square')
+# plt.title("Time for 51% signature threshold over 4000 nodes")
+# plt.axis('square')
 plt.show()

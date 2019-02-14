@@ -31,6 +31,6 @@ for f,v in datas.items():
 plt.legend(fontsize=fs_label)
 plt.ylabel("signature generation (ms)",fontsize=fs_label)
 plt.xlabel("nodes",fontsize=fs_label)
-plt.title("signature generation time with various thresholds",fontsize=fs_label)
+# plt.title("signature generation time with various thresholds",fontsize=fs_label)
 # plt.yscale('log')
 plt.show()
