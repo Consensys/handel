@@ -10,6 +10,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestHashedMessage(t *testing.T) {
+	message1 := []byte("I am the byzantine general.")
+	p1, err := hashedMessage(message1)
+	require.NoError(t, err)
+	message2 := []byte("Everything that is beautiful and noble is the product of reason and calculation.")
+	p2, err2 := hashedMessage(message2)
+	require.NoError(t, err2)
+	require.NotEqual(t, p1, p2)
+}
+
 func TestHandel(t *testing.T) {
 	n := 37
 	config := h.DefaultConfig(n)
