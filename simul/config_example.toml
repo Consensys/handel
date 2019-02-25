@@ -6,10 +6,11 @@ MaxTimeout = "2m"
 Retrials = 1
 
 [[Runs]]
-    Nodes = 64
-    Threshold = 34
-    Failing = 20
-    Processes = 2
+    Nodes = 4
+    Threshold = 3
+    Failing = 0
+    Byzantines = 1
+    Processes = 4
     [Runs.Handel]
         Period = "10ms"
         UpdateCount = 1

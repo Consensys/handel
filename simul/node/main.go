@@ -65,7 +65,14 @@ func main() {
 		network := config.NewNetwork(node.Identity)
 
 		// make the signature
-		signature, err := node.Sign(lib.Message, nil)
+		var message []byte
+		if node.IsByzantine {
+			message = []byte("I am the byzantine general. ugh")
+		} else {
+			message = lib.Message
+		}
+
+		signature, err := node.Sign(message, nil)
 		if err != nil {
 			panic(err)
 		}
@@ -125,7 +132,8 @@ func main() {
 			logger.Info("node", id, "sigen", "finished")
 
 			if err := h.VerifyMultiSignature(lib.Message, &sig, registry, cons.Handel()); err != nil {
-				panic("signature invalid !!")
+				//	panic("signature invalid !!")
+				fmt.Println("signature invalid !!")
 			}
 			syncer.Signal(lib.END, id)
 		}(i)

@@ -117,7 +117,7 @@ func (a *awsPlatform) Configure(c *lib.Config) error {
 	a.masterAddr = masterAddr
 	a.masterIP = *masterInstance.PublicIP
 	a.monitorAddr = aws.GenRemoteAddress(*masterInstance.PublicIP, c.MonitorPort)
-	masterNode := lib.GenerateNode(cons, -1, masterAddr)
+	masterNode := lib.GenerateNode(cons, -1, masterAddr, true)
 	masterInstance.Nodes = []*lib.Node{masterNode}
 	//Create master controller
 	master, err := a.connectToMaster()

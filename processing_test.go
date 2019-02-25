@@ -23,7 +23,7 @@ func TestSigProcessingStrategy(t *testing.T) {
 	sig1 := fullIncomingSig(1)
 	sig2 := fullIncomingSig(2)
 
-	s := newEvaluatorProcessing(partitioner, cons, nil, 0, &EvaluatorLevel{}, nil)
+	s := newEvaluatorProcessing(nil, partitioner, cons, nil, 0, &EvaluatorLevel{}, nil)
 	ss := s.(*evaluatorProcessing)
 
 	require.Equal(t, 0, len(ss.todos))
@@ -118,4 +118,53 @@ func TestProcessingFifo(t *testing.T) {
 	for _, fifo := range fifos {
 		fifo.Stop()
 	}
+}
+
+type fakeBlackList struct {
+	byzPeers []int32
+}
+
+func (f *fakeBlackList) Update(id int32, err error) {
+	f.byzPeers = append(f.byzPeers, id)
+}
+
+func (f *fakeBlackList) IsBlackListed(id int32) bool {
+	return contains(f.byzPeers, id)
+}
+
+func TestVerifyAndPublish(t *testing.T) {
+	n := 16
+	registry := FakeRegistry(n)
+	partitioner := NewBinPartitioner(1, registry, DefaultLogger)
+	cons := new(fakeCons)
+	bl := &fakeBlackList{}
+	s := newEvaluatorProcessing(bl, partitioner, cons, nil, 0, &EvaluatorLevel{}, nil)
+	ss := s.(*evaluatorProcessing)
+	sig1 := incorrectIncomingSig(2)
+	sig1.id = 1
+	sig2 := incorrectIncomingSig(2)
+	sig2.id = 2
+	sig3 := incorrectIncomingSig(2)
+	sig3.id = 3
+	sig4 := fullIncomingSig(2)
+	sig4.id = 4
+
+	ss.verifyAndPublish(sig1)
+	ss.verifyAndPublish(sig2)
+	ss.verifyAndPublish(sig3)
+	ss.verifyAndPublish(sig4)
+
+	require.True(t, bl.IsBlackListed(1))
+	require.True(t, bl.IsBlackListed(2))
+	require.True(t, bl.IsBlackListed(3))
+	require.False(t, bl.IsBlackListed(4))
+}
+
+func contains(s []int32, e int32) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
 }

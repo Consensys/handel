@@ -12,7 +12,7 @@ func fakeInstance(publicIP string, ids ...int) Instance {
 	var nodes []*lib.Node
 	for _, i := range ids {
 		id := handel.NewStaticIdentity(int32(i), "", nil)
-		node := &lib.Node{nil, id, true}
+		node := &lib.Node{nil, id, true, false}
 		nodes = append(nodes, node)
 	}
 	return Instance{PublicIP: &publicIP, Nodes: nodes}

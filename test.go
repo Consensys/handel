@@ -31,7 +31,7 @@ type Test struct {
 }
 
 // NewTest returns all handels instances ready to go !
-func NewTest(keys []SecretKey, pubs []PublicKey, c Constructor, msg []byte, config* Config) *Test {
+func NewTest(keys []SecretKey, pubs []PublicKey, c Constructor, msg []byte, config *Config) *Test {
 	n := len(keys)
 	ids := make([]Identity, n)
 	sigs := make([]Signature, n)
@@ -244,6 +244,6 @@ func (f *TestNetwork) RegisterListener(l Listener) {
 
 func (f *TestNetwork) dispatch(p *Packet) {
 	for _, l := range f.lis {
-		l.NewPacket(p)
+		l.NewPacket(NewAppPacket(p))
 	}
 }

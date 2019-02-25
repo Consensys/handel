@@ -89,8 +89,7 @@ func UpdateInstance(instances *Instance, nodes []*lib.NodeInfo, cons lib.Constru
 	for i, n := range nodes {
 		addr1 := GenRemoteAddress(*instances.PublicIP, base+i)
 		n.Address = addr1
-		node := lib.GenerateNode(cons, n.ID, addr1)
-		node.Active = n.Active
+		node := lib.GenerateNode(cons, n.ID, addr1, n.Active)
 		ls = append(ls, node)
 	}
 	instances.Nodes = ls

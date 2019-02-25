@@ -134,6 +134,6 @@ func dispatch(listeners []h.Listener, byteReader io.Reader, enc network.Encoding
 		log.Println(err)
 	}
 	for _, listener := range listeners {
-		listener.NewPacket(packet)
+		listener.NewPacket(h.NewAppPacket(packet))
 	}
 }
