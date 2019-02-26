@@ -229,7 +229,7 @@ func hashedMessage(msg []byte) (*bn256.G1, error) {
 func bigFromBase16(s string) (*big.Int, error) {
 	n, b := new(big.Int).SetString(s, 16)
 	if b == false {
-		err := fmt.Sprintf("Provided string %s is not a hexadecimal number,", s)
+		err := fmt.Sprintf("Provided string %s is not a hexadecimal number.", s)
 		return nil, errors.New(err)
 	}
 	return n, nil
