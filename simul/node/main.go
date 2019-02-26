@@ -67,11 +67,10 @@ func main() {
 		// make the signature
 		var message []byte
 		if node.IsByzantine {
-			message = []byte("I am the byzantine general. ugh")
+			message = []byte("I am the byzantine general.")
 		} else {
 			message = lib.Message
 		}
-
 		signature, err := node.Sign(message, nil)
 		if err != nil {
 			panic(err)

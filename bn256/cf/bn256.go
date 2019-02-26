@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 
@@ -209,10 +210,27 @@ func (m *SigBLS) String() string {
 // (potentially a digest) to a point WITHOUT knowing the corresponding scalar.
 func hashedMessage(msg []byte) (*bn256.G1, error) {
 	h := Hash()
-	h.Write(msg)
+	_, err := h.Write(msg)
+	if err != nil {
+		return nil, err
+	}
 	hashed := h.Sum(nil)
-	reader := bytes.NewBuffer(hashed)
-	_, HM, err := bn256.RandomG1(reader)
-	return HM, err
+	src := hex.EncodeToString(hashed)
+	k, err := bigFromBase16(src)
+	if err != nil {
+		return nil, err
+	}
+	k.Abs(k)
+	k.Mod(k, bn256.Order)
+	scalar := big.NewInt(0).Mod(k, bn256.Order)
+	return new(bn256.G1).ScalarBaseMult(scalar), nil
+}
 
+func bigFromBase16(s string) (*big.Int, error) {
+	n, b := new(big.Int).SetString(s, 16)
+	if b == false {
+		err := fmt.Sprintf("Provided string %s is not a hexadecimal number.", s)
+		return nil, errors.New(err)
+	}
+	return n, nil
 }
