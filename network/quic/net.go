@@ -140,9 +140,7 @@ func handleSession(sess quic.Session, listeners []h.Listener, enc network.Encodi
 	if err != nil {
 		return
 	}
-	reader := bufio.NewReader(stream)
-
-	packet, err := enc.Decode(reader)
+	packet, err := enc.Decode(stream)
 	stream.Close()
 	sess.Close()
 
