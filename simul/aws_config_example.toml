@@ -5,4 +5,4 @@ SSHUser = "ubuntu"
 TargetSystem = "linux"
 TargetArch = "amd64"
 ConfTimeout = 5
-CopyBinFiles = false
+CopyBinFiles = true

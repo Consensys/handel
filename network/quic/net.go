@@ -2,11 +2,11 @@ package quic
 
 import (
 	"bufio"
-	"io"
-	"io/ioutil"
 	"log"
+	"net"
 	"sync"
 
+	"github.com/ConsenSys/handel"
 	h "github.com/ConsenSys/handel"
 	"github.com/ConsenSys/handel/network"
 	quic "github.com/lucas-clemente/quic-go"
@@ -26,13 +26,25 @@ type Network struct {
 	enc            network.Encoding
 	quicListener   quic.Listener
 	sessionManager sessionManager
+	sent           int
+	rcvd           int
+}
+
+func AcceptCookie(clientAddr net.Addr, cookie *quic.Cookie) bool {
+	return true
 }
 
 // NewNetwork creates Nework baked by QUIC protocol
 func NewNetwork(addr string, enc network.Encoding, cfg Config) (*Network, error) {
 	//	cfg := cfg. generateTLSConfig()
-	qCfg := &quic.Config{HandshakeTimeout: cfg.handshakeTimeout} //, AcceptCookie: f}
-	listener, err := quic.ListenAddr(addr, cfg.tlsCfg, qCfg)
+	qCfg := &quic.Config{HandshakeTimeout: cfg.handshakeTimeout, AcceptCookie: AcceptCookie}
+
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+	newAddr := net.JoinHostPort("0.0.0.0", port)
+	listener, err := quic.ListenAddr(newAddr, cfg.tlsCfg, qCfg)
 
 	if err != nil {
 		panic(err)
@@ -67,6 +79,10 @@ func (quicNet *Network) Stop() {
 
 //Send sends a packet to supplied identities
 func (quicNet *Network) Send(identities []h.Identity, packet *h.Packet) {
+	quicNet.Lock()
+	quicNet.sent += len(identities)
+	quicNet.Unlock()
+
 	for _, id := range identities {
 		go quicNet.send(id, packet)
 	}
@@ -90,6 +106,13 @@ func (quicNet *Network) send(identity h.Identity, packet *h.Packet) {
 	stream.Close()
 }
 
+func (quicNet *Network) getListeners() []handel.Listener {
+	quicNet.RLock()
+	defer quicNet.RUnlock()
+	quicNet.rcvd++
+	return quicNet.listeners
+}
+
 func (quicNet *Network) handler() {
 	for {
 		sess, err := quicNet.quicListener.Accept()
@@ -99,7 +122,7 @@ func (quicNet *Network) handler() {
 		}
 		quicNet.RLock()
 		quit := quicNet.quit
-		listeners := quicNet.listeners
+		listeners := quicNet.getListeners()
 		enc := quicNet.enc
 		quicNet.RUnlock()
 
@@ -117,18 +140,9 @@ func handleSession(sess quic.Session, listeners []h.Listener, enc network.Encodi
 	if err != nil {
 		return
 	}
-	reader := bufio.NewReader(stream)
-	dispatch(listeners, reader, enc)
-	// This implementation creates new session for every packet
-	// after packet is delivered the session has to be drined and closed
-	// see: lucas-clemente/quic-go#1618 (comment)
-	io.Copy(ioutil.Discard, stream)
+	packet, err := enc.Decode(stream)
 	stream.Close()
 	sess.Close()
-}
-
-func dispatch(listeners []h.Listener, byteReader io.Reader, enc network.Encoding) {
-	packet, err := enc.Decode(byteReader)
 
 	if err != nil {
 		log.Println(err)
@@ -136,4 +150,21 @@ func dispatch(listeners []h.Listener, byteReader io.Reader, enc network.Encoding
 	for _, listener := range listeners {
 		listener.NewPacket(h.NewAppPacket(packet))
 	}
+}
+
+// Values implements the monitor.CounterMeasure interface
+func (quicNet *Network) Values() map[string]float64 {
+	quicNet.RLock()
+	defer quicNet.RUnlock()
+	toSend := map[string]float64{
+		"sent": float64(quicNet.sent),
+		"rcvd": float64(quicNet.rcvd),
+	}
+	counter, ok := quicNet.enc.(*network.CounterEncoding)
+	if ok {
+		for k, v := range counter.Values() {
+			toSend[k] = v
+		}
+	}
+	return toSend
 }
