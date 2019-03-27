@@ -16,3 +16,4 @@ Retrials = 1
         NodeCount = 10
         Timeout = "50ms"
         UnsafeSleepTimeOnSigVerify = 0
+        Evaluator = "store"

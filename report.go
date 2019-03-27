@@ -52,22 +52,22 @@ func (r *ReportHandel) Processing() Reporter {
 
 // ReportStore is a Store that can report some statistics about the storage
 type ReportStore struct {
-	signatureStore
+	SignatureStore
 	sucessReplaced int64
 	replacedTrial  int64
 }
 
 // newReportStore returns a signatureStore with som eadditional reporting
 // capabilities
-func newReportStore(s signatureStore) signatureStore {
+func newReportStore(s SignatureStore) SignatureStore {
 	return &ReportStore{
-		signatureStore: s,
+		SignatureStore: s,
 	}
 }
 
 // Store implements the signatureStore interface
 func (r *ReportStore) Store(sp *incomingSig) *MultiSignature {
-	ms := r.signatureStore.Store(sp)
+	ms := r.SignatureStore.Store(sp)
 	if ms != nil {
 		r.sucessReplaced++
 	} else {

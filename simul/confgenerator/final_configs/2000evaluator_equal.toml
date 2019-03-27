@@ -1,0 +1,88 @@
+Network = "udp"
+Curve = "bn256"
+Encoding = "gob"
+Allocator = "random"
+MonitorPort = 10000
+Debug = 0
+Simulation = "handel"
+MaxTimeout = "5m"
+Retrials = 1
+ResultFile = ""
+
+[[Runs]]
+  Nodes = 100
+  Threshold = 99
+  Failing = 0
+  Processes = 50
+  [Runs.Handel]
+    Period = "50ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+    Evaluator = "equal"
+
+[[Runs]]
+  Nodes = 300
+  Threshold = 297
+  Failing = 0
+  Processes = 150
+  [Runs.Handel]
+    Period = "50ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+    Evaluator = "equal"
+
+[[Runs]]
+  Nodes = 500
+  Threshold = 495
+  Failing = 0
+  Processes = 250
+  [Runs.Handel]
+    Period = "50ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+    Evaluator = "equal"
+
+[[Runs]]
+  Nodes = 1000
+  Threshold = 990
+  Failing = 0
+  Processes = 500
+  [Runs.Handel]
+    Period = "50ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+    Evaluator = "equal"
+
+[[Runs]]
+  Nodes = 1500
+  Threshold = 1485
+  Failing = 0
+  Processes = 750
+  [Runs.Handel]
+    Period = "50ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+    Evaluator = "equal"
+
+[[Runs]]
+  Nodes = 2000
+  Threshold = 1980
+  Failing = 0
+  Processes = 1000
+  [Runs.Handel]
+    Period = "50ms"
+    UpdateCount = 1
+    NodeCount = 10
+    Timeout = "50ms"
+    UnsafeSleepTimeOnSigVerify = 0
+    Evaluator = "equal"
