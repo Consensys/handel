@@ -179,7 +179,7 @@ type Handel struct {
 	// signature over the message
 	sig Signature
 	// signature store with different merging/caching strategy
-	store signatureStore
+	store SignatureStore
 	// processing of signature - verification strategy
 	proc signatureProcessing
 	// all actors registered that acts on a new signature

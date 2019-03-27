@@ -50,6 +50,7 @@ func main() {
 	//baseNodes := []int{100, 300, 500, 1000, 1500, 2000, 2500,4000 3000, 4000}
 	baseNodes := []int{100, 300, 500, 1000, 1500, 2000}
 
+	evaluatorScenario(configDir, defaultConf, handel, baseNodes, getProcessF(2))
 	nodeCountScenario(configDir, defaultConf, handel, baseNodes, getProcessF(1))
 	updateCountScenario(configDir, defaultConf, handel, baseNodes, getProcessF(1))
 	practicalScenario(configDir, defaultConf, handel, baseNodes, thresholdProcessF(2000))
@@ -64,6 +65,39 @@ func main() {
 	libp2pScenario(configDir, defaultConf, handel, baseNodes, fixedProcesses)
 	timeoutIncScenario(configDir, defaultConf, handel, baseNodes, fixedProcesses)
 	periodIncScenario(configDir, defaultConf, handel, baseNodes, fixedProcesses)
+}
+func evaluatorScenario(dir string, defaultConf lib.Config, handel *lib.HandelConfig, baseNodes []int, procF func(int) int) {
+	nodes := baseNodes
+	thr := 0.99
+	failing := 0
+	evaluators := []string{"store", "equal"}
+	for _, evaluator := range evaluators {
+		var runs []lib.RunConfig
+		for _, node := range nodes {
+			handelConf := &lib.HandelConfig{
+				Period:                     handel.Period,
+				UpdateCount:                handel.UpdateCount,
+				NodeCount:                  handel.NodeCount,
+				Timeout:                    handel.Timeout,
+				UnsafeSleepTimeOnSigVerify: handel.UnsafeSleepTimeOnSigVerify,
+				Evaluator:                  evaluator,
+			}
+
+			run := lib.RunConfig{
+				Nodes:     node,
+				Threshold: thrF(thr)(node),
+				Failing:   failing,
+				Processes: procF(node),
+				Handel:    handelConf,
+			}
+			runs = append(runs, run)
+		}
+		defaultConf.Runs = runs
+		fileName := fmt.Sprintf("2000evaluator_%s.toml", evaluator)
+		if err := defaultConf.WriteTo(filepath.Join(dir, fileName)); err != nil {
+			panic(err)
+		}
+	}
 }
 func nodeCountScenario(dir string, defaultConf lib.Config, handel *lib.HandelConfig, baseNodes []int, procF func(int) int) {
 	nodes := baseNodes

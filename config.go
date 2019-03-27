@@ -40,7 +40,7 @@ type Config struct {
 
 	// NewEvaluatorStrategy returns the signature evaluator to use during the
 	// Handel round.
-	NewEvaluatorStrategy func(s signatureStore, h *Handel) SigEvaluator
+	NewEvaluatorStrategy func(s SignatureStore, h *Handel) SigEvaluator
 
 	// NewTimeoutStrategy returns the Timeout strategy to use during the Handel
 	// round. By default, it uses the linear timeout strategy.
@@ -107,7 +107,7 @@ var DefaultPartitioner = func(id int32, reg Registry, logger Logger) Partitioner
 
 // DefaultEvaluatorStrategy returns an evaluator based on the store's own
 // evaluation strategy.
-var DefaultEvaluatorStrategy = func(store signatureStore, h *Handel) SigEvaluator {
+var DefaultEvaluatorStrategy = func(store SignatureStore, h *Handel) SigEvaluator {
 	return newEvaluatorStore(store)
 }
 
