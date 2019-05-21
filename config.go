@@ -25,10 +25,9 @@ type Config struct {
 	// a given level.
 	UpdateCount int
 
-	// NodeCount indicates how many peers should we contact each time we
-	// send packets to Handel nodes in a given candidate set. New nodes are
-	// selected each time but no more than NodeCount.
-	NodeCount int
+	// FastPath indicates how many peers should we contact when a level gets
+	// completed.
+	FastPath int
 
 	// NewBitSet returns an empty bitset. This function is used to parse
 	// incoming packets containing bitsets.
@@ -70,7 +69,7 @@ func DefaultConfig(numberOfNodes int) *Config {
 	contributions := PercentageToContributions(DefaultContributionsPerc, numberOfNodes)
 	return &Config{
 		Contributions:        contributions,
-		NodeCount:            DefaultCandidateCount,
+		FastPath:             DefaultCandidateCount,
 		UpdatePeriod:         DefaultUpdatePeriod,
 		UpdateCount:          DefaultUpdateCount,
 		NewBitSet:            DefaultBitSet,
@@ -131,8 +130,8 @@ func mergeWithDefault(c *Config, size int) *Config {
 		n := PercentageToContributions(DefaultContributionsPerc, size)
 		c2.Contributions = n
 	}
-	if c.NodeCount == 0 {
-		c2.NodeCount = DefaultCandidateCount
+	if c.FastPath == 0 {
+		c2.FastPath = DefaultCandidateCount
 	}
 	if c.UpdatePeriod == 0*time.Second {
 		c2.UpdatePeriod = DefaultUpdatePeriod

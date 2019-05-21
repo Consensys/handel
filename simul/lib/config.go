@@ -301,7 +301,7 @@ func (r *RunConfig) GetHandelConfig() *handel.Config {
 	}
 	ch.UpdatePeriod = period
 	ch.UpdateCount = r.Handel.UpdateCount
-	ch.NodeCount = r.Handel.NodeCount
+	ch.FastPath = r.Handel.NodeCount
 	ch.Contributions = r.GetThreshold()
 	ch.UnsafeSleepTimeOnSigVerify = r.Handel.UnsafeSleepTimeOnSigVerify
 
