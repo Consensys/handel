@@ -9,20 +9,19 @@ from lib import *
 import pandas as pd
 import matplotlib.pyplot as plt
 
-fs_label = 22
 column = "sigen_wall_avg"
 
 # files = sys.argv[1:]
 ## mapping between files and label
 files = {"csv/handel_0failing_99thr.csv": { 
             "label": "handel",
-            "xOffset": 0.15,
-            "yOffset": 0.09,
+            "xOffset": 0.10,
+            "yOffset": 0.14,
         },
         "csv/n2_4000_99thr.csv": {
             "label": "complete",
-            "xOffset": 0.20,
-            "yOffset": 0.01,
+            "xOffset": 0.17,
+            "yOffset": -0.02,
         }
         }
 # "csv/libp2p_2000_51thr_agg1.csv": "libp2p"}
@@ -48,7 +47,7 @@ for f,v in datas.items():
     ## 10% higher
     yCoordText = yMax + (yMax * yOffset)
     plt.annotate("%d ms" % yMax,xy=(xMax,yMax),xycoords='data',
-            xytext=(xCoordText,yCoordText),textcoords='data',fontsize=fs_label)
+            xytext=(xCoordText,yCoordText),textcoords='data',fontsize=fs_label-3)
 
 
 plt.legend(fontsize=fs_label)

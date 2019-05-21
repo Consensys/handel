@@ -16,13 +16,13 @@ column = "net_sentBytes_avg"
         # "csv/libp2p_2000_51thr_agg1.csv": "libp2p"}
 files = {"csv/handel_0failing_99thr.csv": { 
             "label": "handel",
-            "xOffset": 0.15,
+            "xOffset": 0.10,
             "yOffset": 0.09,
         },
         "csv/n2_4000_99thr.csv": {
             "label": "complete",
             "xOffset": 0.20,
-            "yOffset": 0.01,
+            "yOffset": -0.04,
         }
         }
 
@@ -49,7 +49,7 @@ for f,v in datas.items():
     ## 10% higher
     yCoordText = yMax + (yMax * yOffset)
     plt.annotate("%d KB" % yMax,xy=(xMax,yMax),xycoords='data',
-            xytext=(xCoordText,yCoordText),textcoords='data',fontsize=fs_label)
+            xytext=(xCoordText,yCoordText),textcoords='data',fontsize=fs_label-4)
 
 plt.legend(fontsize=fs_label)
 plt.ylabel("KBytes (log)",fontsize=fs_label)

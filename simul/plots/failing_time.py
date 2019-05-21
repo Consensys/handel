@@ -5,18 +5,22 @@
 ## number of total nodes, and a fixed threshold 51%
 ##
 import sys
+
+import matplotlib.pyplot as plt
+import pandas as pd
+plt.figure(figsize=(4,2))
 from lib import *
 
-import pandas as pd
-import matplotlib.pyplot as plt
 
 sigColumn = "sigen_wall_avg"
 nodeColumn = "totalNbOfNodes"
 failingColumn = "failing"
 
-yColumns = {"sigen_wall_min": "Minimum",
+yColumns = {
             "sigen_wall_avg": "Average",
             "sigen_wall_max": "Maximum"}
+
+# "sigen_wall_min": "Minimum",
             
 
 ## threshold of signatures required
@@ -44,10 +48,11 @@ for f,v in datas.items():
 
         plot(x,y,"-",label,allColors.popleft())
 
-plt.legend(fontsize=18)
-plt.ylabel("signature generation (ms)",fontsize=fs_label)
-plt.xlabel("failing nodes in %",fontsize=fs_label)
+label= 35
+plt.legend(fontsize=label)
+plt.ylabel("signature generation",fontsize=label)
+plt.xlabel("failing nodes in %",fontsize=label)
 # plt.yscale('log')
 # plt.title("Time for 51% signature threshold over 4000 nodes")
-# plt.axis('square')
+# plt.axis('log')
 plt.show()
