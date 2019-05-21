@@ -102,6 +102,9 @@ type HandelConfig struct {
 	Timeout string
 	// UnsafeSleepTimeOnSigVerify
 	UnsafeSleepTimeOnSigVerify int
+
+	// which queue evaluator are we choosing
+	Evaluator string
 }
 
 // LoadConfig looks up the given file to unmarshal a TOML encoded Config.
@@ -305,6 +308,12 @@ func (r *RunConfig) GetHandelConfig() *handel.Config {
 	dd, err := time.ParseDuration(r.Handel.Timeout)
 	if err == nil {
 		ch.NewTimeoutStrategy = handel.LinearTimeoutConstructor(dd)
+	}
+	switch r.Handel.Evaluator {
+	case "store":
+		ch.NewEvaluatorStrategy = handel.DefaultEvaluatorStrategy
+	case "equal":
+		ch.NewEvaluatorStrategy = func(handel.SignatureStore, *handel.Handel) handel.SigEvaluator { return new(handel.Evaluator1) }
 	}
 	return ch
 }

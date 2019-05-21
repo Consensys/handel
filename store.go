@@ -6,12 +6,12 @@ import (
 	"sync"
 )
 
-// signatureStore is a generic interface whose role is to store received valid
+// SignatureStore is a generic interface whose role is to store received valid
 // multisignature, and to be able to serve the best multisignature received so
 // far at a given level. Different strategies can be implemented such as keeping
 // only the best one, merging two non-colluding multi-signatures etc.
 // NOTE: implementation MUST be thread-safe.
-type signatureStore interface {
+type SignatureStore interface {
 	SigEvaluator
 	// Store saves the multi-signature if it is "better"
 	// (implementation-dependent) than the one previously saved at the same
@@ -126,7 +126,7 @@ func (r *replaceStore) unsafeEvaluate(sp *incomingSig) int {
 
 	// We take into account the individual signatures already verified we could add.
 	withIndiv := sp.ms.BitSet.Or(r.indivSigsVerified[sp.level])
-	newTotal := 0 // The number of signatures in our new best
+	newTotal := 0  // The number of signatures in our new best
 	addedSigs := 0 // The number of sigs we add with our new best compared to the existing one. Can be negative
 	combineCt := 0 // The number of sigs in our new best that come from combining it with individual sigs
 
@@ -145,10 +145,10 @@ func (r *replaceStore) unsafeEvaluate(sp *incomingSig) int {
 		} else {
 			// We can merge our current best and the new ms. We also add individual
 			//  signatures that we previously verified
-			finalSet :=  withIndiv.Or(curBestMs.BitSet)
+			finalSet := withIndiv.Or(curBestMs.BitSet)
 			newTotal = finalSet.Cardinality()
 			addedSigs = newTotal - curBestMs.BitSet.Cardinality()
-			combineCt =  finalSet.Xor(curBestMs.BitSet.Or(sp.ms.BitSet)).Cardinality()
+			combineCt = finalSet.Xor(curBestMs.BitSet.Or(sp.ms.BitSet)).Cardinality()
 		}
 	}
 
@@ -164,12 +164,12 @@ func (r *replaceStore) unsafeEvaluate(sp *incomingSig) int {
 	if newTotal == toReceive {
 		// This completes a level! That's the best options for us. We give
 		//  a greater value to the first levels/
-		return 1000000 - int(sp.level) * 10 - combineCt
+		return 1000000 - int(sp.level)*10 - combineCt
 	}
 
 	// It adds value, but does not complete a level. We
 	//  favorize the older level but take into account the number of sigs we receive as well.
-	return 100000 - int(sp.level)*100 + addedSigs * 10 - combineCt
+	return 100000 - int(sp.level)*100 + addedSigs*10 - combineCt
 }
 
 // Returns the signature to store (can be combined with the existing one or previously verified signatures) and

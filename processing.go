@@ -30,6 +30,7 @@ type incomingSig struct {
 func (is *incomingSig) Individual() bool {
 	return is.isInd
 }
+
 // signatureProcessing is an interface responsible for verifying incoming
 // multi-signature. It can decides to drop some incoming signatures if deemed
 // useless. It outputs verified signatures to the main handel processing logic
@@ -77,7 +78,7 @@ func newEvaluator1() SigEvaluator {
 
 // EvaluatorStore is a wrapper around the store's evaluate strategy.
 type EvaluatorStore struct {
-	store signatureStore
+	store SignatureStore
 }
 
 // Evaluate implements the SigEvaluator strategy.
@@ -85,7 +86,7 @@ func (f *EvaluatorStore) Evaluate(sp *incomingSig) int {
 	return f.store.Evaluate(sp)
 }
 
-func newEvaluatorStore(store signatureStore) SigEvaluator {
+func newEvaluatorStore(store SignatureStore) SigEvaluator {
 	return &EvaluatorStore{store: store}
 }
 
@@ -334,7 +335,7 @@ func (f *evaluatorProcessing) verifyAndPublish(sp *incomingSig) {
 // fifo queue, verifying all incoming signatures, not matter relevant or not.
 type fifoProcessing struct {
 	sync.Mutex
-	store signatureStore
+	store SignatureStore
 	part  Partitioner
 	cons  Constructor
 	msg   []byte
@@ -346,7 +347,7 @@ type fifoProcessing struct {
 // newFifoProcessing returns a signatureProcessing implementation using a fifo
 // queue. It needs the store to store the valid signatures, the partitioner +
 // constructor + msg to verify the signatures.
-func newFifoProcessing(store signatureStore, part Partitioner,
+func newFifoProcessing(store SignatureStore, part Partitioner,
 	c Constructor, msg []byte) signatureProcessing {
 	return &fifoProcessing{
 		part:  part,
