@@ -208,7 +208,7 @@ func (h *Handel) unsafeStartLevel(lvl *level) {
 		return
 	}
 	lvl.setStarted()
-	h.sendUpdate(lvl, h.c.NodeCount)
+	h.sendUpdate(lvl, h.c.UpdateCount)
 
 }
 
@@ -331,7 +331,7 @@ func (h *Handel) checkCompletedLevel(s *incomingSig) {
 		}
 		ms := h.store.Combined(byte(id) - 1)
 		if ms != nil && lvl.updateSigToSend(ms) {
-			h.sendUpdate(lvl, h.c.NodeCount)
+			h.sendUpdate(lvl, h.c.FastPath)
 		}
 	}
 }
