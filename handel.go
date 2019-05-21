@@ -121,9 +121,9 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 	return h
 }
 
-// NewPacket implements the Listener interface for the network.
-// it parses the packet and sends the multisignature if correct and the
-// individual signature if correct.
+// NewPacket implements the Listener interface for the network.  It parses the
+// packet and forwards the multisignature (if correct) and the individual
+// signature (if correct) to the processing loop.
 func (h *Handel) NewPacket(p *Packet) {
 	h.Lock()
 	defer h.Unlock()
@@ -152,7 +152,7 @@ func (h *Handel) NewPacket(p *Packet) {
 }
 
 // Start the Handel protocol by sending signatures to peers in the first level,
-// and by starting relevant sub routines.
+// and by starting relevant sub-routines.
 func (h *Handel) Start() {
 	h.Lock()
 	defer h.Unlock()
@@ -163,6 +163,7 @@ func (h *Handel) Start() {
 	go h.periodicLoop()
 }
 
+// periodicLoop simply calls the periodic update each period of time.
 func (h *Handel) periodicLoop() {
 	for range h.ticker.C {
 		h.periodicUpdate()
@@ -180,10 +181,8 @@ func (h *Handel) Stop() {
 	close(h.out)
 }
 
-// Does the periodic update:
-//  - check if we reached a timeout for each level
-//  - send a new packet
-// You must have locked handel before calling this function
+// periodicUpdate sends the best multi-signature (potentially ind. sig.) for
+// each started level.
 func (h *Handel) periodicUpdate() {
 	h.Lock()
 	defer h.Unlock()
@@ -194,8 +193,8 @@ func (h *Handel) periodicUpdate() {
 	}
 }
 
-// StartLevel starts the given level if not started already. It sends
-// our best signature for this level up to CandidateCount peers.
+// StartLevel starts the given level if not started already. This in effects
+// sends a first packet to a peer in that level.
 func (h *Handel) StartLevel(level int) {
 	h.Lock()
 	defer h.Unlock()
@@ -203,16 +202,16 @@ func (h *Handel) StartLevel(level int) {
 	h.unsafeStartLevel(lvl)
 }
 
+// unsafeStartLevel is the "unlocked" version of StartLevel.
 func (h *Handel) unsafeStartLevel(lvl *level) {
 	if lvl.started() {
 		return
 	}
 	lvl.setStarted()
 	h.sendUpdate(lvl, h.c.UpdateCount)
-
 }
 
-// Send our best signature set for this level, to 'count' nodes. The level must
+// Send our best signature set for this level, to 'count' nodes. The level MUST
 // be active before calling this method.
 func (h *Handel) sendUpdate(l *level, count int) {
 	ms := h.store.Combined(byte(l.id) - 1)
@@ -232,11 +231,11 @@ func (h *Handel) FinalSignatures() chan MultiSignature {
 	return h.out
 }
 
-// rangeOnVerified continuously listens on the output channel of the signature
-// processing routine for verified signatures. Each verified signatures is
-//  1) Added to the store of verified signature
-//  2) passed down to all registered actors. Each handler is called in a thread safe
-// manner, global lock is held during the call to actors.
+// rangeOnVerified processed each verified signature from the processing
+// routine. For each, it:
+//  1) adds it to the store of verified signature
+//  2) pass it down to all registered actors. Each handler is called in
+//     a thread safe manner, global lock is held during the call to actors.
 func (h *Handel) rangeOnVerified() {
 	for v := range h.proc.Verified() {
 		h.store.Store(&v)
@@ -259,14 +258,16 @@ type actor interface {
 	OnVerifiedSignature(s *incomingSig)
 }
 
+// actorFunc is a simpler wrapper to morph a function into an actor.
 type actorFunc func(s *incomingSig)
 
 func (a actorFunc) OnVerifiedSignature(s *incomingSig) {
 	a(s)
 }
 
-// checkFinalSignature checks if anew better final signature (ig. a signature at the last level) has been
-// generated. If so, it sends it to the output channel.
+// checkFinalSignature checks if a new better final signature (ig. a signature
+// at the last level) has been generated. If so, it sends it to the output
+// channel.
 func (h *Handel) checkFinalSignature(s *incomingSig) {
 	sig := h.store.FullSignature()
 
@@ -294,19 +295,9 @@ func (h *Handel) checkFinalSignature(s *incomingSig) {
 	}
 }
 
-func (h *Handel) getLevel(levelID byte) *level {
-	l := int(levelID)
-	lvl, exists := h.levels[l]
-	if !exists {
-		msg := fmt.Sprintf("inexistant level %d in list %v", l, h.ids)
-		panic(msg)
-	}
-	return lvl
-}
-
-// When we have a new signature, multiple levels may be impacted. The store
-//  is in charge of selecting the best signature for a level, so we will
-//  call it for all possibly impacted levels.
+// checkCompletedLevels checks if higher levels may be completed by the given
+// signature. For each of those, it sends the update to the corresponding peers
+// in a fast path fashion.
 func (h *Handel) checkCompletedLevel(s *incomingSig) {
 	// The receiving phase: have we completed this level?
 	lvl := h.getLevel(s.level)
@@ -336,6 +327,19 @@ func (h *Handel) checkCompletedLevel(s *incomingSig) {
 	}
 }
 
+// getLevel returns the level corresponding to this ID.
+func (h *Handel) getLevel(levelID byte) *level {
+	l := int(levelID)
+	lvl, exists := h.levels[l]
+	if !exists {
+		msg := fmt.Sprintf("inexistant level %d in list %v", l, h.ids)
+		panic(msg)
+	}
+	return lvl
+}
+
+// sendTo creates a Handel packet to send to the given identities containing the
+// given multisignature. The individual signature may be empty.
 func (h *Handel) sendTo(lvl int, ids []Identity, ms *MultiSignature, ind Signature) {
 	h.stats.msgSentCt += len(ids)
 
@@ -364,7 +368,8 @@ func (h *Handel) sendTo(lvl int, ids []Identity, ms *MultiSignature, ind Signatu
 }
 
 // validatePacket verifies the validity of the origin and level fields of the
-// packet and returns an error if any.
+// packet and returns an error if any. This method does NOT verify the validity
+// of the signature(s) inside the packet.
 func (h *Handel) validatePacket(p *Packet) error {
 	h.stats.msgRcvCt++
 
@@ -380,8 +385,8 @@ func (h *Handel) validatePacket(p *Packet) error {
 	return nil
 }
 
-// parseMultisignature returns the multisignature unmarshalled if correct, or an
-// error otherwise.
+// parseMultisignature returns the multisignature (and the individual signature
+// if present) unmarshalled if correct, or an error otherwise.
 func (h *Handel) parseSignatures(p *Packet) (ms *incomingSig, ind *incomingSig, err error) {
 	m := new(MultiSignature)
 	err = m.Unmarshal(p.MultiSig, h.cons.Signature(), h.c.NewBitSet)
