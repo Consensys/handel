@@ -17,7 +17,7 @@ import (
 func TestMainLocalHost(t *testing.T) {
 	resultsDir := "results"
 	baseDir := "tests"
-	configs := []string{"handel", "gossip", "udp"}
+	configs := []string{"handel", "udp"}
 	//configs := []string{"gossip"}
 
 	for _, c := range configs {
