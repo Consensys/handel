@@ -11,9 +11,10 @@ import (
 type Config struct {
 	// Contributions is the minimum number of contributions a multi-signature
 	// must contain to be considered as valid. Handel will only output
-	// multi-signature containing more than this threshold of contributions.
-	// It must be typically above 50% of the number of Handel nodes. If not
-	// specified, DefaultContributionsPerc of the number of signers is used by default.
+	// multi-signature containing more than this threshold of contributions.  It
+	// must be typically above 50% of the number of Handel nodes. If not
+	// specified, DefaultContributionsPerc of the number of signers is used by
+	// default.
 	Contributions int
 
 	// UpdatePeriod indicates at which frequency a Handel nodes sends updates

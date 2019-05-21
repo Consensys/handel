@@ -3,10 +3,12 @@ package handel
 import (
 	"bytes"
 	"encoding/binary"
+
 	"github.com/willf/bitset"
 )
 
-// BitSet interface, today implemented with a wrapper on wilff's bitset library.
+// BitSet interface. Available implementation is a wrapper around wilff's bitset
+// library.
 type BitSet interface {
 	// BitLength returns the fixed size of this BitSet
 	BitLength() int
@@ -50,7 +52,6 @@ type BitSet interface {
 	// Clone this BitSet
 	Clone() BitSet
 }
-
 
 // WilffBitSet implements a BitSet using the wilff library.
 type WilffBitSet struct {
