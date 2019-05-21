@@ -10,158 +10,10 @@ import (
 	"time"
 )
 
-// This struct keeps our state for all the levels we have. Most of the
-//  time we will have multiple levels activated at the same time:
-//    1) We will receive signatures for other peers
-//    2) We will send signatures to other peers even if we have not finished the
-//      previous levels
-type level struct {
-	// The id of this level. Start at 1
-	id int
-
-	// Our peers in this level: they send us their sigs, we're sending ours.
-	nodes []Identity
-
-	// True if we can start to send messages for this level.
-	sendStarted bool
-
-	// True is this level is completed for the reception, i.e. we have all the sigs
-	rcvCompleted bool
-
-	// We send updates to the peers, and we contact the peers one after the other
-	// This field reference our current position in our list of peers.
-	sendPos int
-
-	// Count of peers contacted for the current sig
-	// If we sent our current signature to all our peers we stop until we have
-	//  a better signature for this level
-	sendPeersCt int
-
-	// The size of the signature we send at this level. It's not symmetric if
-	//  we don't have a power of two for the numbers of nodes: we may have a number of
-	//  signatures to send greater (or smaller!) than the number of peers we have
-	//  at this level
-	sendExpectedFullSize int
-
-	// Size of the current sig we're sending. This allows to check if we have a
-	//  better signature.
-	sendSigSize int
-}
-
-// newLevel returns a fresh new level at the given id (number) for these given
-// nodes to contact.
-func newLevel(id int, nodes []Identity, sendExpectedFullSize int) *level {
-	if id <= 0 {
-		panic("bad value for level id")
-	}
-	l := &level{
-		id:                   id,
-		nodes:                nodes,
-		sendStarted:          false,
-		rcvCompleted:         false,
-		sendPos:              0,
-		sendPeersCt:          0,
-		sendExpectedFullSize: sendExpectedFullSize,
-		sendSigSize:          0,
-	}
-	return l
-}
-
-// Create a map of all the levels for this registry.
-func createLevels(c *Config, partitioner Partitioner) map[int]*level {
-	lvls := make(map[int]*level)
-	var firstActive bool
-	sendExpectedFullSize := 1
-	for _, level := range partitioner.Levels() {
-		nodes2, _ := partitioner.IdentitiesAt(level)
-		nodes := nodes2
-		if !c.DisableShuffling {
-			nodes = make([]Identity, len(nodes2))
-			copy(nodes, nodes2)
-			shuffle(nodes, c.Rand)
-		}
-		lvls[level] = newLevel(level, nodes, sendExpectedFullSize)
-		sendExpectedFullSize += len(nodes)
-		if !firstActive {
-			lvls[level].setStarted()
-			firstActive = true
-		}
-	}
-
-	return lvls
-}
-
-func (l *level) active() bool {
-	return l.started() && l.sendPeersCt < len(l.nodes)
-}
-
-func (l *level) started() bool {
-	return l.sendStarted
-}
-
-func (l *level) setStarted() {
-	l.sendStarted = true
-}
-
-// Select the peers we should contact next.
-func (l *level) selectNextPeers(count int) ([]Identity, bool) {
-	size := min(count, len(l.nodes))
-	res := make([]Identity, size)
-
-	for i := 0; i < size; i++ {
-		res[i] = l.nodes[l.sendPos]
-		l.sendPos++
-		if l.sendPos >= len(l.nodes) {
-			l.sendPos = 0
-		}
-	}
-
-	l.sendPeersCt += size
-	return res, true
-}
-
-// check if the signature is better than what we have.
-// If it's better, reset the counters of the messages sent.
-// If the level is now complete, we return true; if not we return false
-func (l *level) updateSigToSend(sig *MultiSignature) bool {
-	if l.sendSigSize >= sig.Cardinality() {
-		return false
-	}
-
-	l.sendSigSize = sig.Cardinality()
-	l.sendPeersCt = 0
-
-	if l.sendSigSize == l.sendExpectedFullSize {
-		// If we have all the signatures to send
-		// we can start the level without waiting for the timeout
-		l.setStarted()
-		return true
-	}
-	return false
-}
-
-func (l *level) String() string {
-	var b bytes.Buffer
-	fmt.Fprintf(&b, "level %d:", l.id)
-	var nodes []string
-	for _, n := range l.nodes {
-		nodes = append(nodes, strconv.Itoa(int(n.ID())))
-	}
-	fmt.Fprintf(&b, "\t%s\n", strings.Join(nodes, ", "))
-	return b.String()
-}
-
-// HStats contain minimal stats about handel
-type HStats struct {
-	msgSentCt int
-	msgRcvCt  int
-}
-
 // Handel is the principal struct that performs the large scale multi-signature
 // aggregation protocol. Handel is thread-safe.
 type Handel struct {
 	sync.Mutex
-	stats HStats
 	// Config holding parameters to Handel
 	c *Config
 	// Network enabling external communication with other Handel nodes
@@ -203,9 +55,10 @@ type Handel struct {
 	startTime time.Time
 	// the timeout strategy used by handel
 	timeout TimeoutStrategy
-
-	// the logger used by this Handel - always contains the ID
+	// the logger used by this Handel
 	log Logger
+	// minimal stats about Handel
+	stats HStats
 }
 
 // NewHandel returns a Handle interface that uses the given network and
@@ -575,4 +428,166 @@ func (h *Handel) parseSignatures(p *Packet) (ms *incomingSig, ind *incomingSig, 
 		mappedIndex: levelIndex,
 	}
 	return
+}
+
+// level keeps all the required state for a given level such as the list of
+// peers to contact, the peers we should receive from, etc. Each
+// level is independent. A level can be activated or deactivated.
+// NOTE: Most of the time, multiple levels are activated at the same
+// time.
+type level struct {
+	// The id of this level. Start at 1
+	id int
+
+	// Our peers in this level: they send us their sigs, we're sending ours.
+	nodes []Identity
+
+	// True if we can start to send messages for this level.
+	sendStarted bool
+
+	// True is this level is completed for the reception, i.e. we have all the sigs
+	rcvCompleted bool
+
+	// This field reference our current position in our list of peers. Each time
+	// Handel sends an update, it takes the peer at this position and increases
+	// it.
+	sendPos int
+
+	// Count of peers contacted for the current sig
+	// If we sent our current signature to all our peers we stop until we have
+	//  a better signature for this level
+	sendPeersCt int
+
+	// The size of the signature we send at this level. It's not symmetric if
+	//  we don't have a power of two for the numbers of nodes: we may have a number of
+	//  signatures to send greater (or smaller!) than the number of peers we have
+	//  at this level
+	sendExpectedFullSize int
+
+	// Size of the current sig we're sending. This allows to check if we have a
+	//  better signature.
+	sendSigSize int
+}
+
+// newLevel returns a fresh new level at the given id (number) for these given
+// nodes to contact.
+func newLevel(id int, nodes []Identity, sendExpectedFullSize int) *level {
+	if id <= 0 {
+		panic("bad value for level id")
+	}
+	l := &level{
+		id:                   id,
+		nodes:                nodes,
+		sendStarted:          false,
+		rcvCompleted:         false,
+		sendPos:              0,
+		sendPeersCt:          0,
+		sendExpectedFullSize: sendExpectedFullSize,
+		sendSigSize:          0,
+	}
+	return l
+}
+
+// createLevels generate a map of all the levels for this registry. It currently
+// shuffles the peers to contact for each level.
+func createLevels(c *Config, partitioner Partitioner) map[int]*level {
+	lvls := make(map[int]*level)
+	var firstActive bool
+	sendExpectedFullSize := 1
+	for _, level := range partitioner.Levels() {
+		nodes2, _ := partitioner.IdentitiesAt(level)
+		nodes := nodes2
+		if !c.DisableShuffling {
+			nodes = make([]Identity, len(nodes2))
+			copy(nodes, nodes2)
+			shuffle(nodes, c.Rand)
+		}
+		lvls[level] = newLevel(level, nodes, sendExpectedFullSize)
+		sendExpectedFullSize += len(nodes)
+		if !firstActive {
+			lvls[level].setStarted()
+			firstActive = true
+		}
+	}
+
+	return lvls
+}
+
+// a level is active on two necessary conditions:
+// 1. It must have been started, i.e. its waiting time has elapsed (see
+// timeout.go)
+// 2. the corresponding aggregate signature is complete, i.e. the number of
+// individual contributions equals the number of peers at this level.
+func (l *level) active() bool {
+	return l.started() && l.sendPeersCt < len(l.nodes)
+}
+
+// started returns true after the waiting time of a level has elapsed. See
+// timeout.go for more information.
+func (l *level) started() bool {
+	return l.sendStarted
+}
+
+// setStarted is called by timeout strategy to indicate a level must start. See
+// timeout.go.
+func (l *level) setStarted() {
+	l.sendStarted = true
+}
+
+// Select the peers Handel should contact next at this level. Peers are selected
+// on a rolling basis.
+func (l *level) selectNextPeers(count int) ([]Identity, bool) {
+	size := min(count, len(l.nodes))
+	res := make([]Identity, size)
+
+	for i := 0; i < size; i++ {
+		res[i] = l.nodes[l.sendPos]
+		l.sendPos++
+		if l.sendPos >= len(l.nodes) {
+			l.sendPos = 0
+		}
+	}
+
+	l.sendPeersCt += size
+	return res, true
+}
+
+// Updates the size of the signature stored at this level if the given sig has a
+// larger cardinality. If it is the case, it resets the counter of the numbers
+// of peers Handel has contacted, in order to eventually propagate the better
+// signature to the whole level.
+// If the level is now complete, it returns true; if not it returns false.
+func (l *level) updateSigToSend(sig *MultiSignature) bool {
+	if l.sendSigSize >= sig.Cardinality() {
+		return false
+	}
+
+	l.sendSigSize = sig.Cardinality()
+	l.sendPeersCt = 0
+
+	if l.sendSigSize == l.sendExpectedFullSize {
+		// If we have all the signatures to send
+		// we can start the level without waiting for the timeout
+		l.setStarted()
+		return true
+	}
+	return false
+}
+
+// String implements the Stringer interface and is mostly meant for debugging.
+func (l *level) String() string {
+	var b bytes.Buffer
+	fmt.Fprintf(&b, "level %d:", l.id)
+	var nodes []string
+	for _, n := range l.nodes {
+		nodes = append(nodes, strconv.Itoa(int(n.ID())))
+	}
+	fmt.Fprintf(&b, "\t%s\n", strings.Join(nodes, ", "))
+	return b.String()
+}
+
+// HStats contain minimal stats about handel
+type HStats struct {
+	msgSentCt int
+	msgRcvCt  int
 }

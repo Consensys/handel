@@ -8,25 +8,32 @@ import (
 	"io"
 )
 
-// PublicKey holds methods to verify a signature and to combine multiple public
+// PublicKey represents either a generic individual or aggregate public key. It
+// contain methods to verify a signature and to combine multiple public
 // keys together to verify signatures.
 type PublicKey interface {
-	String() string
+	// VerifySignature takes a message and a signature and returns an error iif
+	// the signature is invalid with respect to this public key and the message.
 	VerifySignature(msg []byte, sig Signature) error
-	// Combine combines two public keys together so that a multi-signature
-	// produced by both individual public keys can be verified by the combined
-	// public key
+	// Combine combines the two public keys together to produce an aggregate public
+	// key. The resulting public key must be valid and able to verify aggregated
+	// signatures valid under the aggregate public key.
 	Combine(PublicKey) PublicKey
+
+	// String returns an easy representation of the public key (hex, etc).
+	String() string
 }
 
-// SecretKey is an interface holding the required functionality of a secret key
-// needed to run the generic tests.
+// SecretKey represents a secret key. This interface is mostly needed to run the
+// tests in a generic way
 type SecretKey interface {
+	// Sign the given message using the given randomness source.
 	Sign(msg []byte, r io.Reader) (Signature, error)
 }
 
-// Constructor is used to create empty signatures suitable for unmarshalling and
-// empty public key suitable for aggregation.
+// Constructor creates empty signatures of the required type suitable for
+// unmarshalling and empty public keys of the required type suitable for
+// aggregation. See package bn256 for an example.
 type Constructor interface {
 	// Signature returns a fresh empty signature suitable for unmarshaling
 	Signature() Signature
@@ -40,15 +47,15 @@ type Signature interface {
 	MarshalBinary() ([]byte, error)
 	UnmarshalBinary([]byte) error
 
-	// Combine "merges" the two signature together so that it produces an unique
-	// multi-signature that can be verified by the combination of both
+	// Combine aggregates the two signature together producing an unique
+	// signature that can be verified by the combination of both
 	// respective public keys that produced the original signatures.
 	Combine(Signature) Signature
 }
 
 // MultiSignature represents an aggregated signature alongside with its bitset.
-// Handel outputs potentially multiple MultiSignatures during the protocol.
-// The BitSet is always expected to have the maximum size.
+// The signature is the aggregation of all individual signatures from the nodes
+// whose index is set in the bitset.
 type MultiSignature struct {
 	BitSet
 	Signature
@@ -74,8 +81,8 @@ func (m *MultiSignature) MarshalBinary() ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-// Unmarshal reads a multisignature from the given slice, using the signature
-// and bitset interface given.
+// Unmarshal reads a multisignature from the given slice, using the *empty*
+// signature and bitset interface given.
 func (m *MultiSignature) Unmarshal(b []byte, s Signature, nbs func(b int) BitSet) error {
 	var buff = bytes.NewBuffer(b)
 	var length uint16
