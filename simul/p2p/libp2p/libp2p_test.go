@@ -11,6 +11,7 @@ import (
 )
 
 func TestP2P(t *testing.T) {
+	t.Skip()
 	n := 50
 	thr := 15
 	var opts = map[string]string{"Connector": "neighbor", "Count": "8"}

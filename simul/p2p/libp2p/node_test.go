@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/ConsenSys/handel"
-	"github.com/ConsenSys/handel/bn256/cf"
+	bn256 "github.com/ConsenSys/handel/bn256/cf"
 	"github.com/ConsenSys/handel/simul/lib"
 	"github.com/ConsenSys/handel/simul/p2p"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -18,6 +18,7 @@ import (
 )
 
 func TestGossipMeshy(t *testing.T) {
+	t.Skip()
 	n := 40
 	thr := 30
 	nbOutgoing := 10
