@@ -5,13 +5,9 @@ import (
 	"time"
 )
 
-// TimeoutStrategy decides when to start a level in Handel. It is started and
-// stopped by the Handel structure. A basic strategy starts level according to a
-// linear timeout function thanks to the Handel.StartLevel method. More advanced
-// strategies could for example implement the Pre/PostProcessor interface,
-// register itself as a processor to Handel, and start a level according to
-// specific rules such as "all nodes answered with a 1-contribution
-// multi-signature", etc.
+// TimeoutStrategy decides when to start a level in Handel. A basic strategy
+// starts level according to a linear timeout function: level $i$ starts at time
+// $i * period$. The interface is started and stopped by the Handel main logic.
 type TimeoutStrategy interface {
 	// Called by handel when it starts
 	Start()
@@ -19,20 +15,7 @@ type TimeoutStrategy interface {
 	Stop()
 }
 
-type infiniteTimeout struct {
-}
-
-// NewInfiniteTimeout creates an InfiniteTimeout. Needs this signature
-func NewInfiniteTimeout(h *Handel, lvls []int) TimeoutStrategy {
-	return &infiniteTimeout{}
-}
-
-// Start implements the interface
-func (l *infiniteTimeout) Start() {}
-
-// Stop implements the interface
-func (l *infiniteTimeout) Stop() {}
-
+// linearTimeout starts each level $i$ at time $i * period$..
 type linearTimeout struct {
 	sync.Mutex
 	newLevel func(int)
@@ -54,8 +37,8 @@ func NewDefaultLinearTimeout(h *Handel, levels []int) TimeoutStrategy {
 	return NewLinearTimeout(h, levels, DefaultLevelTimeout)
 }
 
-// LinearTimeoutConstructor returns the contructor to give in the Config for a
-// linear timeout with the given period
+// LinearTimeoutConstructor returns the linear timeout contructor as required
+// for the Config.
 func LinearTimeoutConstructor(period time.Duration) func(h *Handel, levels []int) TimeoutStrategy {
 	return func(h *Handel, levels []int) TimeoutStrategy {
 		return NewLinearTimeout(h, levels, period)

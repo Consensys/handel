@@ -30,7 +30,7 @@ type Registry interface {
 	Identities(from, to int) ([]Identity, bool)
 }
 
-// fixedIdentity is an Identity that takes fixed argument
+// fixedIdentity is an Identity using fixed in-memory data.
 type fixedIdentity struct {
 	id   int32
 	addr string
@@ -110,6 +110,9 @@ func (a *arrayRegistry) String() string {
 	return s
 }
 
+// shuffles the given array using the given source of randomness. The shuffle is
+// NOT a cryptographic shuffle, it uses the math package (i.e. most probably
+// fisher-yates method).
 func shuffle(arr []Identity, r io.Reader) {
 	var isource int64
 	if err := binary.Read(r, binary.BigEndian, &isource); err != nil {
@@ -127,20 +130,4 @@ func equals(arr1, arr2 []Identity) bool {
 		}
 	}
 	return true
-}
-
-type readerSource struct {
-	io.Reader
-}
-
-func (r *readerSource) Int63() int64 {
-	var b [8]byte
-	fmt.Println(" -- before reading --")
-	r.Reader.Read(b[:])
-	fmt.Println(" -- after reading --")
-	return int64(binary.BigEndian.Uint64(b[:]) & (1<<63 - 1))
-}
-
-func (r *readerSource) Seed(seed int64) {
-	panic("seed")
 }

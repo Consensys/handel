@@ -103,7 +103,7 @@ func NewHandel(n Network, r Registry, id Identity, c Constructor,
 	}
 
 	h.threshold = h.c.Contributions
-	h.store = newReplaceStore(part, h.c.NewBitSet, c)
+	h.store = newStore(part, h.c.NewBitSet, c)
 
 	// We need to add our own sig at level 0
 	ind := &incomingSig{

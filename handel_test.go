@@ -13,7 +13,6 @@ import (
 
 var msg = []byte("Sun is Shining...")
 
-
 type handelTest struct {
 	n        int
 	offlines []int32
@@ -39,7 +38,6 @@ func TestHandelWithFailures(t *testing.T) {
 	}
 	testHandelTestNetwork(t, tests)
 }
-
 
 func TestHandelTestNetworkSNonPowerOfTwo(t *testing.T) {
 	off := func(ids ...int32) []int32 {
@@ -99,7 +97,7 @@ func testHandelTestNetwork(t *testing.T, tests []handelTest) {
 		//  for this reason we use a very long one, so the tests will fail with a timeout
 		//  if there is a bug.
 		if len(scenario.offlines) == 0 {
-			config.NewTimeoutStrategy = NewInfiniteTimeout
+			config.NewTimeoutStrategy = newInfiniteTimeout
 		}
 		secrets := make([]SecretKey, n)
 		pubs := make([]PublicKey, n)
@@ -440,3 +438,17 @@ func TestHandelCreateLevel(t *testing.T) {
 	require.NotEqual(t, mapping5, mapping4)
 	require.NotEqual(t, mapping5, mapping1)
 }
+
+type infiniteTimeout struct {
+}
+
+// newInfiniteTimeout creates an InfiniteTimeout. Needs this signature
+func newInfiniteTimeout(h *Handel, lvls []int) TimeoutStrategy {
+	return &infiniteTimeout{}
+}
+
+// Start implements the interface
+func (l *infiniteTimeout) Start() {}
+
+// Stop implements the interface
+func (l *infiniteTimeout) Stop() {}

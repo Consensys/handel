@@ -37,7 +37,7 @@ func TestStoreCombined(t *testing.T) {
 	for i, test := range tests {
 		t.Logf(" -- test %d --", i)
 		part := NewBinPartitioner(test.id, reg, DefaultLogger)
-		store := newReplaceStore(part, NewWilffBitset, new(fakeCons))
+		store := newStore(part, NewWilffBitset, new(fakeCons))
 		for _, sigs := range test.sigs {
 			store.Store(sigs)
 		}
@@ -50,7 +50,7 @@ func TestStoreFullSignature(t *testing.T) {
 	n := 8
 	reg := FakeRegistry(n)
 	part := NewBinPartitioner(1, reg, DefaultLogger)
-	store := newReplaceStore(part, NewWilffBitset, new(fakeCons))
+	store := newStore(part, NewWilffBitset, new(fakeCons))
 	bs1 := NewWilffBitset(1)
 	bs1.Set(0, true)
 	ind := &incomingSig{
@@ -60,7 +60,7 @@ func TestStoreFullSignature(t *testing.T) {
 		isInd:       false,
 		mappedIndex: 0,
 	}
-	store.Store(ind )
+	store.Store(ind)
 	ms := store.FullSignature()
 	require.Equal(t, n, ms.BitSet.BitLength())
 	require.True(t, ms.BitSet.Get(1))
@@ -70,7 +70,7 @@ func TestStoreUnsafeCheckMerge(t *testing.T) {
 	n := 8
 	reg := FakeRegistry(n)
 	part := NewBinPartitioner(0, reg, DefaultLogger)
-	store := newReplaceStore(part, NewWilffBitset, new(fakeCons))
+	store := newStore(part, NewWilffBitset, new(fakeCons))
 
 	// We put a first sig. It should get in.
 	bs1 := NewWilffBitset(4)
@@ -111,7 +111,7 @@ func TestStoreUnsafeCheckMerge(t *testing.T) {
 	require.Equal(t, 2, s.BitSet.Cardinality())
 	store.Store(p46L3)
 	best, _ := store.Best(3)
-	require.Equal(t, bs1.Clone(),  best.BitSet)
+	require.Equal(t, bs1.Clone(), best.BitSet)
 
 	// This signature is size 2 as well, but can be merged with the individual one, so
 	//  we will end-up with a size 3 signature
@@ -181,13 +181,13 @@ func TestStoreReplace(t *testing.T) {
 
 	for i, test := range tests {
 		t.Logf("-- test %d --", i)
-		store := newReplaceStore(part, NewWilffBitset, new(fakeCons))
+		store := newStore(part, NewWilffBitset, new(fakeCons))
 		for i, s := range test.toStore {
 			score := store.Evaluate(s)
 			require.Equal(t, test.scores[i], score)
 			// then actually store the damn thing
 			ret := store.Store(s)
-			require.True(t, test.ret[i] == (ret != nil) )
+			require.True(t, test.ret[i] == (ret != nil))
 		}
 		ms, ok := store.Best(test.best)
 		require.Equal(t, test.eqMs, ms)

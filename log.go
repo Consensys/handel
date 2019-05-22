@@ -20,15 +20,18 @@ type Logger interface {
 	With(keyvals ...interface{}) Logger
 }
 
-// DefaultLevel is the default level where statements are logged. One can change
-// this variable inside init() to change the default level, or construct
-// explicitly a Logger.
+// DefaultLevel is the default level where statements are logged. Change the
+// value of this variable before init() to change the level of the default
+// logger.
 var DefaultLevel = lvl.AllowInfo()
 
-// DefaultLogger is the default logger that only outputs statemetns at the
-// default level. One can change the DefaultLevel variable inside init() to
-// change the default level output.
-var DefaultLogger = NewKitLogger(DefaultLevel)
+// DefaultLogger is the default logger that only statemetns at the
+// default level. The level is set by DefaultLevel inside init()..
+var DefaultLogger Logger
+
+func init() {
+	DefaultLogger = NewKitLogger(DefaultLevel)
+}
 
 type kitLogger struct {
 	log.Logger

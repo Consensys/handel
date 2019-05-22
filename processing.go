@@ -11,8 +11,6 @@ import (
 	"time"
 )
 
-var deathPillPair = incomingSig{origin: -1}
-
 // incomingSig represents a parsed signature from the network. It can represents
 // a individual signature or a multisignature.
 type incomingSig struct {
@@ -31,25 +29,6 @@ func (is *incomingSig) Individual() bool {
 	return is.isInd
 }
 
-// signatureProcessing is an interface responsible for verifying incoming
-// multi-signature. It can decides to drop some incoming signatures if deemed
-// useless. It outputs verified signatures to the main handel processing logic
-// It is an asynchronous processing interface that needs to be sendStarted and
-// stopped when needed.
-type signatureProcessing interface {
-	// Start is a blocking call that starts the processing routine
-	Start()
-	// Stop is a blocking call that stops the processing routine
-	Stop()
-	// Add an incomingSig to the processing list
-	Add(sp *incomingSig)
-	// channel that outputs verified signatures. Implementation must guarantee
-	// that all verified signatures are signatures that have been sent on the
-	// incoming channel. No new signatures must be outputted on this channel (
-	// is the role of the Store)
-	Verified() chan incomingSig
-}
-
 // SigEvaluator is an interface responsible to evaluate incoming *non-verified*
 // signature according to their relevance regarding the running handel protocol.
 // This is an important part of Handel because the aggregation function (pairing
@@ -64,8 +43,7 @@ type SigEvaluator interface {
 
 // Evaluator1 returns 1 for all signatures, leading to having all signatures
 // verified.
-type Evaluator1 struct {
-}
+type Evaluator1 struct{}
 
 // Evaluate implements the SigEvaluator interface.
 func (f *Evaluator1) Evaluate(sp *incomingSig) int {
@@ -76,7 +54,7 @@ func newEvaluator1() SigEvaluator {
 	return &Evaluator1{}
 }
 
-// EvaluatorStore is a wrapper around the store's evaluate strategy.
+// EvaluatorStore is a wrapper around the store's evaluation strategy.
 type EvaluatorStore struct {
 	store SignatureStore
 }
@@ -90,50 +68,24 @@ func newEvaluatorStore(store SignatureStore) SigEvaluator {
 	return &EvaluatorStore{store: store}
 }
 
-// Filter holds the responsibility of filtering out the signatures before they
-// go into the processing queue.
-type Filter interface {
-	Accept(*incomingSig) bool
-}
-
-// individualSigFilter is a filter than only accepts *once* individual
-// signatures
-type individualSigFilter struct {
-	seen map[int]bool
-}
-
-func newIndividualSigFilter() Filter {
-	return &individualSigFilter{make(map[int]bool)}
-}
-
-func (i *individualSigFilter) Accept(inc *incomingSig) bool {
-	if !inc.Individual() {
-		// only refuse individual signatures
-		return true
-	}
-	idx := int(inc.origin)
-	_, inserted := i.seen[idx]
-	if inserted {
-		// already seen so we drop this one
-		return false
-	}
-	// sets it to true so we only accept once
-	i.seen[idx] = true
-	return true
-}
-
-// combinedFilter can combine sequentially multiple filter into one. The first
-// filter that returns false makes the combinedFilter returns false immediately
-// as well.
-type combinedFilter struct{ filters []Filter }
-
-func (c *combinedFilter) Accept(inc *incomingSig) bool {
-	for _, f := range c.filters {
-		if !f.Accept(inc) {
-			return false
-		}
-	}
-	return true
+// signatureProcessing is an interface responsible for verifying incoming
+// (multi-)signatures. It continuously evaluate (with an Evaluator) the stream
+// of incoming signatures and prune some depending on the evaluation. It signals
+// back verified signatures to the main handel processing logic It is an
+// asynchronous processing interface that needs to be started and stopped by the
+// Handel logic.
+type signatureProcessing interface {
+	// Start is a blocking call that starts the processing routine
+	Start()
+	// Stop is a blocking call that stops the processing routine
+	Stop()
+	// Add an incomingSig to the processing list
+	Add(sp *incomingSig)
+	// channel that outputs verified signatures. Implementation must guarantee
+	// that all verified signatures are signatures that have been verified
+	// correctly and sent on the incoming channel. No new signatures must be
+	// outputted on this channel ( is the role of the Store)
+	Verified() chan incomingSig
 }
 
 // evaluator processing processing incoming signatures according to an signature
@@ -192,6 +144,9 @@ func newEvaluatorProcessing(part Partitioner, c Constructor, msg []byte, sigSlee
 func (f *evaluatorProcessing) Start() {
 	go f.processLoop()
 }
+
+// deathPillPair is used to stop the processing routine.
+var deathPillPair = incomingSig{origin: -1}
 
 func (f *evaluatorProcessing) Stop() {
 	f.Add(&deathPillPair)
@@ -331,8 +286,97 @@ func (f *evaluatorProcessing) verifyAndPublish(sp *incomingSig) {
 	}
 }
 
+// Filter holds the responsibility of filtering out the signatures before they
+// go into the processing queue. It is a preprocessing filter. For example, it
+// can remove individual signatures already stored even before inserting them in
+// the queue.
+type Filter interface {
+	// Accept returns false if the signature must be evicted before inserting it
+	// in the queue.
+	Accept(*incomingSig) bool
+}
+
+// individualSigFilter is a filter than only accepts *once* individual
+// signatures
+type individualSigFilter struct {
+	seen map[int]bool
+}
+
+func newIndividualSigFilter() Filter {
+	return &individualSigFilter{make(map[int]bool)}
+}
+
+func (i *individualSigFilter) Accept(inc *incomingSig) bool {
+	if !inc.Individual() {
+		// only refuse individual signatures
+		return true
+	}
+	idx := int(inc.origin)
+	_, inserted := i.seen[idx]
+	if inserted {
+		// already seen so we drop this one
+		return false
+	}
+	// sets it to true so we only accept once
+	i.seen[idx] = true
+	return true
+}
+
+// combinedFilter can combine sequentially multiple filter into one. The first
+// filter that returns false makes the combinedFilter returns false immediately
+// as well.
+type combinedFilter struct{ filters []Filter }
+
+func (c *combinedFilter) Accept(inc *incomingSig) bool {
+	for _, f := range c.filters {
+		if !f.Accept(inc) {
+			return false
+		}
+	}
+	return true
+}
+
+// verifySignature returns true if the given signature is valid. The function
+// constructs the aggregate public key from all public keys denoted in the
+// bitset.
+func verifySignature(pair *incomingSig, msg []byte, part Partitioner, cons Constructor) error {
+	level := pair.level
+	ms := pair.ms
+	ids, err := part.IdentitiesAt(int(level))
+	if err != nil {
+		return err
+	}
+
+	if ms.BitSet.BitLength() != len(ids) {
+		return errors.New("handel: inconsistent bitset with given level")
+	}
+
+	// compute the aggregate public key corresponding to bitset
+	aggregateKey := cons.PublicKey()
+	for i := 0; i < ms.BitSet.BitLength(); i++ {
+		if !ms.BitSet.Get(i) {
+			continue
+		}
+		aggregateKey = aggregateKey.Combine(ids[i].PublicKey())
+	}
+
+	if err := aggregateKey.VerifySignature(msg, ms.Signature); err != nil {
+		logf("processing err: from %d -> level %d -> %s", pair.origin, pair.level, ms.String())
+		return fmt.Errorf("handel: %s", err)
+	}
+	return nil
+}
+
+func (is *incomingSig) String() string {
+	if is.ms == nil {
+		return fmt.Sprintf("sig(lvl %d): <nil>", is.level)
+	}
+	return fmt.Sprintf("sig(lvl %d): %s", is.level, is.ms.String())
+}
+
 // fifoProcessing implements the signatureProcessing interface using a simple
 // fifo queue, verifying all incoming signatures, not matter relevant or not.
+// XXX Deprecated
 type fifoProcessing struct {
 	sync.Mutex
 	store SignatureStore
@@ -346,7 +390,8 @@ type fifoProcessing struct {
 
 // newFifoProcessing returns a signatureProcessing implementation using a fifo
 // queue. It needs the store to store the valid signatures, the partitioner +
-// constructor + msg to verify the signatures.
+// constructor and the messages to verify the signatures.
+// XXX: deprecated, used only for testing.
 func newFifoProcessing(store SignatureStore, part Partitioner,
 	c Constructor, msg []byte) signatureProcessing {
 	return &fifoProcessing{
@@ -359,7 +404,7 @@ func newFifoProcessing(store SignatureStore, part Partitioner,
 	}
 }
 
-// processIncoming simply verifies the signature, stores it, and outputs it
+// processIncoming verifies the signature, stores it, and outputs it
 func (f *fifoProcessing) processIncoming() {
 	for pair := range f.in {
 		score := f.store.Evaluate(&pair)
@@ -444,32 +489,4 @@ func (f *fifoProcessing) isStopped() bool {
 	defer f.Unlock()
 	// OK since once we call stop, we'll no go back to done = false
 	return f.done
-}
-
-func verifySignature(pair *incomingSig, msg []byte, part Partitioner, cons Constructor) error {
-	level := pair.level
-	ms := pair.ms
-	ids, err := part.IdentitiesAt(int(level))
-	if err != nil {
-		return err
-	}
-
-	if ms.BitSet.BitLength() != len(ids) {
-		return errors.New("handel: inconsistent bitset with given level")
-	}
-
-	// compute the aggregate public key corresponding to bitset
-	aggregateKey := cons.PublicKey()
-	for i := 0; i < ms.BitSet.BitLength(); i++ {
-		if !ms.BitSet.Get(i) {
-			continue
-		}
-		aggregateKey = aggregateKey.Combine(ids[i].PublicKey())
-	}
-
-	if err := aggregateKey.VerifySignature(msg, ms.Signature); err != nil {
-		logf("processing err: from %d -> level %d -> %s", pair.origin, pair.level, ms.String())
-		return fmt.Errorf("handel: %s", err)
-	}
-	return nil
 }

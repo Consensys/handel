@@ -19,7 +19,7 @@ type Listener interface {
 	NewPacket(*Packet)
 }
 
-// ListenFunc is a wrapper type to be able to register a function as a Listener
+// ListenFunc is a wrapper type to morph a function as a Listener
 type ListenFunc func(*Packet)
 
 // NewPacket implements the Listener interface
@@ -42,28 +42,3 @@ type Packet struct {
 	// IndividualSig holds the individual signature of the Origin node
 	IndividualSig []byte
 }
-
-/*// MarshalBinary implements the go BinaryMarshaler interface*/
-//func (p *Packet) MarshalBinary() ([]byte, error) {
-//var buffer bytes.Buffer
-//binary.Write(&buffer, binary.BigEndian, p.Origin)
-//binary.Write(&buffer, binary.BigEndian, p.Level)
-//buffer.Write(p.MultiSig)
-//buffer.Write(p.IndividualSig)
-//return buffer.Bytes(), nil
-/*}*/
-
-// UnmarshalBinary implements the go BinaryUnmarshaler interface
-/*func (p *Packet) UnmarshalBinary(buff []byte) error {*/
-//var buffer = bytes.NewBuffer(buff)
-//err := binary.Read(buffer, binary.BigEndian, &p.Origin)
-//if err != nil {
-//return err
-//}
-//err = binary.Read(buffer, binary.BigEndian, &p.Level)
-//if err != nil {
-//return err
-//}
-//p.MultiSig = buffer.Bytes()
-//return nil
-/*}*/

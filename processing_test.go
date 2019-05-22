@@ -54,7 +54,7 @@ func TestProcessingFifo(t *testing.T) {
 	registry := FakeRegistry(n)
 	partitioner := NewBinPartitioner(1, registry, DefaultLogger)
 	cons := new(fakeCons)
-	store := newReplaceStore(partitioner, NewWilffBitset, cons)
+	store := newStore(partitioner, NewWilffBitset, cons)
 
 	type testProcess struct {
 		in  []*incomingSig
@@ -89,7 +89,7 @@ func TestProcessingFifo(t *testing.T) {
 	for i, test := range tests {
 		t.Logf(" -- test %d -- ", i)
 
-		store := newReplaceStore(partitioner, NewWilffBitset, cons)
+		store := newStore(partitioner, NewWilffBitset, cons)
 		fifo := newFifoProcessing(store, partitioner, cons, msg)
 		fifos = append(fifos, fifo)
 		go fifo.Start()

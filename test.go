@@ -10,7 +10,8 @@ import (
 )
 
 // Test is a struct implementing some useful functionality to test specific
-// implementations on Handel
+// implementations on Handel.
+// DO NOT USE IT IN PRODUCTION.
 type Test struct {
 	reg     Registry
 	cons    Constructor
@@ -31,7 +32,7 @@ type Test struct {
 }
 
 // NewTest returns all handels instances ready to go !
-func NewTest(keys []SecretKey, pubs []PublicKey, c Constructor, msg []byte, config* Config) *Test {
+func NewTest(keys []SecretKey, pubs []PublicKey, c Constructor, msg []byte, config *Config) *Test {
 	n := len(keys)
 	ids := make([]Identity, n)
 	sigs := make([]Signature, n)

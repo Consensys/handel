@@ -7,24 +7,26 @@ import (
 )
 
 // Partitioner is a generic interface holding the logic used to partition the
-// nodes in different buckets.  The only Partitioner implemented is
+// nodes in different buckets. The only Partitioner implemented is
 // binTreePartition using binomial tree to partition, as in the original San
 // Fermin paper.
 type Partitioner interface {
-	// returns the maximum number of levels this partitioning strategy will use
-	// given the list of participants
+	// MaxLevel returns the maximum number of levels this partitioning strategy
+	// will use given the list of participants
 	MaxLevel() int
-	// Returns the size of the set of Identity at this level
+	// Returns the size of the set of peers at this level
 	Size(level int) int
 
-	// Levels returns the list of level ids Handel must run on.
-	// It does not return the level 0 since that represents the personal contributions of
-	// the Handel node itself.
-	// If the levels is empty (it happens when the number of nodes is not a power of two),
-	//  it is not included in the returned list
+	// Levels returns the list of level ids.  It does not return the level 0
+	// since that represents the personal contributions of the Handel node
+	// itself.  If the levels is empty (it happens when the number of nodes is
+	// not a power of two), it is not included in the returned list. Note: a
+	// signature at the maximum level in the array + 1 is equal to a signature
+	// over the full list of nodes.
 	Levels() []int
-	// IdentitiesAt returns the list of Identity that composes the whole level in
-	// this partition scheme.
+
+	// IdentitiesAt returns the list of Identity that composes the whole level
+	// in this partition scheme.
 	IdentitiesAt(level int) ([]Identity, error)
 
 	// IndexAtLevel returns the index inside the given level of the given global
@@ -32,26 +34,24 @@ type Partitioner interface {
 	IndexAtLevel(globalID int32, level int) (int, error)
 
 	// Combine takes a list of signature paired with their level and returns all
-	// signatures correctly combined according to the partition strategy.
-	// All signatures must be valid signatures. The return value can be nil if no
-	// incomingSig have been given.It returns a MultiSignature whose's BitSet's
-	// size is equal to the size of the level given in parameter + 1. The +1 is
-	// there because it is a combined signature, therefore, encompassing all
-	// signatures of levels up to the given level included.
+	// signatures correctly combined according to the partition strategy.  The
+	// resulting signatures has the size denoted by the given level,i.e.
+	// Size(level). All signatures must be valid signatures and have their size
+	// be inferior or equal to the size denoted by the level. The return value
+	// can be nil if no incomingSig have been given.It returns a MultiSignature
+	// whose's BitSet's size is equal to the size of the level given in
+	// parameter + 1. The +1 is there because it is a combined signature,
+	// therefore, encompassing all signatures of levels up to the given level
+	// included.
 	Combine(sigs []*incomingSig, level int, nbs func(int) BitSet) *MultiSignature
 	// CombineFull is similar to Combine but it returns the full multisignature
-	// whose bitset's length is equal to the size of the registry. This length
-	// corresponds to the MaxLevel() + 1 - but this level is not considered a
-	// "valid" level from a Handel perspective.
+	// whose bitset's length is equal to the size of the registry.
 	CombineFull(sigs []*incomingSig, nbs func(int) BitSet) *MultiSignature
 }
 
-// binomialPartitioner is a partitioner implementation using a binomial tree
-// splitting based on the common length prefix, as in the San Fermin paper.
-// It returns new nodes just based on the index alone (no considerations of
-// close proximity for example).
+// binomialPartitioner is a partitioner implementation using the common prefix
+// length as the partitioning function, as in the San Fermin paper.
 type binomialPartitioner struct {
-	// candidatetree computes according to the point of view of this node's id.
 	id      int
 	bitsize int
 	size    int
@@ -119,7 +119,7 @@ func (c *binomialPartitioner) IndexAtLevel(globalID int32, level int) (int, erro
 }
 
 // errEmptyLevel is returned when a range for a requested level is empty. This
-// can happen is the number of nodes is not a perfect power of two.
+// can happen is the number of nodes is not a power of two.
 var errEmptyLevel = errors.New("empty level")
 
 // rangeLevel returns the range [min,max[ that maps to the set of identity
@@ -233,9 +233,12 @@ func (c *binomialPartitioner) Combine(sigs []*incomingSig, level int, nbs func(i
 		}
 	}
 
-	// taking the "rangeInverse" gives us the range covering all signatures
-	// with a level inferior than "level" - it's the range nodes at the
-	// corresponding candidate set expect to receive.
+	// since we want to send a signature to peers of a given level, we need to
+	// know the range of IDs this signature needs to encompass. For this, we
+	// take the "rangeInverse" (the opposite set of IDs of the level we want to
+	// reach): the range covering all signatures with a level inferior than
+	// "level" - it's the range nodes at the corresponding candidate set expect
+	// to receive.
 	globalMin, globalMax, err := c.rangeLevelInverse(level)
 	if err != nil {
 		logf(err.Error())
@@ -243,7 +246,6 @@ func (c *binomialPartitioner) Combine(sigs []*incomingSig, level int, nbs func(i
 	}
 	size := globalMax - globalMin
 	bitset := nbs(size)
-	//fmt.Printf("\t -- Combine(lvl %d) => min %d max %d -> size %d\n", level, globalMin, globalMax, size)
 	combined := func(s *incomingSig, final BitSet) {
 		// compute the offset of this signature compared to the global bitset
 		// index
@@ -275,8 +277,8 @@ func (c *binomialPartitioner) CombineFull(sigs []*incomingSig, nbs func(int) Bit
 	return c.combineSize(sigs, finalBitSet, combineBitSet)
 }
 
-// combineSize combines all given signature witht he combine function on the
-// bitset using `bs`
+// combineSize combines all given signature with he combine function on the
+// bitset using `bs`.
 func (c *binomialPartitioner) combineSize(sigs []*incomingSig, bs BitSet, combine func(*incomingSig, BitSet)) *MultiSignature {
 
 	var finalSig = sigs[0].ms.Signature
@@ -292,71 +294,3 @@ func (c *binomialPartitioner) combineSize(sigs []*incomingSig, bs BitSet, combin
 		Signature: finalSig,
 	}
 }
-
-// combines all all given different-level signatures into one signature
-// that has a bitset's size equal to the highest level given + 1. The +1 is
-// necessary because it covers the whole space in the bitset of all signatures
-// together, while the max level only covers its respective signature.
-func (c *binomialPartitioner) combine(sigs []*incomingSig, nbs func(int) BitSet) *incomingSig {
-	if len(sigs) == 0 {
-		return nil
-	}
-	// first, find the range covering all signatures (including potentially
-	// missing ones)
-	// i.e. if you have level 0 and 2, then the range covering everything is
-	// [min, max] where min = minimum of the range of all levels between 0 and 2
-	// included, and max = max of the range of all levels between 0 and 2
-	// included. Or we can just take the "inverse" range of the next level that
-	// covers all levels below :)
-	var maxLvl int
-	for _, s := range sigs {
-		if maxLvl < int(s.level) {
-			maxLvl = int(s.level)
-		}
-	}
-	globalMin, globalMax, err := c.rangeLevelInverse(maxLvl + 1)
-	if err != nil {
-		logf(err.Error())
-		return nil
-	}
-
-	// create bitset and aggregate signatures
-	finalBitSet := nbs(globalMax - globalMin)
-	finalSig := sigs[0].ms.Signature
-
-	combine := func(s *incomingSig) {
-		// compute the offset of this signature compared to the global bitset
-		// index
-		min, _, _ := c.rangeLevel(int(s.level))
-		offset := min - globalMin
-		bs := s.ms.BitSet
-		for i := 0; i < bs.BitLength(); i++ {
-			finalBitSet.Set(offset+i, bs.Get(i))
-		}
-	}
-
-	combine(sigs[0])
-	for _, s := range sigs[1:] {
-		combine(s)
-		finalSig = finalSig.Combine(s.ms.Signature)
-	}
-
-	return &incomingSig{
-		level: byte(maxLvl + 1),
-		ms: &MultiSignature{
-			Signature: finalSig,
-			BitSet:    finalBitSet,
-		},
-	}
-}
-
-/*type partCache struct {*/
-//p Partitioner
-//max int
-//sizes map[int] int
-//}
-
-//func newPartCache(p Partitioner) *partCache {
-//max := p.MaxLevel()
-
-/*}*/

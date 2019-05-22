@@ -6,20 +6,20 @@ type ReportHandel struct {
 	*Handel
 }
 
-// Reporter is simply a copy of monitor.Counter interface to avoid importint
-// monitor in handel.
+// Reporter can report values indexed by a string key as float64 types.
 type Reporter interface {
 	Values() map[string]float64
 }
 
-// NewReportHandel returns a Handel that can report some statistis about its
-// internals
+// NewReportHandel returns a Handel implementing the Reporter interface.
+// It reports values about the network interface and the store interface of
+// Handel.
 func NewReportHandel(h *Handel) *ReportHandel {
 	h.store = newReportStore(h.store)
 	return &ReportHandel{h}
 }
 
-// Values returns the values of ALL internal components of Handel merged together.
+// Values returns the values of the internal components of Handel merged together.
 func (r *ReportHandel) Values() map[string]float64 {
 	net := r.Network()
 	netValues := net.Values()
@@ -57,7 +57,7 @@ type ReportStore struct {
 	replacedTrial  int64
 }
 
-// newReportStore returns a signatureStore with som eadditional reporting
+// newReportStore returns a signatureStore with some addtional reporting
 // capabilities
 func newReportStore(s SignatureStore) SignatureStore {
 	return &ReportStore{
@@ -65,7 +65,7 @@ func newReportStore(s SignatureStore) SignatureStore {
 	}
 }
 
-// Store implements the signatureStore interface
+// Store overload the signatureStore interface's method.
 func (r *ReportStore) Store(sp *incomingSig) *MultiSignature {
 	ms := r.SignatureStore.Store(sp)
 	if ms != nil {
@@ -79,7 +79,9 @@ func (r *ReportStore) Store(sp *incomingSig) *MultiSignature {
 // Values implements the simul/monitor/counterIO interface
 func (r *ReportStore) Values() map[string]float64 {
 	return map[string]float64{
+		// how many times did we successfully replaced a signature
 		"successReplace": float64(r.sucessReplaced),
-		"replaceTrial":   float64(r.replacedTrial),
+		// how many times did we tried to
+		"replaceTrial": float64(r.replacedTrial),
 	}
 }
