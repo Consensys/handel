@@ -15,9 +15,9 @@ type PublicKey interface {
 	// VerifySignature takes a message and a signature and returns an error iif
 	// the signature is invalid with respect to this public key and the message.
 	VerifySignature(msg []byte, sig Signature) error
-	// Combine combines the two public keys together to produce an aggregate public
-	// key. The resulting public key must be valid and able to verify aggregated
-	// signatures valid under the aggregate public key.
+	// Combine combines the two public keys together to produce an aggregate
+	// public key. The resulting public key must be valid and able to verify
+	// aggregated signatures valid under the aggregate public key.
 	Combine(PublicKey) PublicKey
 
 	// String returns an easy representation of the public key (hex, etc).
