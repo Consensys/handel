@@ -16,7 +16,7 @@ presentations:
 + [Community Ethereum Development Conference 2019](https://www.edcon.io/): the
   [slides](https://pandax-statics.oss-cn-shenzhen.aliyuncs.com/statics/1225469768899493.pdf)
 
-We have a paper in submission which should be released to the public soon.
+We have a paper in submission available here: https://arxiv.org/abs/1906.05132
 Please note that the slides are not up-to-date with the latest version of the
 paper.
 
