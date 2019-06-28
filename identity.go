@@ -121,6 +121,7 @@ func shuffle(arr []Identity, r io.Reader) {
 	rnd := mathRand.New(mathRand.NewSource(isource))
 	//rnd := mathRand.New(&readerSource{r})
 	rnd.Shuffle(len(arr), func(i, j int) { arr[i], arr[j] = arr[j], arr[i] })
+
 }
 
 func equals(arr1, arr2 []Identity) bool {
