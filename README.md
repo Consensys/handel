@@ -33,6 +33,7 @@ consumption. Handel aggregates 4000 BN256 signatures with an average of 900ms
 completion time and an average of 56KBytes network consumption.
 
 ## Installation
+This library requires go version 1.11+
 
 This library uses [go modules](https://github.com/golang/go/wiki/Modules), so
 make sure either you clone this library outside your `$GOPATH` or use
