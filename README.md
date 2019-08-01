@@ -32,6 +32,12 @@ logarithmically with the number of nodes both in communication and re- source
 consumption. Handel aggregates 4000 BN256 signatures with an average of 900ms
 completion time and an average of 56KBytes network consumption.
 
+## Installation
+
+This library uses [go modules](https://github.com/golang/go/wiki/Modules), so
+make sure either you clone this library outside your `$GOPATH` or use
+`GO111MODULE=on` before building it.
+
 If you want to hack around the library, you can find more information about the
 internal structure of Handel in the
 [HACKING.md](https://github.com/consensys/handel/blob/master/HACKING.md) file.

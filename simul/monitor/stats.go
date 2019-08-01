@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/dedis/onet/log"
+	"go.dedis.ch/onet/v3/log"
 	"github.com/montanaflynn/stats"
 )
 
