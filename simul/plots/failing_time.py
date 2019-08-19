@@ -39,7 +39,8 @@ for f,v in datas.items():
 
     x = v[failingColumn].map(lambda x: int((x/nodes) * 100))
     for c,name in yColumns.items():
-        y = v[c]
+        # y = v[c]
+        y = v[c].map(lambda x: x * 1000)
         print("file %s -> %d data points on %s" % (f,len(y),sigColumn))
         # label = files[f]
         label = name
@@ -50,8 +51,8 @@ for f,v in datas.items():
 
 label= 35
 plt.legend(fontsize=label)
-plt.ylabel("signature generation",fontsize=label)
-plt.xlabel("failing nodes in %",fontsize=label)
+plt.ylabel("Signature generation (ms)",fontsize=label)
+plt.xlabel("Failing nodes in %",fontsize=label)
 # plt.yscale('log')
 # plt.title("Time for 51% signature threshold over 4000 nodes")
 # plt.axis('log')

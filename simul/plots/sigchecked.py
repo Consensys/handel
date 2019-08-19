@@ -9,9 +9,9 @@ from lib import *
 import pandas as pd
 import matplotlib.pyplot as plt
 
-columns = {"sigs_sigCheckedCt_avg": "average",
-        "sigs_sigCheckedCt_min": "minimum",
-        "sigs_sigCheckedCt_max": "maximum"}
+columns = {"sigs_sigCheckedCt_avg": "Average",
+        "sigs_sigCheckedCt_min": "Minimum",
+        "sigs_sigCheckedCt_max": "Maximum"}
 files = {"csv/handel_0failing_99thr.csv": "handel"}
 
 datas = read_datafiles(files)
@@ -29,8 +29,8 @@ for f,v in datas.items():
         plot(x,y,"-",label,allColors.popleft())
 
 plt.legend(fontsize=fs_label)
-plt.ylabel("signatures checked",fontsize=fs_label)
-plt.xlabel("nodes",fontsize=fs_label)
+plt.ylabel("Number of signatures",fontsize=fs_label)
+plt.xlabel("Number of nodes",fontsize=fs_label)
 # plt.title("Number of signatures checked",fontsize=fs_label)
 # plt.yscale('log')
 plt.show()

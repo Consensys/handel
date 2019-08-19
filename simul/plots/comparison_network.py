@@ -15,12 +15,12 @@ column = "net_sentBytes_avg"
 ## mapping between files and label
         # "csv/libp2p_2000_51thr_agg1.csv": "libp2p"}
 files = {"csv/handel_0failing_99thr.csv": { 
-            "label": "handel",
+            "label": "Handel",
             "xOffset": 0.10,
             "yOffset": 0.09,
         },
         "csv/n2_4000_99thr.csv": {
-            "label": "complete",
+            "label": "Complete",
             "xOffset": 0.20,
             "yOffset": -0.04,
         }
@@ -53,7 +53,7 @@ for f,v in datas.items():
 
 plt.legend(fontsize=fs_label)
 plt.ylabel("KBytes (log)",fontsize=fs_label)
-plt.xlabel("Handel nodes",fontsize=fs_label)
+plt.xlabel("Number of Handel nodes",fontsize=fs_label)
 # plt.title("Outgoing network consumption - comparative baseline",fontsize=fs_label)
 plt.yscale('log')
 plt.show()

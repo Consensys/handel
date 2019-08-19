@@ -27,7 +27,7 @@ for f,v in datas.items():
     y = v[column].map(lambda x: x*1000)
     print("file %s -> %d data points on %s" % (f,len(y),column))
     # label = files[c]
-    label = "handel"
+    label = "Handel"
     if label == "":
         label = input("Label for file %s: " % f)
 
@@ -40,9 +40,9 @@ for f,v in datas.items():
 # plot(x,y,"-","linear",allColors.popleft())
 
 plt.legend(fontsize=fs_label)
-plt.ylabel("signature generation (ms)",fontsize=fs_label)
+plt.ylabel("Signature generation (ms)",fontsize=fs_label)
 # plt.ylabel("sig queue size",fontsize=fs_label)
-plt.xlabel("nodes",fontsize=fs_label)
+plt.xlabel("Number of nodes",fontsize=fs_label)
 plt.title("Handel: 75% threshold signature with 25% failings",fontsize=fs_label)
 # plt.yscale('log')
 plt.show()

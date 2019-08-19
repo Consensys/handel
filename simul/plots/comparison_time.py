@@ -14,12 +14,12 @@ column = "sigen_wall_avg"
 # files = sys.argv[1:]
 ## mapping between files and label
 files = {"csv/handel_0failing_99thr.csv": { 
-            "label": "handel",
+            "label": "Handel",
             "xOffset": 0.10,
             "yOffset": 0.14,
         },
         "csv/n2_4000_99thr.csv": {
-            "label": "complete",
+            "label": "Complete",
             "xOffset": 0.17,
             "yOffset": -0.02,
         }
@@ -51,8 +51,9 @@ for f,v in datas.items():
 
 
 plt.legend(fontsize=fs_label)
-plt.ylabel("signature generation (ms)",fontsize=fs_label)
-plt.xlabel("Handel nodes",fontsize=fs_label)
+plt.ylabel("Signature generation (ms)",fontsize=fs_label)
+plt.xlabel("Number of Handel nodes",fontsize=fs_label)
 # plt.title("Signature generation time - comparative baseline",fontsize=fs_label)
 # plt.yscale('log')
+# plt.tight_layout()
 plt.show()
