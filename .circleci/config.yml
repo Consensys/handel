@@ -16,7 +16,10 @@ jobs:
     working_directory: /go/src/github.com/ConsenSys/handel
     steps:
       - checkout
-
+      - run: 
+          name: "Setup custom environment variables"
+          command: |
+            echo 'export GO111MODULE=on' >> $BASH_ENV # Redirect MY_ENV_VAR into $BASH_ENV
       # specify any bash command here prefixed with `run: `
       - run: go get -v -t -d ./...
       - run: go test -v ./...
