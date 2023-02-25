@@ -8,6 +8,7 @@ require (
 	github.com/cloudflare/bn256 v0.0.0-20190523220833-828ba4f91854
 	github.com/go-kit/kit v0.9.0
 	github.com/go-logfmt/logfmt v0.4.0 // indirect
+	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/ipfs/go-log v0.0.1
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/libp2p/go-libp2p v0.2.1
@@ -26,5 +27,5 @@ require (
 	github.com/whyrusleeping/go-logging v0.0.0-20170515211332-0457bb6b88fc
 	github.com/willf/bitset v1.1.10
 	go.dedis.ch/onet/v3 v3.0.2
-	golang.org/x/crypto v0.0.0-20190701094942-4def268fd1a4
+	golang.org/x/crypto v0.1.0
 )
